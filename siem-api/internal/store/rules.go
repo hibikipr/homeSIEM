@@ -193,3 +193,7 @@ func (s *Store) queryRules(ctx context.Context, query string) ([]Rule, error) {
 func ruleTarget(id int64) string {
 	return "rule:" + strconv.FormatInt(id, 10)
 }
+
+func strconvItoa(id int64) string {
+	return strconv.FormatInt(id, 10)
+}

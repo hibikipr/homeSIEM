@@ -17,6 +17,10 @@ func newTestStore(t *testing.T) *Store {
 	if err := Migrate(db); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
+	// Create a test user for FK references
+	if _, err := db.Exec(`INSERT INTO users (id, email, role) VALUES (1, 'test@test.com', 'admin')`); err != nil {
+		t.Fatalf("create test user: %v", err)
+	}
 	return New(db)
 }
 
