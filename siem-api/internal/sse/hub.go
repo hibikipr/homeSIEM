@@ -46,10 +46,15 @@ func (h *Hub) Publish(topic string, data []byte) {
 	}
 }
 
-func (h *Hub) subscriberCount(topic string) int {
+func (h *Hub) SubscriberCount(topic string) int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return len(h.subs[topic])
+}
+
+// subscriberCount is deprecated; use SubscriberCount instead.
+func (h *Hub) subscriberCount(topic string) int {
+	return h.SubscriberCount(topic)
 }
 
 func (h *Hub) ServeHTTP(topic string, w http.ResponseWriter, r *http.Request) {
