@@ -51,6 +51,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /ingest/fastpath", s.handleFastpath)
 	s.mux.Handle("GET /events/search", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleEventsSearch)))
 	s.mux.Handle("GET /events/tail", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleEventsTail)))
+	s.mux.Handle("GET /events/stats", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleEventsStats)))
 	s.mux.Handle("GET /alerts", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListAlerts)))
 	s.mux.Handle("POST /alerts/{id}/ack", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleAckAlert)))
 	s.mux.Handle("GET /alerts/stream", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleAlertsStream)))
