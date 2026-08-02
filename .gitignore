@@ -8,6 +8,9 @@ design_handoff_homesiem/
 .vscode/
 .idea/
 
+# Claude Code session/worktree bookkeeping
+.claude/
+
 # Environment
 .env
 .env.local
