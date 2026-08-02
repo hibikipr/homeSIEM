@@ -37,11 +37,11 @@
 
 - [ ] **Step 1: Scaffold the SvelteKit project**
 
-From the repo root:
+Run this **non-interactively** (confirmed working syntax — do not use the bare/interactive form, it will hang waiting for prompts you have no way to answer):
 ```bash
-pnpm dlx sv create siem-web
+pnpm dlx sv create siem-web --template minimal --types ts --add prettier eslint vitest playwright --install pnpm
 ```
-Answer the prompts: TypeScript (yes), ESLint (yes), Prettier (yes), Vitest (yes), Playwright (yes). If `sv create` isn't available in this environment's installed tooling version, fall back to `pnpm create svelte@latest siem-web` with the same choices — either produces an equivalent project; note in your report which one you used.
+This scaffolds with TypeScript, Prettier, ESLint, Vitest, and Playwright, and runs `pnpm install` for you. If `sv create` isn't available in this environment's installed tooling version, fall back to `pnpm create svelte@latest siem-web` and check ITS `--help` output for the equivalent non-interactive flags before running it — do not attempt an interactive scaffold in a non-interactive shell either way. Note in your report which command you used.
 
 - [ ] **Step 2: Add the remaining dependencies**
 
