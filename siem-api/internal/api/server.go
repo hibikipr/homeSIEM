@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -19,6 +20,7 @@ type Deps struct {
 	Hub           *sse.Hub
 	Alerts        *alerts.Service
 	Scheduler     *rules.Scheduler
+	SchedulerCtx  context.Context
 	Verifier      *auth.TokenVerifier
 	SessionEst    *auth.SessionEstablisher
 	LocalAuth     *auth.LocalAuthenticator
@@ -49,4 +51,8 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /alerts", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListAlerts)))
 	s.mux.Handle("POST /alerts/{id}/ack", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleAckAlert)))
 	s.mux.Handle("GET /alerts/stream", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleAlertsStream)))
+	s.mux.Handle("GET /rules", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListRules)))
+	s.mux.Handle("POST /rules", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleCreateRule)))
+	s.mux.Handle("PUT /rules/{id}", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleUpdateRule)))
+	s.mux.Handle("DELETE /rules/{id}", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleDeleteRule)))
 }
