@@ -1,80 +1,80 @@
 :root {
-  /* Color */
-  --color-bg: #131523;
-  --color-bg-alt: #161826;
-  --color-surface: #232532;
-  --color-surface-2: #1b1d2c;
-  --color-surface-3: #191b29;
-  --color-text: #e9e9ed;
-  --color-text-2: #cfd3e5;
-  --color-text-3: #b2b6ca;
-  --color-muted: #9397ab;
-  --color-muted-2: #75798c;
-  --color-line: #292b31;
-  --color-line-2: #3f424d;
-  --color-accent: #968ae0;
-  --color-accent-light: #b5abfc;
-  --color-accent-lighter: #d2cefd;
-  --color-accent-deep: #5d5294;
-  --color-accent-tint: #2b2741;
-  --color-accent-tint-2: #423a6a;
+	/* Color */
+	--color-bg: #131523;
+	--color-bg-alt: #161826;
+	--color-surface: #232532;
+	--color-surface-2: #1b1d2c;
+	--color-surface-3: #191b29;
+	--color-text: #e9e9ed;
+	--color-text-2: #cfd3e5;
+	--color-text-3: #b2b6ca;
+	--color-muted: #9397ab;
+	--color-muted-2: #75798c;
+	--color-line: #292b31;
+	--color-line-2: #3f424d;
+	--color-accent: #968ae0;
+	--color-accent-light: #b5abfc;
+	--color-accent-lighter: #d2cefd;
+	--color-accent-deep: #5d5294;
+	--color-accent-tint: #2b2741;
+	--color-accent-tint-2: #423a6a;
 
-  /* Severity (OKLCH, low-chroma) */
-  --color-severity-critical: oklch(0.68 0.16 22);
-  --color-severity-error: oklch(0.68 0.16 22);
-  --color-severity-warning: oklch(0.78 0.13 78);
-  --color-severity-ok: oklch(0.74 0.11 158);
-  --color-severity-healthy: oklch(0.74 0.11 158);
-  --color-severity-notice: #796cbf;
-  --color-severity-info: #5d5294;
+	/* Severity (OKLCH, low-chroma) */
+	--color-severity-critical: oklch(0.68 0.16 22);
+	--color-severity-error: oklch(0.68 0.16 22);
+	--color-severity-warning: oklch(0.78 0.13 78);
+	--color-severity-ok: oklch(0.74 0.11 158);
+	--color-severity-healthy: oklch(0.74 0.11 158);
+	--color-severity-notice: #796cbf;
+	--color-severity-info: #5d5294;
 
-  /* Type */
-  --font-ui: Inter, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
-  --text-page-title: 19px;
-  --text-big-stat: 46px;
-  --text-section-head: 13px;
-  --text-body: 13px;
-  --text-table: 12.5px;
-  --text-log-row: 11.5px;
-  --text-label: 11px;
-  --text-eyebrow: 10px;
-  --line-height-log: 2;
-  --line-height-dense-table: 1.55;
+	/* Type */
+	--font-ui: Inter, sans-serif;
+	--font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+	--text-page-title: 19px;
+	--text-big-stat: 46px;
+	--text-section-head: 13px;
+	--text-body: 13px;
+	--text-table: 12.5px;
+	--text-log-row: 11.5px;
+	--text-label: 11px;
+	--text-eyebrow: 10px;
+	--line-height-log: 2;
+	--line-height-dense-table: 1.55;
 
-  /* Spacing (0.7x scale) */
-  --space-1: 2.8px;
-  --space-2: 5.6px;
-  --space-3: 8.4px;
-  --space-4: 11.2px;
-  --space-5: 16.8px;
-  --space-6: 22.4px;
+	/* Spacing (0.7x scale) */
+	--space-1: 2.8px;
+	--space-2: 5.6px;
+	--space-3: 8.4px;
+	--space-4: 11.2px;
+	--space-5: 16.8px;
+	--space-6: 22.4px;
 
-  /* Radius */
-  --radius-sm: 4px;
-  --radius-default: 8px;
-  --radius-lg: 14px;
+	/* Radius */
+	--radius-sm: 4px;
+	--radius-default: 8px;
+	--radius-lg: 14px;
 
-  /* Elevation */
-  --shadow-flat: 0 0 0 1px var(--color-line-2);
-  --shadow-raised: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
+	/* Elevation */
+	--shadow-flat: 0 0 0 1px var(--color-line-2);
+	--shadow-raised: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
 
-  /* Interaction */
-  --row-hover-bg: rgba(255, 255, 255, 0.035);
-  --row-selected-bg: var(--color-accent-tint);
-  --focus-outline: 2px solid var(--color-accent);
-  --focus-outline-offset: 2px;
+	/* Interaction */
+	--row-hover-bg: rgba(255, 255, 255, 0.035);
+	--row-selected-bg: var(--color-accent-tint);
+	--focus-outline: 2px solid var(--color-accent);
+	--focus-outline-offset: 2px;
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-ui);
-  font-weight: 400;
-  margin: 0;
+	background: var(--color-bg);
+	color: var(--color-text);
+	font-family: var(--font-ui);
+	font-weight: 400;
+	margin: 0;
 }
 
 *:focus-visible {
-  outline: var(--focus-outline);
-  outline-offset: var(--focus-outline-offset);
+	outline: var(--focus-outline);
+	outline-offset: var(--focus-outline-offset);
 }
