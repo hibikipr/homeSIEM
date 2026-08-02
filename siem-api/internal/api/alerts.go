@@ -1,0 +1,75 @@
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/hibikipr/homeSIEM/siem-api/internal/auth"
+	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
+)
+
+type alertResponse struct {
+	ID          int64      `json:"id"`
+	RuleID      int64      `json:"rule_id"`
+	GroupKey    string     `json:"group_key"`
+	Severity    string     `json:"severity"`
+	Title       string     `json:"title"`
+	Body        string     `json:"body"`
+	EventCount  int        `json:"event_count"`
+	State       string     `json:"state"`
+	FirstSeenAt time.Time  `json:"first_seen_at"`
+	LastSeenAt  time.Time  `json:"last_seen_at"`
+	AckedBy     *int64     `json:"acked_by,omitempty"`
+	AckedAt     *time.Time `json:"acked_at,omitempty"`
+}
+
+func toAlertResponse(a store.Alert) alertResponse {
+	return alertResponse{
+		ID: a.ID, RuleID: a.RuleID, GroupKey: a.GroupKey, Severity: a.Severity,
+		Title: a.Title, Body: a.Body, EventCount: a.EventCount, State: a.State,
+		FirstSeenAt: a.FirstSeenAt, LastSeenAt: a.LastSeenAt, AckedBy: a.AckedBy, AckedAt: a.AckedAt,
+	}
+}
+
+func (s *Server) handleListAlerts(w http.ResponseWriter, r *http.Request) {
+	alertsList, err := s.deps.Store.ListAlerts(r.Context(), r.URL.Query().Get("state"))
+	if err != nil {
+		s.deps.Logger.Error("list alerts failed", "error", err)
+		http.Error(w, "list alerts failed", http.StatusInternalServerError)
+		return
+	}
+
+	resp := make([]alertResponse, len(alertsList))
+	for i, a := range alertsList {
+		resp[i] = toAlertResponse(a)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) handleAckAlert(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid alert id", http.StatusBadRequest)
+		return
+	}
+
+	userID, _, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+
+	if err := s.deps.Store.AckAlert(r.Context(), id, userID, time.Now().UTC()); err != nil {
+		s.deps.Logger.Error("ack alert failed", "alert_id", id, "error", err)
+		http.Error(w, "ack failed", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleAlertsStream(w http.ResponseWriter, r *http.Request) {
+	s.deps.Hub.ServeHTTP("alerts", w, r)
+}

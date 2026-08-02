@@ -31,6 +31,10 @@ func newTestServer(t *testing.T) (*Server, *store.Store) {
 	if err := store.Migrate(db); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
+	// Create a test user for FK references (e.g., audit entries)
+	if _, err := db.Exec(`INSERT INTO users (id, email, role) VALUES (1, 'test@test.com', 'admin')`); err != nil {
+		t.Fatalf("create test user: %v", err)
+	}
 	st := store.New(db)
 	hub := sse.NewHub()
 	alertsSvc := alerts.NewService(st, hub, nil, apiTestLogger())
