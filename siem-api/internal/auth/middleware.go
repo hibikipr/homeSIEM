@@ -17,7 +17,13 @@ const (
 	ctxRoleKey
 )
 
-var roleRank = map[string]int{"viewer": 1, "analyst": 2, "admin": 3}
+const (
+	RoleViewer  = "viewer"
+	RoleAnalyst = "analyst"
+	RoleAdmin   = "admin"
+)
+
+var roleRank = map[string]int{RoleViewer: 1, RoleAnalyst: 2, RoleAdmin: 3}
 
 func Middleware(verifier *TokenVerifier, resolver RoleResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

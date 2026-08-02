@@ -77,7 +77,7 @@ func signedTestToken(t *testing.T, secret []byte, userID int64, groups []string)
 
 func TestMiddleware_ValidTokenAttachesUserAndRole(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
-	resolver := &fakeResolver{roles: map[string]string{"siem-analysts": "analyst"}}
+	resolver := &fakeResolver{roles: map[string]string{"siem-analysts": RoleAnalyst}}
 	mw := Middleware(NewTokenVerifier(secret), resolver)
 	handler := mw(echoHandler())
 
@@ -113,7 +113,7 @@ func TestMiddleware_MissingToken(t *testing.T) {
 
 func TestMiddleware_UnmappedGroupDenied(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
-	resolver := &fakeResolver{roles: map[string]string{"admins": "admin"}}
+	resolver := &fakeResolver{roles: map[string]string{"admins": RoleAdmin}}
 	mw := Middleware(NewTokenVerifier(secret), resolver)
 	handler := mw(echoHandler())
 
@@ -129,9 +129,9 @@ func TestMiddleware_UnmappedGroupDenied(t *testing.T) {
 
 func TestRequireRole_InsufficientDenied(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
-	resolver := &fakeResolver{roles: map[string]string{"homelab": "viewer"}}
+	resolver := &fakeResolver{roles: map[string]string{"homelab": RoleViewer}}
 	mw := Middleware(NewTokenVerifier(secret), resolver)
-	handler := mw(RequireRole("admin", echoHandler()))
+	handler := mw(RequireRole(RoleAdmin, echoHandler()))
 
 	req := httptest.NewRequest(http.MethodPost, "/rules", nil)
 	req.Header.Set("Authorization", "Bearer "+signedTestToken(t, secret, 7, []string{"homelab"}))
@@ -145,9 +145,9 @@ func TestRequireRole_InsufficientDenied(t *testing.T) {
 
 func TestRequireRole_SufficientAllowed(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
-	resolver := &fakeResolver{roles: map[string]string{"admins": "admin"}}
+	resolver := &fakeResolver{roles: map[string]string{"admins": RoleAdmin}}
 	mw := Middleware(NewTokenVerifier(secret), resolver)
-	handler := mw(RequireRole("analyst", echoHandler()))
+	handler := mw(RequireRole(RoleAnalyst, echoHandler()))
 
 	req := httptest.NewRequest(http.MethodPost, "/rules", nil)
 	req.Header.Set("Authorization", "Bearer "+signedTestToken(t, secret, 7, []string{"admins"}))
