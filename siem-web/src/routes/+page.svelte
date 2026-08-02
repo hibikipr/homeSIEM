@@ -3,6 +3,7 @@
   import HeatGrid from '$lib/components/HeatGrid.svelte';
   import TriageCard from '$lib/components/TriageCard.svelte';
   import CountryBar from '$lib/components/CountryBar.svelte';
+  import Ticker from '$lib/components/Ticker.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -20,6 +21,7 @@
   </div>
   <div class="col-side">
     <CountryBar countries={data.countryBreakdown} />
+    <Ticker />
   </div>
 </div>
 
