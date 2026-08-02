@@ -55,3 +55,16 @@ func TestBuildQuery_FreeText(t *testing.T) {
 		t.Errorf("BuildQuery() = %q, want %q", got, want)
 	}
 }
+
+func TestBuildQuery_ExtraFieldsRejectInvalidKeyNames(t *testing.T) {
+	got := BuildQuery("siem", Filters{Extra: map[string]string{
+		`src_ip" | label_format evil=`: "10.0.0.5",
+		"dst_port":                     "22",
+	}})
+	if strings.Contains(got, "label_format") {
+		t.Errorf("BuildQuery() = %q, want the malicious key rejected, not interpolated", got)
+	}
+	if !strings.Contains(got, `dst_port="22"`) {
+		t.Errorf("BuildQuery() = %q, want the valid key still present", got)
+	}
+}

@@ -2,9 +2,12 @@ package loki
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+var validFieldName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*$`)
 
 type Filters struct {
 	Source   string
@@ -40,6 +43,9 @@ func BuildQuery(jobLabel string, f Filters) string {
 
 		query += " | json"
 		for _, k := range keys {
+			if !validFieldName.MatchString(k) {
+				continue // skip invalid field names; never interpolate unvalidated keys
+			}
 			query += fmt.Sprintf(` | %s=%q`, k, f.Extra[k])
 		}
 	}
