@@ -24,6 +24,7 @@ type authSettingsResponse struct {
 func (s *Server) handleGetAuthSettings(w http.ResponseWriter, r *http.Request) {
 	mappings, err := s.deps.Store.ListRoleMappings(r.Context())
 	if err != nil {
+		s.deps.Logger.Error("list role mappings failed", "error", err)
 		http.Error(w, "list role mappings failed", http.StatusInternalServerError)
 		return
 	}

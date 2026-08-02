@@ -27,6 +27,7 @@ func (s *Server) handleAuthSession(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.deps.SessionEst.Establish(r.Context(), req.Subject, req.Email, req.DisplayName, req.Groups)
 	if err != nil {
+		s.deps.Logger.Error("auth session establish failed", "subject", req.Subject, "error", err)
 		http.Error(w, "denied", http.StatusForbidden)
 		return
 	}
@@ -53,6 +54,7 @@ func (s *Server) handleAuthLocal(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.deps.LocalAuth.Login(r.Context(), req.Username, req.Password)
 	if err != nil {
+		s.deps.Logger.Error("local login failed", "username", req.Username, "error", err)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
