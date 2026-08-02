@@ -197,3 +197,15 @@ func ruleTarget(id int64) string {
 func strconvItoa(id int64) string {
 	return strconv.FormatInt(id, 10)
 }
+
+func (s *Store) GetRuleByName(ctx context.Context, name string) (*Rule, error) {
+	row := s.db.QueryRowContext(ctx, ruleSelect+` WHERE name = ?`, name)
+	r, err := scanRule(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
