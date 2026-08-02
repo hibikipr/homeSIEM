@@ -56,6 +56,19 @@ func (s *Store) FindOpenAlert(ctx context.Context, ruleID int64, groupKey string
 	return &a, nil
 }
 
+func (s *Store) FindLatestAlert(ctx context.Context, ruleID int64, groupKey string) (*Alert, error) {
+	row := s.db.QueryRowContext(ctx,
+		alertSelect+` WHERE rule_id = ? AND group_key = ? ORDER BY last_seen_at DESC LIMIT 1`, ruleID, groupKey)
+	a, err := scanAlert(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
 func (s *Store) InsertAlert(ctx context.Context, a Alert) (Alert, error) {
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO alerts (rule_id, group_key, severity, title, body, event_count, context,
@@ -82,7 +95,8 @@ func (s *Store) TouchAlert(ctx context.Context, id int64, at time.Time) error {
 
 func (s *Store) ReopenAlert(ctx context.Context, id int64, at time.Time) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE alerts SET state = 'open', last_seen_at = ? WHERE id = ?`, formatTime(at), id)
+		`UPDATE alerts SET state = 'open', last_seen_at = ?, event_count = 1, acked_by = NULL, acked_at = NULL WHERE id = ?`,
+		formatTime(at), id)
 	return err
 }
 
@@ -137,10 +151,18 @@ func (s *Store) AckAlert(ctx context.Context, id int64, userID int64, at time.Ti
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(ctx,
+	res, err := tx.ExecContext(ctx,
 		`UPDATE alerts SET state = 'acked', acked_by = ?, acked_at = ? WHERE id = ?`,
-		userID, formatTime(at), id); err != nil {
+		userID, formatTime(at), id)
+	if err != nil {
 		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
 	}
 
 	target := "alert:" + strconvItoa(id)

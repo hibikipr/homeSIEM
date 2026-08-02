@@ -1,7 +1,9 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -63,6 +65,10 @@ func (s *Server) handleAckAlert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.deps.Store.AckAlert(r.Context(), id, userID, time.Now().UTC()); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "alert not found", http.StatusNotFound)
+			return
+		}
 		s.deps.Logger.Error("ack alert failed", "alert_id", id, "error", err)
 		http.Error(w, "ack failed", http.StatusInternalServerError)
 		return

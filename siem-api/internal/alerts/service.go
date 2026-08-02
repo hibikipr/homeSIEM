@@ -27,7 +27,7 @@ type Candidate struct {
 
 type AlertStore interface {
 	GetRule(ctx context.Context, id int64) (store.Rule, error)
-	FindOpenAlert(ctx context.Context, ruleID int64, groupKey string) (*store.Alert, error)
+	FindLatestAlert(ctx context.Context, ruleID int64, groupKey string) (*store.Alert, error)
 	InsertAlert(ctx context.Context, a store.Alert) (store.Alert, error)
 	TouchAlert(ctx context.Context, id int64, at time.Time) error
 	ReopenAlert(ctx context.Context, id int64, at time.Time) error
@@ -60,7 +60,7 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 		return err
 	}
 
-	existing, err := s.store.FindOpenAlert(ctx, c.RuleID, c.GroupKey)
+	existing, err := s.store.FindLatestAlert(ctx, c.RuleID, c.GroupKey)
 	if err != nil {
 		return err
 	}
@@ -70,13 +70,17 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 	notify := false
 
 	switch {
-	case existing != nil && now.Sub(existing.LastSeenAt) < time.Duration(rule.CooldownSec)*time.Second:
+	case existing != nil && existing.State == "open" && now.Sub(existing.LastSeenAt) < time.Duration(rule.CooldownSec)*time.Second:
 		if err := s.store.TouchAlert(ctx, existing.ID, now); err != nil {
 			return err
 		}
 		alertID = existing.ID
 
 	case existing != nil:
+		// Either still open but cooldown lapsed, or previously acked/muted/closed
+		// and firing again — either way, reuse the same row (never insert a
+		// second row for this rule_id+group_key, which would violate the
+		// schema's UNIQUE(rule_id, group_key, state) once it's later acked).
 		if err := s.store.ReopenAlert(ctx, existing.ID, now); err != nil {
 			return err
 		}
@@ -125,11 +129,13 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 
 func severityToPriority(severity string) string {
 	switch severity {
-	case "critical", "error":
+	case "critical":
 		return "urgent"
-	case "warning":
+	case "high":
 		return "high"
-	default:
+	case "medium":
 		return "default"
+	default: // "low", or anything unrecognized
+		return "low"
 	}
 }

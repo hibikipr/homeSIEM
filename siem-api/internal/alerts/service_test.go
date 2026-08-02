@@ -34,7 +34,7 @@ func (f *fakeAlertStore) GetRule(ctx context.Context, id int64) (store.Rule, err
 	return f.rules[id], nil
 }
 
-func (f *fakeAlertStore) FindOpenAlert(ctx context.Context, ruleID int64, groupKey string) (*store.Alert, error) {
+func (f *fakeAlertStore) FindLatestAlert(ctx context.Context, ruleID int64, groupKey string) (*store.Alert, error) {
 	return f.openAlerts[key(ruleID, groupKey)], nil
 }
 
@@ -123,7 +123,7 @@ func TestRaise_WithinCooldown_TouchesOnlyNoNotify(t *testing.T) {
 	fs := newFakeAlertStore()
 	fs.rules[1] = store.Rule{ID: 1, CooldownSec: 3600}
 	now := time.Now().UTC()
-	fs.openAlerts[key(1, "10.0.0.5")] = &store.Alert{ID: 99, RuleID: 1, GroupKey: "10.0.0.5", LastSeenAt: now}
+	fs.openAlerts[key(1, "10.0.0.5")] = &store.Alert{ID: 99, RuleID: 1, GroupKey: "10.0.0.5", State: "open", LastSeenAt: now}
 	hub := sse.NewHub()
 	ch, cancel := hub.Subscribe("alerts")
 	defer cancel()
@@ -149,6 +149,24 @@ func TestRaise_WithinCooldown_TouchesOnlyNoNotify(t *testing.T) {
 	case msg := <-ch:
 		t.Fatalf("expected no SSE publish within cooldown, got %q", msg)
 	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestSeverityToPriority(t *testing.T) {
+	cases := []struct {
+		severity string
+		want     string
+	}{
+		{"critical", "urgent"},
+		{"high", "high"},
+		{"medium", "default"},
+		{"low", "low"},
+		{"unrecognized", "low"},
+	}
+	for _, c := range cases {
+		if got := severityToPriority(c.severity); got != c.want {
+			t.Errorf("severityToPriority(%q) = %q, want %q", c.severity, got, c.want)
+		}
 	}
 }
 

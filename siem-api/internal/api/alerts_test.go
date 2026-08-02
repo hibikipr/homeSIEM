@@ -123,6 +123,20 @@ func TestAckAlert_AnalystSucceedsAndAudits(t *testing.T) {
 	}
 }
 
+func TestAckAlert_NotFound(t *testing.T) {
+	s, st := newTestServer(t)
+	token := authToken(t, st, "analyst", 50)
+
+	req := httptest.NewRequest(http.MethodPost, "/alerts/999999/ack", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestAlertsStream_PublishesFromHub(t *testing.T) {
 	s, st := newTestServer(t)
 	token := authToken(t, st, "viewer", 100)
