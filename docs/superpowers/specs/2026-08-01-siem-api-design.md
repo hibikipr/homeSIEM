@@ -42,8 +42,11 @@ beyond the one addition noted below.
   the eventual multi-arch build (`linux/amd64` + `linux/arm64` via `docker buildx`) is far
   simpler without a C toolchain per architecture. `mattn/go-sqlite3` (CGO) was considered
   and rejected for this reason.
-- **`coreos/go-oidc`** for JWKS-backed token verification (used once, in the BFF-facing
-  auth boundary — see below).
+- **`golang-jwt/jwt/v5`** for verifying the internal HMAC-signed session token forwarded by
+  `siem-web`'s BFF (see Auth & RBAC below). `siem-api` itself never talks OIDC/JWKS — that
+  happens once, in the BFF, which is out of scope for this spec. `coreos/go-oidc` is
+  therefore a `siem-web` dependency, not a `siem-api` one.
+- **`golang.org/x/crypto/bcrypt`** for the break-glass local admin password check.
 - No ORM, no query builder: `database/sql` directly against `modernc.org/sqlite`.
 
 ## Package layout
@@ -76,9 +79,16 @@ owner of the database handle.
 `siem-api` sits on the `backend` network only, reachable exclusively through `siem-web`'s
 BFF. Rather than verifying the OIDC ID token itself on every request, `siem-api` trusts a
 short-lived **internal JWT** minted by the BFF at login (claims: `sub`, `email`, `groups`),
-signed with the shared `SIEM_SESSION_SECRET`. `coreos/go-oidc`/JWKS verification happens
-exactly once, in the BFF, at the OIDC callback — `siem-api` only verifies the internal
-signature.
+signed with the shared `SIEM_SESSION_SECRET`. OIDC/JWKS verification happens exactly once,
+in the BFF, at the OIDC callback — `siem-api` only verifies the internal signature.
+
+**Config additions beyond the reference `.env.example`/`docker-compose.yml`** (both are
+deployment-scaffold concerns, out of scope here, but `siem-api` needs these env vars once
+that scaffold is built): `SIEM_SESSION_SECRET` already exists in `.env.example` and is
+reused as-is; `SIEM_FASTPATH_TOKEN` is new, a static shared token `/ingest/fastpath`
+checks directly (Vector isn't an OIDC client, so it can't carry the internal JWT);
+`SIEM_LOCAL_ADMIN_USERNAME`/`SIEM_LOCAL_ADMIN_PASSWORD_HASH` seed the one break-glass row
+in `users` on first startup (idempotent — a pre-existing row is left alone).
 
 - `auth.Middleware` decodes the internal JWT, maps `groups` → role via `role_mappings`
   (first match by `priority`, deny if unmapped), attaches `(userID, role)` to context.
