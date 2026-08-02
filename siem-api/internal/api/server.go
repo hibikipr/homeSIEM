@@ -55,4 +55,6 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /rules", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleCreateRule)))
 	s.mux.Handle("PUT /rules/{id}", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleUpdateRule)))
 	s.mux.Handle("DELETE /rules/{id}", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleDeleteRule)))
+	s.mux.Handle("GET /sources", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListSources)))
+	s.mux.Handle("POST /sources/{id}/claim", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleClaimSource)))
 }
