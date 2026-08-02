@@ -57,7 +57,8 @@ func Middleware(verifier *TokenVerifier, resolver RoleResolver) func(http.Handle
 func RequireRole(minRole string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, role, ok := UserFromContext(r.Context())
-		if !ok || roleRank[role] < roleRank[minRole] {
+		minRank, known := roleRank[minRole]
+		if !ok || !known || roleRank[role] < minRank {
 			http.Error(w, "insufficient role", http.StatusForbidden)
 			return
 		}

@@ -147,6 +147,12 @@ func (s *Store) UpsertRoleMapping(ctx context.Context, m RoleMapping) (RoleMappi
 func (s *Store) ResolveRole(ctx context.Context, groups []string) (string, bool) {
 	mappings, err := s.ListRoleMappings(ctx)
 	if err != nil {
+		// Fails closed (deny) on any DB error, including transient SQLITE_BUSY
+		// under the single-connection pool. Intentionally silent here: this
+		// function's (string, bool) signature — matching auth.RoleResolver —
+		// has no error channel, and adding a logger dependency to Store for
+		// this one path isn't worth the ripple. A persistent DB problem will
+		// surface elsewhere (every other Store method does log its errors).
 		return "", false
 	}
 

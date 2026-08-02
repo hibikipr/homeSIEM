@@ -73,6 +73,23 @@ func TestCreateAndListRules(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("list = %+v, want 1 rule", list)
 	}
+
+	entries, err := s.deps.Store.ListAudit(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("ListAudit() error = %v", err)
+	}
+	found := false
+	for _, e := range entries {
+		if e.Action == "rule.create" {
+			found = true
+			if e.UserID == nil {
+				t.Error("rule.create audit entry has nil UserID, want actor set")
+			}
+		}
+	}
+	if !found {
+		t.Error("no rule.create audit entry found")
+	}
 }
 
 func TestUpdateRule_DisablesStopsScheduler(t *testing.T) {
@@ -105,6 +122,23 @@ func TestUpdateRule_DisablesStopsScheduler(t *testing.T) {
 	if got.Enabled {
 		t.Error("Enabled = true, want false after update")
 	}
+
+	entries, err := s.deps.Store.ListAudit(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListAudit() error = %v", err)
+	}
+	found := false
+	for _, e := range entries {
+		if e.Action == "rule.update" {
+			found = true
+			if e.UserID == nil {
+				t.Error("rule.update audit entry has nil UserID, want actor set")
+			}
+		}
+	}
+	if !found {
+		t.Error("no rule.update audit entry found")
+	}
 }
 
 func TestDeleteRule(t *testing.T) {
@@ -130,5 +164,22 @@ func TestDeleteRule(t *testing.T) {
 	}
 	if _, err := s.deps.Store.GetRule(ctx, created.ID); err == nil {
 		t.Fatal("GetRule() after delete: error = nil, want not found")
+	}
+
+	entries, err := s.deps.Store.ListAudit(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListAudit() error = %v", err)
+	}
+	found := false
+	for _, e := range entries {
+		if e.Action == "rule.delete" {
+			found = true
+			if e.UserID == nil {
+				t.Error("rule.delete audit entry has nil UserID, want actor set")
+			}
+		}
+	}
+	if !found {
+		t.Error("no rule.delete audit entry found")
 	}
 }

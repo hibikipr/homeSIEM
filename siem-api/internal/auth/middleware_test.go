@@ -143,6 +143,22 @@ func TestRequireRole_InsufficientDenied(t *testing.T) {
 	}
 }
 
+func TestRequireRole_UnknownMinRoleDenies(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	resolver := &fakeResolver{roles: map[string]string{"admins": RoleAdmin}}
+	mw := Middleware(NewTokenVerifier(secret), resolver)
+	handler := mw(RequireRole("not-a-real-role", echoHandler()))
+
+	req := httptest.NewRequest(http.MethodPost, "/rules", nil)
+	req.Header.Set("Authorization", "Bearer "+signedTestToken(t, secret, 7, []string{"admins"}))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
 func TestRequireRole_SufficientAllowed(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
 	resolver := &fakeResolver{roles: map[string]string{"admins": RoleAdmin}}

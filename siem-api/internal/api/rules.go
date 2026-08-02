@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hibikipr/homeSIEM/siem-api/internal/auth"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
 )
 
@@ -78,7 +79,13 @@ func (s *Server) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := s.deps.Store.CreateRule(r.Context(), req.toStoreRule(), nil)
+	userID, _, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+
+	created, err := s.deps.Store.CreateRule(r.Context(), req.toStoreRule(), &userID)
 	if err != nil {
 		s.deps.Logger.Error("create rule failed", "error", err)
 		http.Error(w, "create rule failed", http.StatusInternalServerError)
@@ -109,7 +116,13 @@ func (s *Server) handleUpdateRule(w http.ResponseWriter, r *http.Request) {
 	ruleToUpdate := req.toStoreRule()
 	ruleToUpdate.ID = id
 
-	updated, err := s.deps.Store.UpdateRule(r.Context(), ruleToUpdate, nil)
+	userID, _, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+
+	updated, err := s.deps.Store.UpdateRule(r.Context(), ruleToUpdate, &userID)
 	if err != nil {
 		s.deps.Logger.Error("update rule failed", "rule_id", id, "error", err)
 		http.Error(w, "update rule failed", http.StatusInternalServerError)
@@ -135,7 +148,13 @@ func (s *Server) handleDeleteRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.deps.Store.DeleteRule(r.Context(), id, nil); err != nil {
+	userID, _, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+
+	if err := s.deps.Store.DeleteRule(r.Context(), id, &userID); err != nil {
 		s.deps.Logger.Error("delete rule failed", "rule_id", id, "error", err)
 		http.Error(w, "delete rule failed", http.StatusInternalServerError)
 		return
