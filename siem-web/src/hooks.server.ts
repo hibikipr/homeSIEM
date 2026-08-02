@@ -5,7 +5,7 @@ import { verifySessionToken, SESSION_COOKIE_NAME } from '$lib/server/session';
 const PUBLIC_PREFIXES = ['/auth/login', '/auth/callback', '/auth/logout'];
 
 export const handle: Handle = async ({ event, resolve }) => {
-  if (PUBLIC_PREFIXES.some((prefix) => event.url.pathname.startsWith(prefix))) {
+  if (PUBLIC_PREFIXES.some((prefix) => event.url.pathname === prefix || event.url.pathname.startsWith(prefix + '/'))) {
     return resolve(event);
   }
 
