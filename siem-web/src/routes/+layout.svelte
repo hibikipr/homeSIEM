@@ -1,11 +1,21 @@
 <script lang="ts">
-	import favicon from '$lib/assets/favicon.svg';
+  import '@phosphor-icons/web/regular';
+  import '$lib/styles/tokens.css';
+  import Nav from '$lib/components/Nav.svelte';
+  import type { LayoutData } from './$types';
+  import type { Snippet } from 'svelte';
 
-	let { children } = $props();
+  let { data, children }: { data: LayoutData; children: Snippet } = $props();
 </script>
 
-<svelte:head>
-	<link rel="icon" href={favicon} />
-</svelte:head>
+<Nav
+  activeRoute={data.activeRoute}
+  alertCount={0}
+  ingestRate={0}
+  userDisplayName={data.user?.displayName ?? ''}
+  userRole={data.user?.role ?? ''}
+/>
 
-{@render children()}
+<main>
+  {@render children()}
+</main>
