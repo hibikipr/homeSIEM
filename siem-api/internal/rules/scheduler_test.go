@@ -131,6 +131,47 @@ func TestScheduler_StopRule_StopsFurtherEvaluation(t *testing.T) {
 	}
 }
 
+func TestScheduler_StartRule_ConcurrentCallsNeverDoubleRun(t *testing.T) {
+	evaluator := &fakeEvaluator{}
+	raiser := newFakeRaiser()
+	rulesStore := newFakeRulesStore()
+	s := NewScheduler(rulesStore, map[string]Evaluator{"absence": evaluator}, raiser, schedulerTestLogger())
+
+	rule := store.Rule{ID: 1, Shape: "absence", IntervalSec: 1}
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.StartRule(context.Background(), rule)
+		}()
+	}
+	wg.Wait()
+	defer s.Stop()
+
+	s.mu.Lock()
+	n := len(s.cancels)
+	s.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("len(s.cancels) = %d, want 1 — concurrent StartRule calls for the same rule ID must converge on exactly one tracked goroutine", n)
+	}
+}
+
+func TestScheduler_StartRuleAfterStop_NoOp(t *testing.T) {
+	evaluator := &fakeEvaluator{}
+	raiser := newFakeRaiser()
+	rulesStore := newFakeRulesStore()
+	s := NewScheduler(rulesStore, map[string]Evaluator{"absence": evaluator}, raiser, schedulerTestLogger())
+
+	s.Stop()
+	s.StartRule(context.Background(), store.Rule{ID: 1, Shape: "absence", IntervalSec: 1})
+
+	time.Sleep(50 * time.Millisecond)
+	if evaluator.callCount() != 0 {
+		t.Errorf("evaluator called after Stop(), want StartRule to no-op once stopped")
+	}
+}
+
 func TestScheduler_Start_LoadsEnabledRulesFromStore(t *testing.T) {
 	evaluator := &fakeEvaluator{}
 	raiser := newFakeRaiser()

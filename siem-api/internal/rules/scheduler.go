@@ -28,6 +28,7 @@ type Scheduler struct {
 
 	mu      sync.Mutex
 	cancels map[int64]context.CancelFunc
+	stopped bool
 	wg      sync.WaitGroup
 }
 
@@ -53,15 +54,21 @@ func (s *Scheduler) Start(ctx context.Context) error {
 }
 
 func (s *Scheduler) StartRule(ctx context.Context, rule store.Rule) {
-	s.StopRule(rule.ID) // replace any existing goroutine for this rule
-
 	ruleCtx, cancel := context.WithCancel(ctx)
 
 	s.mu.Lock()
+	if s.stopped {
+		s.mu.Unlock()
+		cancel()
+		return
+	}
+	if oldCancel, ok := s.cancels[rule.ID]; ok {
+		oldCancel() // replace any existing goroutine for this rule
+	}
 	s.cancels[rule.ID] = cancel
+	s.wg.Add(1)
 	s.mu.Unlock()
 
-	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		s.runRuleLoop(ruleCtx, rule)
@@ -81,6 +88,7 @@ func (s *Scheduler) StopRule(ruleID int64) {
 
 func (s *Scheduler) Stop() {
 	s.mu.Lock()
+	s.stopped = true
 	for id, cancel := range s.cancels {
 		cancel()
 		delete(s.cancels, id)
