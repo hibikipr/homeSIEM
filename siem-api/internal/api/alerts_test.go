@@ -170,6 +170,135 @@ func TestAlertsStream_PublishesFromHub(t *testing.T) {
 	}
 }
 
+func TestMuteAlert_ViewerForbidden(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "low",
+		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
+	if err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+	now := time.Now().UTC()
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low",
+		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
+	if err != nil {
+		t.Fatalf("InsertAlert() error = %v", err)
+	}
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodPost, "/alerts/"+itoa(alert.ID)+"/mute", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestMuteAlert_AnalystSucceedsAndAudits(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "low",
+		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
+	if err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+	now := time.Now().UTC()
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low",
+		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
+	if err != nil {
+		t.Fatalf("InsertAlert() error = %v", err)
+	}
+
+	token := authToken(t, st, "analyst", 50)
+	req := httptest.NewRequest(http.MethodPost, "/alerts/"+itoa(alert.ID)+"/mute", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204, body=%s", rec.Code, rec.Body.String())
+	}
+
+	got, err := st.GetAlert(ctx, alert.ID)
+	if err != nil {
+		t.Fatalf("GetAlert() error = %v", err)
+	}
+	if got.State != "muted" {
+		t.Errorf("State = %q, want muted", got.State)
+	}
+	if got.MutedUntil == nil || !got.MutedUntil.After(now) {
+		t.Errorf("MutedUntil = %v, want a time after %v", got.MutedUntil, now)
+	}
+}
+
+func TestMuteAlert_NotFound(t *testing.T) {
+	s, st := newTestServer(t)
+	token := authToken(t, st, "analyst", 50)
+	req := httptest.NewRequest(http.MethodPost, "/alerts/9999/mute", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestListAlertSamples_ReturnsStoredSamples(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "low",
+		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
+	if err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+	now := time.Now().UTC()
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low",
+		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
+	if err != nil {
+		t.Fatalf("InsertAlert() error = %v", err)
+	}
+	if err := st.AddAlertSample(ctx, alert.ID, now, `{"src_ip":"10.0.0.5","dst_port":443}`); err != nil {
+		t.Fatalf("AddAlertSample() error = %v", err)
+	}
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/alerts/"+itoa(alert.ID)+"/samples", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+
+	var resp []alertSampleResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(resp) != 1 {
+		t.Fatalf("len(resp) = %d, want 1", len(resp))
+	}
+	if resp[0].Line != `{"src_ip":"10.0.0.5","dst_port":443}` {
+		t.Errorf("Line = %q, want the inserted sample", resp[0].Line)
+	}
+}
+
+func TestListAlertSamples_NotFound(t *testing.T) {
+	s, st := newTestServer(t)
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/alerts/9999/samples", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func itoa(n int64) string {
 	if n == 0 {
 		return "0"

@@ -76,6 +76,69 @@ func (s *Server) handleAckAlert(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) handleMuteAlert(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid alert id", http.StatusBadRequest)
+		return
+	}
+	userID, _, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+
+	until := time.Now().UTC().Add(time.Hour)
+	if err := s.deps.Store.MuteAlert(r.Context(), id, userID, until); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "alert not found", http.StatusNotFound)
+			return
+		}
+		s.deps.Logger.Error("mute alert failed", "alert_id", id, "error", err)
+		http.Error(w, "mute failed", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type alertSampleResponse struct {
+	ID   int64     `json:"id"`
+	TS   time.Time `json:"ts"`
+	Line string    `json:"line"`
+}
+
+func (s *Server) handleListAlertSamples(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid alert id", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := s.deps.Store.GetAlert(r.Context(), id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "alert not found", http.StatusNotFound)
+			return
+		}
+		s.deps.Logger.Error("get alert failed", "alert_id", id, "error", err)
+		http.Error(w, "get alert failed", http.StatusInternalServerError)
+		return
+	}
+
+	samples, err := s.deps.Store.ListAlertSamples(r.Context(), id)
+	if err != nil {
+		s.deps.Logger.Error("list alert samples failed", "alert_id", id, "error", err)
+		http.Error(w, "list samples failed", http.StatusInternalServerError)
+		return
+	}
+
+	resp := make([]alertSampleResponse, len(samples))
+	for i, sample := range samples {
+		resp[i] = alertSampleResponse{ID: sample.ID, TS: sample.TS, Line: sample.Line}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
 func (s *Server) handleAlertsStream(w http.ResponseWriter, r *http.Request) {
 	s.deps.Hub.ServeHTTP("alerts", w, r)
 }

@@ -54,6 +54,8 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /events/stats", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleEventsStats)))
 	s.mux.Handle("GET /alerts", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListAlerts)))
 	s.mux.Handle("POST /alerts/{id}/ack", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleAckAlert)))
+	s.mux.Handle("POST /alerts/{id}/mute", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleMuteAlert)))
+	s.mux.Handle("GET /alerts/{id}/samples", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListAlertSamples)))
 	s.mux.Handle("GET /alerts/stream", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleAlertsStream)))
 	s.mux.Handle("GET /rules", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListRules)))
 	s.mux.Handle("POST /rules", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleCreateRule)))
