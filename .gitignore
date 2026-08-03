@@ -1,0 +1,28 @@
+# Handoff bundle (reference material, not tracked)
+design_handoff_homesiem/
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Claude Code session/worktree bookkeeping
+.claude/
+
+# Environment
+.env
+.env.local
+*.env
+!.env.example
+!**/reference/.env.example
+
+# Go (siem-api)
+siem-api/siem-api
+siem-api/*.db
+siem-api/*.db-wal
+siem-api/*.db-shm
+*.test
+*.out
+coverage.txt
