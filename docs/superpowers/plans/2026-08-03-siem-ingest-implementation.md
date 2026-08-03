@@ -635,7 +635,7 @@ docker compose up -d
 sleep 3
 ./send-test-traffic.sh
 sleep 2
-curl -s "http://localhost:3100/loki/api/v1/query_range?query={job=\"siem\"}" | python3 -m json.tool
+curl -sg "http://localhost:3100/loki/api/v1/query_range?query={job=\"siem\"}" | python3 -m json.tool
 ```
 Expected: two log streams, one with `source="udm-ultra"` (from the UniFi
 UDP line) and one with `source="test-host-1"` (from the TCP host line),
@@ -674,7 +674,7 @@ docker compose up -d
 sleep 3
 ./send-test-traffic.sh
 sleep 2
-curl -s "http://localhost:3100/loki/api/v1/query_range?query={job=\"siem\"}" | python3 -m json.tool
+curl -sg "http://localhost:3100/loki/api/v1/query_range?query={job=\"siem\"}" | python3 -m json.tool
 docker compose down
 ```
 Expected: `vector validate` reports the config valid; the Loki query still
@@ -849,7 +849,7 @@ docker compose up -d
 sleep 3
 ./send-test-traffic.sh
 sleep 2
-curl -s "http://localhost:3100/loki/api/v1/query_range?query={job=\"siem\"}" | python3 -m json.tool
+curl -sg "http://localhost:3100/loki/api/v1/query_range?query={job=\"siem\"}" | python3 -m json.tool
 docker compose down
 ```
 Expected: config valid; Loki entries still carry only the five allowed
@@ -1263,7 +1263,7 @@ sleep 3
 ./send-test-traffic.sh
 sleep 2
 echo "--- Loki entries ---"
-curl -s "http://localhost:3100/loki/api/v1/query_range?query={job=\"siem\"}" | python3 -m json.tool
+curl -sg "http://localhost:3100/loki/api/v1/query_range?query={job=\"siem\"}" | python3 -m json.tool
 echo "--- Fastpath/heartbeat calls received ---"
 docker compose logs stub-receiver
 docker compose down
