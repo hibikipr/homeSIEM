@@ -112,8 +112,9 @@ and the mute/samples endpoints added during the Wall/Alerts sub-projects.
   Handler calls `Store.UpsertSource` (auto-registers a new source as
   unclaimed if `name` hasn't been seen, updates `address`/`transport`/`parser`
   if it has) then `Store.TouchSourceLastSeen` to bump `last_seen_at`. Returns
-  `204 No Content` on success, matching the fastpath endpoint's own response
-  shape.
+  `202 Accepted` on success, matching `handleFastpath`'s own response code
+  exactly (verified against its actual code, not assumed) — both are
+  fire-and-forget ingestion endpoints with the same trust boundary.
 - **Known, accepted limitation**: `UpsertSource`'s existing SQL always
   overwrites `heartbeat_sec` with whatever the caller passes. Since there's no
   UI yet to let an admin customize a source's heartbeat interval (that
