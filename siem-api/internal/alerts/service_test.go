@@ -191,3 +191,66 @@ func TestRaise_PastCooldown_ReopensAndNotifies(t *testing.T) {
 		t.Errorf("notifier.calls = %d, want 1 past cooldown", notifier.calls)
 	}
 }
+
+func TestRaise_MutedAndUnexpired_TouchesOnlyNoNotify(t *testing.T) {
+	fs := newFakeAlertStore()
+	fs.rules[1] = store.Rule{ID: 1, CooldownSec: 60}
+	now := time.Now().UTC()
+	until := now.Add(30 * time.Minute)
+	fs.openAlerts[key(1, "10.0.0.5")] = &store.Alert{
+		ID: 99, RuleID: 1, GroupKey: "10.0.0.5", State: "muted",
+		LastSeenAt: now.Add(-time.Hour), MutedUntil: &until,
+	}
+	hub := sse.NewHub()
+	ch, cancel := hub.Subscribe("alerts")
+	defer cancel()
+	notifier := &fakeNotifier{}
+
+	svc := NewService(fs, hub, notifier, testLogger())
+	err := svc.Raise(context.Background(), Candidate{RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical", Title: "t", Body: "b"})
+	if err != nil {
+		t.Fatalf("Raise() error = %v", err)
+	}
+
+	if len(fs.touched) != 1 || fs.touched[0] != 99 {
+		t.Errorf("touched = %v, want [99]", fs.touched)
+	}
+	if len(fs.reopened) != 0 {
+		t.Error("expected no reopen while muted and unexpired")
+	}
+	if notifier.calls != 0 {
+		t.Errorf("notifier.calls = %d, want 0 while muted", notifier.calls)
+	}
+
+	select {
+	case msg := <-ch:
+		t.Fatalf("expected no SSE publish while muted, got %q", msg)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestRaise_MutedAndExpired_ReopensAndNotifies(t *testing.T) {
+	fs := newFakeAlertStore()
+	fs.rules[1] = store.Rule{ID: 1, CooldownSec: 60}
+	now := time.Now().UTC()
+	expired := now.Add(-time.Minute)
+	fs.openAlerts[key(1, "10.0.0.5")] = &store.Alert{
+		ID: 99, RuleID: 1, GroupKey: "10.0.0.5", State: "muted",
+		LastSeenAt: now.Add(-2 * time.Hour), MutedUntil: &expired,
+	}
+	hub := sse.NewHub()
+	notifier := &fakeNotifier{}
+
+	svc := NewService(fs, hub, notifier, testLogger())
+	err := svc.Raise(context.Background(), Candidate{RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical", Title: "t", Body: "b"})
+	if err != nil {
+		t.Fatalf("Raise() error = %v", err)
+	}
+
+	if len(fs.reopened) != 1 || fs.reopened[0] != 99 {
+		t.Errorf("reopened = %v, want [99]", fs.reopened)
+	}
+	if notifier.calls != 1 {
+		t.Errorf("notifier.calls = %d, want 1 after mute expiry", notifier.calls)
+	}
+}

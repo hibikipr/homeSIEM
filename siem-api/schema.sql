@@ -51,6 +51,7 @@ CREATE TABLE alerts (
   last_seen_at  TEXT NOT NULL DEFAULT (datetime('now')),
   acked_by      INTEGER REFERENCES users(id),
   acked_at      TEXT,
+  muted_until   TEXT,                       -- set when state = 'muted'
   UNIQUE (rule_id, group_key, state)
 );
 CREATE INDEX idx_alerts_state ON alerts(state, last_seen_at DESC);

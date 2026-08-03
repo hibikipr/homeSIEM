@@ -219,3 +219,50 @@ func TestListAlerts_FilterByState(t *testing.T) {
 		t.Fatalf("ListAlerts(\"\") len = %d, want 2", len(all))
 	}
 }
+
+func TestMuteAlert(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	rule := createTestRule(t, s)
+	now := time.Now().UTC()
+
+	inserted, err := s.InsertAlert(ctx, Alert{
+		RuleID: rule.ID, GroupKey: "10.0.0.5", Severity: "critical", Title: "t", Body: "b",
+		EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now,
+	})
+	if err != nil {
+		t.Fatalf("InsertAlert() error = %v", err)
+	}
+
+	until := now.Add(time.Hour)
+	if err := s.MuteAlert(ctx, inserted.ID, 1, until); err != nil {
+		t.Fatalf("MuteAlert() error = %v", err)
+	}
+
+	got, err := s.GetAlert(ctx, inserted.ID)
+	if err != nil {
+		t.Fatalf("GetAlert() error = %v", err)
+	}
+	if got.State != "muted" {
+		t.Errorf("State = %q, want muted", got.State)
+	}
+	// Compare without nanoseconds since database stores only seconds
+	expectedUntil := until.Truncate(time.Second)
+	if got.MutedUntil == nil || !got.MutedUntil.Equal(expectedUntil) {
+		t.Errorf("MutedUntil = %v, want %v", got.MutedUntil, expectedUntil)
+	}
+
+	entries, err := s.ListAudit(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListAudit() error = %v", err)
+	}
+	found := false
+	for _, e := range entries {
+		if e.Action == "alert.mute" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("no alert.mute audit entry found")
+	}
+}

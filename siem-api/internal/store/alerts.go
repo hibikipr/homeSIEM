@@ -21,6 +21,7 @@ type Alert struct {
 	LastSeenAt  time.Time
 	AckedBy     *int64
 	AckedAt     *time.Time
+	MutedUntil  *time.Time
 }
 
 type AlertSample struct {
@@ -31,13 +32,13 @@ type AlertSample struct {
 }
 
 const alertSelect = `SELECT id, rule_id, group_key, severity, title, body, event_count,
-	context, state, first_seen_at, last_seen_at, acked_by, acked_at FROM alerts`
+	context, state, first_seen_at, last_seen_at, acked_by, acked_at, muted_until FROM alerts`
 
 func scanAlert(row rowScanner) (Alert, error) {
 	var a Alert
 	if err := row.Scan(&a.ID, &a.RuleID, &a.GroupKey, &a.Severity, &a.Title, &a.Body,
 		&a.EventCount, &a.Context, &a.State, scanTime(&a.FirstSeenAt), scanTime(&a.LastSeenAt),
-		&a.AckedBy, scanNullTime(&a.AckedAt)); err != nil {
+		&a.AckedBy, scanNullTime(&a.AckedAt), scanNullTime(&a.MutedUntil)); err != nil {
 		return Alert{}, err
 	}
 	return a, nil
@@ -95,7 +96,7 @@ func (s *Store) TouchAlert(ctx context.Context, id int64, at time.Time) error {
 
 func (s *Store) ReopenAlert(ctx context.Context, id int64, at time.Time) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE alerts SET state = 'open', last_seen_at = ?, event_count = 1, acked_by = NULL, acked_at = NULL WHERE id = ?`,
+		`UPDATE alerts SET state = 'open', last_seen_at = ?, event_count = 1, acked_by = NULL, acked_at = NULL, muted_until = NULL WHERE id = ?`,
 		formatTime(at), id)
 	return err
 }
@@ -168,6 +169,35 @@ func (s *Store) AckAlert(ctx context.Context, id int64, userID int64, at time.Ti
 	target := "alert:" + strconvItoa(id)
 	uid := userID
 	if err := writeAudit(tx, AuditEntry{UserID: &uid, Action: "alert.ack", Target: &target, Detail: "{}"}); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) MuteAlert(ctx context.Context, id int64, userID int64, until time.Time) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx,
+		`UPDATE alerts SET state = 'muted', muted_until = ? WHERE id = ?`,
+		formatTime(until), id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+
+	target := "alert:" + strconvItoa(id)
+	uid := userID
+	if err := writeAudit(tx, AuditEntry{UserID: &uid, Action: "alert.mute", Target: &target, Detail: "{}"}); err != nil {
 		return err
 	}
 	return tx.Commit()

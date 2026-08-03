@@ -76,11 +76,18 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 		}
 		alertID = existing.ID
 
+	case existing != nil && existing.State == "muted" && existing.MutedUntil != nil && now.Before(*existing.MutedUntil):
+		if err := s.store.TouchAlert(ctx, existing.ID, now); err != nil {
+			return err
+		}
+		alertID = existing.ID
+
 	case existing != nil:
-		// Either still open but cooldown lapsed, or previously acked/muted/closed
-		// and firing again — either way, reuse the same row (never insert a
-		// second row for this rule_id+group_key, which would violate the
-		// schema's UNIQUE(rule_id, group_key, state) once it's later acked).
+		// Either still open but cooldown lapsed, previously acked/closed and
+		// firing again, or muted with an expired MutedUntil — either way,
+		// reuse the same row (never insert a second row for this
+		// rule_id+group_key, which would violate the schema's
+		// UNIQUE(rule_id, group_key, state) once it's later acked).
 		if err := s.store.ReopenAlert(ctx, existing.ID, now); err != nil {
 			return err
 		}
