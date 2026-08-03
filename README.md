@@ -131,11 +131,14 @@ Subscribe to alert delivery at `http://localhost:8081/<SIEM_NTFY_TOPIC>`
 
 [`.github/workflows/docker-build.yml`](.github/workflows/docker-build.yml)
 builds `siem-api` and `siem-web` for `linux/amd64,linux/arm64` (the
-Raspberry Pi 5 target the design handoff calls out) on every push to `main`
-that touches either service, and publishes to
-`ghcr.io/hibikipr/siem-api:latest` / `ghcr.io/hibikipr/siem-web:latest`
-(plus a `:<short-sha>` tag). `siem-ingest` has no image of its own — it
-runs the upstream `timberio/vector` image with a mounted config.
+Raspberry Pi 5 target the design handoff calls out) whenever a GitHub
+Release is published (or on a manual `workflow_dispatch` run), and
+publishes to `ghcr.io/hibikipr/siem-api` / `ghcr.io/hibikipr/siem-web`,
+tagged `:latest`, `:<version>` (e.g. `:0.1.0`), and `:<major>.<minor>`.
+Cut a release (`git tag vX.Y.Z && git push origin vX.Y.Z`, then
+`gh release create vX.Y.Z`) to publish new images — pushes to `main`
+alone no longer trigger a build. `siem-ingest` has no image of its own —
+it runs the upstream `timberio/vector` image with a mounted config.
 
 To build locally instead of pulling from GHCR:
 
