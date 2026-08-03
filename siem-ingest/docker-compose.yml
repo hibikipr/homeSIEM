@@ -1,0 +1,59 @@
+version: "3.9"
+
+networks:
+  # Created by the root Portainer stack - reference, never re-create.
+  backend:
+    name: backend
+    external: true
+
+volumes:
+  siem_buffer:
+    driver: local
+    name: siem_buffer
+
+services:
+  # Vector - syslog receiver, parser and enricher. The only service in the
+  # homeSIEM stack that publishes host ports, because devices dial it directly.
+  siem-ingest:
+    container_name: siem-ingest
+    image: timberio/vector:0.49.0-alpine
+    # Required: without this, the image silently falls back to its own
+    # bundled demo config instead of the mounted vector.toml below
+    # (verified empirically — it starts up cleanly with no error, so this
+    # is easy to miss without checking).
+    command: ["--config-toml", "/etc/vector/vector.toml"]
+    restart: unless-stopped
+    networks:
+      - backend
+    ports:
+      - "514:514/udp"
+      - "601:601/tcp"
+      - "6514:6514/tcp"
+    expose:
+      - "8686"
+    environment:
+      - TZ=${DOCKER_TZ:-America/New_York}
+      - LOKI_ENDPOINT=http://loki:3100
+      - SIEM_API_URL=http://siem-api:8080
+      - SIEM_FASTPATH_TOKEN=${SIEM_FASTPATH_TOKEN}
+    volumes:
+      - ${MY_DOCKER_DATA_DIR}/homesiem/vector:/etc/vector:ro
+      - ${MY_DOCKER_DATA_DIR}/homesiem/geoip:/geoip:ro
+      - siem_buffer:/var/lib/vector
+    tmpfs: /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8686/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "1.5"
+
+# End siem-ingest stack. Deploy alongside stacks/homelab-siem's siem-api and
+# siem-web service blocks (see the design handoff's reference compose) and
+# after stacks/homelab-monitoring (loki, ntfy must already exist).
