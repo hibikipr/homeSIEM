@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { SiemApiClient, SiemApiError } from './siemApiClient';
+import { SiemApiClient } from './siemApiClient';
 
 function fakeFetch(body: unknown, status = 200) {
 	return vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => {

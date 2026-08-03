@@ -41,7 +41,10 @@ describe('Wall load', () => {
 			};
 		});
 
-		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as any;
+		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as Exclude<
+			Awaited<ReturnType<typeof load>>,
+			void
+		>;
 
 		expect(result.eventCount24h).toBe(1240000);
 		expect(result.heatGrid).toEqual([{ source: 'udm-ultra', hours: ['critical', 'none'] }]);

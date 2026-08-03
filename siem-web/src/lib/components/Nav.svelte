@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+	import type { Pathname } from '$app/types';
+
 	let {
 		activeRoute,
 		alertCount,
@@ -13,13 +16,17 @@
 		userRole: string;
 	} = $props();
 
-	const navItems = [
+	// Only `/` (Wall) exists in this sub-project; the other five screens are separate
+	// future sub-projects, so their paths aren't in SvelteKit's generated `Pathname`
+	// union yet. They're asserted to `Pathname` so `resolve()` (which applies `base`)
+	// can still be used uniformly — drop each assertion as its route lands.
+	const navItems: { label: string; href: Pathname }[] = [
 		{ label: 'Wall', href: '/' },
-		{ label: 'Search', href: '/search' },
-		{ label: 'Live tail', href: '/tail' },
-		{ label: 'Alerts', href: '/alerts' },
-		{ label: 'Sources', href: '/sources' },
-		{ label: 'Settings', href: '/settings' }
+		{ label: 'Search', href: '/search' as Pathname },
+		{ label: 'Live tail', href: '/tail' as Pathname },
+		{ label: 'Alerts', href: '/alerts' as Pathname },
+		{ label: 'Sources', href: '/sources' as Pathname },
+		{ label: 'Settings', href: '/settings' as Pathname }
 	];
 </script>
 
@@ -31,7 +38,7 @@
 
 	<nav class="links">
 		{#each navItems as item (item.href)}
-			<a href={item.href} class:active={activeRoute === item.href}>
+			<a href={resolve(item.href)} class:active={activeRoute === resolve(item.href)}>
 				{item.label}
 				{#if item.label === 'Alerts' && alertCount > 0}
 					<span class="pill">{alertCount}</span>
