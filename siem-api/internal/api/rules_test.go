@@ -183,3 +183,39 @@ func TestDeleteRule(t *testing.T) {
 		t.Error("no rule.delete audit entry found")
 	}
 }
+
+// A rule created without `group_by`/`destinations` must still serialize them as
+// JSON arrays, not `null` — siem-web types them as plain arrays and calls array
+// methods on them (e.g. `rule.destinations.join(', ')` in the Alerts screen's
+// rule panel), which would throw on a `null`.
+func TestListRules_OmittedArrayFieldsSerializeAsEmptyArrays(t *testing.T) {
+	s := newSchedulerTestServer(t)
+	token := authToken(t, s.deps.Store, "analyst", 50)
+
+	body := `{"name":"source-heartbeat","shape":"absence","logql":"{job=\"siem\"}","window_sec":60,"severity":"low","cooldown_sec":3600,"interval_sec":60,"enabled":true}`
+	req := httptest.NewRequest(http.MethodPost, "/rules", bytes.NewReader([]byte(body)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201, body=%s", rec.Code, rec.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/rules", nil)
+	listReq.Header.Set("Authorization", "Bearer "+token)
+	listRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(listRec, listReq)
+
+	var raw []map[string]json.RawMessage
+	if err := json.Unmarshal(listRec.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(raw) != 1 {
+		t.Fatalf("len(raw) = %d, want 1", len(raw))
+	}
+	for _, field := range []string{"group_by", "destinations"} {
+		if got := string(raw[0][field]); got != "[]" {
+			t.Errorf("%s = %s, want []", field, got)
+		}
+	}
+}

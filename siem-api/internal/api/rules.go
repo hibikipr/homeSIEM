@@ -26,11 +26,22 @@ type ruleResponse struct {
 	LastRunAt    *time.Time `json:"last_run_at,omitempty"`
 }
 
+// emptyIfNil keeps `group_by` and `destinations` JSON arrays rather than `null`
+// for rules stored without them. Clients (siem-web's RuleResponse) type these as
+// plain arrays and call array methods on them directly, so a `null` would be a
+// runtime error there rather than an empty list.
+func emptyIfNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
 func toRuleResponse(r store.Rule) ruleResponse {
 	return ruleResponse{
 		ID: r.ID, Name: r.Name, Shape: r.Shape, LogQL: r.LogQL, WindowSec: r.WindowSec,
-		Threshold: r.Threshold, GroupBy: r.GroupBy, Severity: r.Severity,
-		Destinations: r.Destinations, CooldownSec: r.CooldownSec, IntervalSec: r.IntervalSec,
+		Threshold: r.Threshold, GroupBy: emptyIfNil(r.GroupBy), Severity: r.Severity,
+		Destinations: emptyIfNil(r.Destinations), CooldownSec: r.CooldownSec, IntervalSec: r.IntervalSec,
 		Enabled: r.Enabled, LastRunAt: r.LastRunAt,
 	}
 }
