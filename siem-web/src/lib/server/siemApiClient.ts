@@ -24,6 +24,28 @@ export interface AlertResponse {
 	acked_at?: string;
 }
 
+export interface AlertSample {
+	id: number;
+	ts: string;
+	line: string;
+}
+
+export interface RuleResponse {
+	id: number;
+	name: string;
+	shape: string;
+	logql: string;
+	window_sec: number;
+	threshold?: number;
+	group_by: string[];
+	severity: string;
+	destinations: string[];
+	cooldown_sec: number;
+	interval_sec: number;
+	enabled: boolean;
+	last_run_at?: string;
+}
+
 export interface SearchResponse {
 	logql: string;
 	count: number;
@@ -78,6 +100,22 @@ export class SiemApiClient {
 		return this.request<AlertResponse[]>(path, this.authInit(sessionToken));
 	}
 
+	async ackAlert(sessionToken: string, id: number): Promise<void> {
+		return this.requestNoContent(`/alerts/${id}/ack`, { method: 'POST', ...this.authInit(sessionToken) });
+	}
+
+	async muteAlert(sessionToken: string, id: number): Promise<void> {
+		return this.requestNoContent(`/alerts/${id}/mute`, { method: 'POST', ...this.authInit(sessionToken) });
+	}
+
+	async getAlertSamples(sessionToken: string, id: number): Promise<AlertSample[]> {
+		return this.request<AlertSample[]>(`/alerts/${id}/samples`, this.authInit(sessionToken));
+	}
+
+	async getRules(sessionToken: string): Promise<RuleResponse[]> {
+		return this.request<RuleResponse[]>('/rules', this.authInit(sessionToken));
+	}
+
 	async search(sessionToken: string, params: Record<string, string>): Promise<SearchResponse> {
 		const qs = new URLSearchParams(params).toString();
 		const path = qs ? `/events/search?${qs}` : '/events/search';
@@ -94,5 +132,12 @@ export class SiemApiClient {
 			throw new SiemApiError(res.status, await res.text());
 		}
 		return res.json() as Promise<T>;
+	}
+
+	private async requestNoContent(path: string, init: RequestInit): Promise<void> {
+		const res = await this.fetchFn(`${this.baseUrl}${path}`, init);
+		if (!res.ok) {
+			throw new SiemApiError(res.status, await res.text());
+		}
 	}
 }

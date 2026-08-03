@@ -73,4 +73,65 @@ describe('SiemApiClient', () => {
 			status: 403
 		});
 	});
+
+	it('ackAlert POSTs with Authorization and no body', async () => {
+		const fetchFn = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.ackAlert('token-123', 42);
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/alerts/42/ack');
+		expect(init?.method).toBe('POST');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('muteAlert POSTs with Authorization and no body', async () => {
+		const fetchFn = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.muteAlert('token-123', 42);
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/alerts/42/mute');
+		expect(init?.method).toBe('POST');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('getAlertSamples attaches Authorization and parses the response', async () => {
+		const fetchFn = fakeFetch([{ id: 1, ts: '2026-08-02T00:00:00Z', line: '{"src_ip":"10.0.0.5"}' }]);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.getAlertSamples('token-123', 42);
+
+		expect(result).toHaveLength(1);
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/alerts/42/samples');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('getRules attaches Authorization and parses the response', async () => {
+		const fetchFn = fakeFetch([
+			{
+				id: 1,
+				name: 'wan-portscan',
+				shape: 'threshold',
+				logql: '{job="siem"}',
+				window_sec: 60,
+				group_by: [],
+				severity: 'critical',
+				destinations: ['inapp'],
+				cooldown_sec: 3600,
+				interval_sec: 60,
+				enabled: true
+			}
+		]);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.getRules('token-123');
+
+		expect(result).toHaveLength(1);
+		const [url] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/rules');
+	});
 });
