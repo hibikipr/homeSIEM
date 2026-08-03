@@ -85,11 +85,66 @@ source = '''
   .parser = "rfc5424"
 '''
 
+# ---------------------------------------------------------- enrichment
+
+[transforms.enrich_geo]
+type = "remap"
+inputs = ["parse_unifi", "parse_hosts"]
+source = '''
+  if exists(.src_ip) && !ip_cidr_contains!("10.0.0.0/8", .src_ip) {
+    .geoip = get_enrichment_table_record("geolite", { "ip": .src_ip }) ?? {}
+    .threat_intel = get_enrichment_table_record("threatlist", { "ip": .src_ip }).tag ?? null
+  }
+'''
+
+## Bug found and fixed here (same direct-testing process as Task 3's
+## parse_key_value finding): the naive fast_path condition
+## `exists(.threat_intel)` is always true for every enriched event once
+## enrich_geo runs, because enrich_geo assigns `.threat_intel` (even to
+## literal `null` via `?? null`) for every event with a public src_ip.
+## `exists()` checks key *presence*, not whether the value is non-null, so
+## that condition would forward every enriched event to siem-api instead of
+## just real threat-intel hits. Fixed with `!is_null(.threat_intel)`, which
+## correctly distinguishes "key present with a real tag" from "key present
+## but null."
+[transforms.fast_path]
+type = "filter"
+inputs = ["enrich_geo"]
+condition = '''
+  !is_null(.threat_intel) || (.action == "drop" && !is_null(.dst_port))
+'''
+
+[enrichment_tables.geolite]
+type = "geoip"
+path = "/geoip/GeoLite2-City-Test.mmdb"
+
+[enrichment_tables.threatlist]
+type = "file"
+[enrichment_tables.threatlist.file]
+path = "/geoip/threatlist.csv"
+encoding = { type = "csv" }
+[enrichment_tables.threatlist.schema]
+ip = "string"
+tag = "string"
+
 # ------------------------------------------------------------------ sinks
+
+[sinks.siem_api]
+type = "http"
+inputs = ["fast_path"]
+uri = "${SIEM_API_URL}/ingest/fastpath"
+method = "post"
+encoding.codec = "json"
+[sinks.siem_api.request.headers]
+X-Fastpath-Token = "${SIEM_FASTPATH_TOKEN}"
+[sinks.siem_api.buffer]
+type = "memory"
+max_events = 1000
+when_full = "drop_newest"
 
 [sinks.loki]
 type = "loki"
-inputs = ["parse_unifi", "parse_hosts"]
+inputs = ["enrich_geo"]
 endpoint = "${LOKI_ENDPOINT}"
 out_of_order_action = "accept"
 
