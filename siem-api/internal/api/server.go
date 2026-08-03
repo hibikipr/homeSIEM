@@ -49,6 +49,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealthz)
 	s.mux.HandleFunc("POST /ingest/fastpath", s.handleFastpath)
+	s.mux.HandleFunc("POST /sources/heartbeat", s.handleSourceHeartbeat)
 	s.mux.Handle("GET /events/search", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleEventsSearch)))
 	s.mux.Handle("GET /events/tail", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleEventsTail)))
 	s.mux.Handle("GET /events/stats", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleEventsStats)))

@@ -54,3 +54,49 @@ func (s *Server) handleClaimSource(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+type sourceHeartbeatRequest struct {
+	Name      string `json:"name"`
+	Address   string `json:"address"`
+	Transport string `json:"transport"`
+	Parser    string `json:"parser"`
+}
+
+func (s *Server) handleSourceHeartbeat(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Fastpath-Token") != s.deps.FastpathToken || s.deps.FastpathToken == "" {
+		http.Error(w, "invalid fastpath token", http.StatusUnauthorized)
+		return
+	}
+
+	var req sourceHeartbeatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	// heartbeat_sec: no UI exists yet to let an admin customize this per
+	// source, so every heartbeat call passes the schema's own default.
+	// UpsertSource always overwrites it — harmless today since nothing sets
+	// it to anything else, but whoever builds the Sources screen's "edit
+	// heartbeat interval" feature will need to read-then-preserve here
+	// instead of always passing this constant.
+	const defaultHeartbeatSec = 900
+
+	if _, err := s.deps.Store.UpsertSource(ctx, store.Source{
+		Name: req.Name, Address: req.Address, Transport: req.Transport,
+		Parser: req.Parser, HeartbeatSec: defaultHeartbeatSec,
+	}); err != nil {
+		s.deps.Logger.Error("source heartbeat: upsert failed", "name", req.Name, "error", err)
+		http.Error(w, "heartbeat failed", http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.deps.Store.TouchSourceLastSeen(ctx, req.Name, time.Now().UTC()); err != nil {
+		s.deps.Logger.Error("source heartbeat: touch last_seen failed", "name", req.Name, "error", err)
+		http.Error(w, "heartbeat failed", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
