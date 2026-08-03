@@ -92,7 +92,11 @@ describe('Alerts load', () => {
 			enabled: true
 		};
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { getAlerts: vi.fn(), getRules: vi.fn().mockResolvedValue([rule]), getAlertSamples: vi.fn() };
+			return {
+				getAlerts: vi.fn(),
+				getRules: vi.fn().mockResolvedValue([rule]),
+				getAlertSamples: vi.fn()
+			};
 		});
 
 		const result = (await load({
@@ -108,7 +112,9 @@ describe('Alerts load', () => {
 		const alert = fakeAlert({ id: 7 });
 		const getAlertSamplesMock = vi
 			.fn()
-			.mockResolvedValue([{ id: 1, ts: '2026-08-02T00:00:00Z', line: '{"src_ip":"10.0.0.5","dst_port":443}' }]);
+			.mockResolvedValue([
+				{ id: 1, ts: '2026-08-02T00:00:00Z', line: '{"src_ip":"10.0.0.5","dst_port":443}' }
+			]);
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
 				getAlerts: vi.fn().mockResolvedValue([alert]),

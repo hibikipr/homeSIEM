@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import AlertInbox from '$lib/components/AlertInbox.svelte';
 	import AlertDetail from '$lib/components/AlertDetail.svelte';
 	import RuleDetail from '$lib/components/RuleDetail.svelte';
@@ -8,7 +9,7 @@
 	let { data }: { data: PageData } = $props();
 
 	$effect(() => {
-		const source = new EventSource('/api/alerts-proxy');
+		const source = new EventSource(resolve('/api/alerts-proxy'));
 		source.onmessage = () => {
 			invalidateAll();
 		};

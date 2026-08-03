@@ -1,11 +1,9 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import type { AlertResponse } from '$lib/server/siemApiClient';
 
-	let {
-		alert,
-		ruleName,
-		selected
-	}: { alert: AlertResponse; ruleName: string; selected: boolean } = $props();
+	let { alert, ruleName, selected }: { alert: AlertResponse; ruleName: string; selected: boolean } =
+		$props();
 
 	function ageLabel(iso: string): string {
 		const ms = Date.now() - new Date(iso).getTime();
@@ -18,7 +16,7 @@
 <a
 	class="row severity-{alert.severity}"
 	class:selected
-	href="?state={alert.state === 'acked' ? 'acked' : 'open'}&id={alert.id}"
+	href={resolve(`/alerts?state=${alert.state === 'acked' ? 'acked' : 'open'}&id=${alert.id}`)}
 >
 	<div class="header">
 		<span class="eyebrow">{alert.severity}</span>

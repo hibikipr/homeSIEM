@@ -99,7 +99,9 @@ describe('SiemApiClient', () => {
 	});
 
 	it('getAlertSamples attaches Authorization and parses the response', async () => {
-		const fetchFn = fakeFetch([{ id: 1, ts: '2026-08-02T00:00:00Z', line: '{"src_ip":"10.0.0.5"}' }]);
+		const fetchFn = fakeFetch([
+			{ id: 1, ts: '2026-08-02T00:00:00Z', line: '{"src_ip":"10.0.0.5"}' }
+		]);
 		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
 
 		const result = await client.getAlertSamples('token-123', 42);

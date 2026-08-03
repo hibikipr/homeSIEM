@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import type { AlertResponse, RuleResponse } from '$lib/server/siemApiClient';
 	import AlertRow from './AlertRow.svelte';
 	import RuleRow from './RuleRow.svelte';
@@ -28,7 +29,7 @@
 		<span class="title">Alerts</span>
 		<div class="tabs">
 			{#each tabs as t (t.value)}
-				<a href="?state={t.value}" class:active={tab === t.value}>{t.label}</a>
+				<a href={resolve(`/alerts?state=${t.value}`)} class:active={tab === t.value}>{t.label}</a>
 			{/each}
 		</div>
 	</div>

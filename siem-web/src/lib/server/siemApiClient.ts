@@ -101,11 +101,17 @@ export class SiemApiClient {
 	}
 
 	async ackAlert(sessionToken: string, id: number): Promise<void> {
-		return this.requestNoContent(`/alerts/${id}/ack`, { method: 'POST', ...this.authInit(sessionToken) });
+		return this.requestNoContent(`/alerts/${id}/ack`, {
+			method: 'POST',
+			...this.authInit(sessionToken)
+		});
 	}
 
 	async muteAlert(sessionToken: string, id: number): Promise<void> {
-		return this.requestNoContent(`/alerts/${id}/mute`, { method: 'POST', ...this.authInit(sessionToken) });
+		return this.requestNoContent(`/alerts/${id}/mute`, {
+			method: 'POST',
+			...this.authInit(sessionToken)
+		});
 	}
 
 	async getAlertSamples(sessionToken: string, id: number): Promise<AlertSample[]> {

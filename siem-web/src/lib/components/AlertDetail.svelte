@@ -112,7 +112,9 @@
 		{#if rule}
 			<div class="rule-name">{rule.name}</div>
 			<div class="rule-meta">
-				<span class="enabled" class:off={!rule.enabled}>{rule.enabled ? 'enabled' : 'disabled'}</span>
+				<span class="enabled" class:off={!rule.enabled}
+					>{rule.enabled ? 'enabled' : 'disabled'}</span
+				>
 				<span class="destinations">{rule.destinations.join(', ')}</span>
 			</div>
 			<div class="logql-block">{rule.logql}</div>
