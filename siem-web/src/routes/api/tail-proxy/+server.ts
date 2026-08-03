@@ -12,8 +12,7 @@ export const GET: RequestHandler = async ({ locals, fetch }) => {
 		status: upstream.status,
 		headers: {
 			'Content-Type': 'text/event-stream',
-			'Cache-Control': 'no-cache',
-			Connection: 'keep-alive'
+			'Cache-Control': 'no-cache'
 		}
 	});
 };

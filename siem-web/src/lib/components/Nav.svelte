@@ -54,7 +54,7 @@
 			{userDisplayName}
 			<span class="role">{userRole}</span>
 		</span>
-		<span class="avatar"></span>
+		<a href={resolve('/auth/logout')} class="avatar" aria-label="Log out"></a>
 	</div>
 </header>
 
