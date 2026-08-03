@@ -17,11 +17,17 @@
 
 	let acking = $state(false);
 	let muting = $state(false);
+	let error = $state<string | null>(null);
 
 	async function acknowledge() {
 		acking = true;
+		error = null;
 		try {
-			await fetch(`/api/alerts/${alert.id}/ack`, { method: 'POST' });
+			const response = await fetch(`/api/alerts/${alert.id}/ack`, { method: 'POST' });
+			if (!response.ok) {
+				error = 'Failed to acknowledge alert.';
+				return;
+			}
 			await invalidateAll();
 		} finally {
 			acking = false;
@@ -30,8 +36,13 @@
 
 	async function mute() {
 		muting = true;
+		error = null;
 		try {
-			await fetch(`/api/alerts/${alert.id}/mute`, { method: 'POST' });
+			const response = await fetch(`/api/alerts/${alert.id}/mute`, { method: 'POST' });
+			if (!response.ok) {
+				error = 'Failed to mute rule.';
+				return;
+			}
 			await invalidateAll();
 		} finally {
 			muting = false;
@@ -63,6 +74,9 @@
 				Block at gateway
 			</button>
 			<button class="ghost" onclick={mute} disabled={muting}>Mute rule 1h</button>
+			{#if error}
+				<span class="error">{error}</span>
+			{/if}
 		</div>
 	</div>
 
@@ -200,6 +214,11 @@
 	.primary:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+	.error {
+		align-self: center;
+		font-size: var(--text-table);
+		color: var(--color-severity-critical);
 	}
 	.stats {
 		display: grid;

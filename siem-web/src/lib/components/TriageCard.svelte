@@ -6,6 +6,7 @@
 	let { alert }: { alert: AlertResponse } = $props();
 
 	let muting = $state(false);
+	let error = $state<string | null>(null);
 
 	function ageLabel(iso: string): string {
 		const ms = Date.now() - new Date(iso).getTime();
@@ -16,8 +17,13 @@
 
 	async function mute() {
 		muting = true;
+		error = null;
 		try {
-			await fetch(`/api/alerts/${alert.id}/mute`, { method: 'POST' });
+			const response = await fetch(`/api/alerts/${alert.id}/mute`, { method: 'POST' });
+			if (!response.ok) {
+				error = 'Failed to mute alert.';
+				return;
+			}
 			await invalidateAll();
 		} finally {
 			muting = false;
@@ -36,6 +42,9 @@
 		<a class="primary" href={resolve(`/alerts?id=${alert.id}`)}>Investigate</a>
 		<button class="ghost" onclick={mute} disabled={muting}>Mute 1h</button>
 	</div>
+	{#if error}
+		<span class="error">{error}</span>
+	{/if}
 </div>
 
 <style>
@@ -97,5 +106,11 @@
 	.ghost:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+	.error {
+		display: block;
+		margin-top: var(--space-2);
+		font-size: 11px;
+		color: var(--color-severity-critical);
 	}
 </style>
