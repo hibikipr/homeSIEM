@@ -31,6 +31,11 @@ services:
       - LOKI_ENDPOINT=http://loki:3100
       - SIEM_API_URL=http://stub-receiver:8080
       - SIEM_FASTPATH_TOKEN=test-fastpath-token
+      # The harness uses MaxMind's test-only database, which has a different
+      # filename than the real one. vector.toml defaults to the real
+      # /geoip/GeoLite2-City.mmdb so the production deployment needs no
+      # override; only this harness does.
+      - GEOIP_MMDB_PATH=/geoip/GeoLite2-City-Test.mmdb
     volumes:
       - ../vector.toml:/etc/vector/vector.toml:ro
       - ./fixtures/GeoLite2-City-Test.mmdb:/geoip/GeoLite2-City-Test.mmdb:ro

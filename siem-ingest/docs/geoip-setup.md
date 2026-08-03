@@ -16,10 +16,18 @@ homeSIEM. Provision both on the real deployment host.
    ```
 4. Place the resulting `GeoLite2-City.mmdb` at
    `${MY_DOCKER_DATA_DIR}/homesiem/geoip/GeoLite2-City.mmdb` on the
-   deployment host — matching `vector.toml`'s
-   `enrichment_tables.geolite.path` (update that path from the local test
-   harness's `GeoLite2-City-Test.mmdb` filename to the real one when
-   deploying).
+   deployment host. No `vector.toml` edit is needed —
+   `enrichment_tables.geolite.path` already defaults to
+   `/geoip/GeoLite2-City.mmdb`, which is where the compose file's
+   `${MY_DOCKER_DATA_DIR}/homesiem/geoip:/geoip` mount puts it. (Only the
+   local test harness overrides this, via `GEOIP_MMDB_PATH`, because
+   MaxMind's test-only database has a different filename.)
+
+   Do this **before** first start. If the file is missing, Vector does not
+   report "file not found" — it silently drops the enrichment table, and the
+   `enrich_geo` transform then fails to compile with `invalid enum variant
+   for argument "table" ... received: "geolite"`, which takes down the whole
+   pipeline, not just geo enrichment.
 5. MaxMind updates GeoLite2 databases roughly weekly. Consider a small cron
    job re-running steps 3-4 periodically — out of scope for this pass.
 

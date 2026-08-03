@@ -25,22 +25,50 @@ place the cert/key directly under the existing
 `${MY_DOCKER_DATA_DIR}/homesiem/vector` mount, in a `tls/` subdirectory, so
 one volume mount covers both `vector.toml` and the TLS material).
 
-## Important: Mutual TLS requirement caveat
+## `verify_certificate` means mutual TLS — resolved
 
-In testing against the actual Vector binary, `verify_certificate = true` on
-the `hosts_tls` source may imply **mutual TLS** — not just "the sender must
-trust Vector's certificate", but also "Vector requires the sender to present
-a client certificate that Vector's trust store accepts". Bare `openssl
-s_client` connections without a client certificate failed the TLS handshake
-entirely (SSL alert number 40), suggesting the server enforces bidirectional
-certificate verification. This requirement is stricter than one-way TLS and
-was not fully verified in production. **Before relying on port 6514 in
-production, test against a real syslog-sending client (not just `openssl
-s_client`) to confirm whether mutual TLS is actually enforced and, if so,
-what certificate configuration the sending host requires.**
+An earlier pass flagged this as an open question. It is now settled, with
+direct evidence against `timberio/vector:0.49.0-alpine`.
 
-Any host configured to forward syslog to port 6514 over TLS needs
-`verify_certificate = true` (already set in `vector.toml`) satisfied on its
-end — either trust this specific self-signed cert explicitly on the sending
-host, or switch that host to the unencrypted TCP/601 source instead if its
-syslog client can't be configured to trust a custom CA/cert.
+On a Vector **source**, `verify_certificate` controls *client*-certificate
+verification — mutual TLS — not "verify our own certificate". With
+`verify_certificate = true` and no `ca_file`, port 6514 rejects **every**
+connection:
+
+| Client | Result |
+| --- | --- |
+| No client certificate | TLS alert 40 (`handshake_failure`) |
+| Self-signed client certificate | TLS alert 48 (`unknown_ca`) |
+
+The alert-40 → alert-48 change is the proof: Vector did request and read the
+client certificate, then rejected it because it was not issued by a CA in
+Vector's trust store. With no `ca_file` set, Vector falls back to the
+container's system root store, which will never contain a private homelab
+certificate. The port was therefore unusable as originally shipped.
+
+`vector.toml` now sets `verify_certificate = false`, giving ordinary one-way
+TLS: the connection is encrypted, and the **sending host** verifies Vector's
+certificate. That matches what this document describes above and what the
+design intended. Verified end-to-end at this setting — a plain `openssl
+s_client` with no client certificate completes the handshake, and the line
+lands in Loki with `transport="tls/6514"` and produces a source heartbeat.
+
+So: any host forwarding syslog to port 6514 needs to **trust this
+self-signed certificate** (copy `server.crt` into its trust store, or point
+its syslog client's CA setting at it). A sender that cannot be configured to
+trust a custom certificate should use the unencrypted TCP/601 source instead.
+
+### Opting into real mutual TLS (optional)
+
+If you do want client-certificate authentication, one-way TLS is not enough.
+Stand up a small private CA, issue Vector a server certificate and each
+sending host a client certificate from it, then set both of these in
+`vector.toml`'s `[sources.hosts_tls.tls]` block:
+
+```toml
+verify_certificate = true
+ca_file = "/etc/vector/tls/ca.crt"
+```
+
+Without the `ca_file` line, `verify_certificate = true` will lock out every
+sender, exactly as measured above.

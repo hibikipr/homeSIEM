@@ -32,11 +32,15 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
 - No real GeoIP or threat-intel data is provisioned — see the setup docs.
 - The TLS source (port 6514) needs a certificate generated per
   `docs/tls-setup.md` before any host can use it.
-- Port 6514's TLS source may require mutual TLS (Vector requiring the
-  sending host to present a client certificate Vector trusts, not just the
-  reverse) — a bare test connection without a client cert failed the
-  handshake during development. Not fully verified in production; see
-  `docs/tls-setup.md` for detail before relying on this port.
+- Port 6514 runs **one-way** TLS (`verify_certificate = false`). On a Vector
+  source that setting means client-certificate verification, and leaving it
+  `true` without a `ca_file` made the port reject every connection — now
+  confirmed and fixed, with the evidence and an opt-in mutual-TLS recipe in
+  `docs/tls-setup.md`. Each sending host must trust the self-signed server
+  certificate.
+- Port 6514 has been exercised end-to-end only with `openssl s_client`, not
+  with a real syslog daemon (rsyslog/syslog-ng) configured for TLS forwarding
+  — confirm your sender's certificate-trust configuration when you deploy.
 - `heartbeat_sec` (how long before a source is considered "silent") is
   hardcoded to the schema default on every heartbeat call — there's no UI
   yet to customize it per source (that belongs to the not-yet-built Sources
