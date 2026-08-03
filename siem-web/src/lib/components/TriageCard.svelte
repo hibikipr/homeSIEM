@@ -1,13 +1,26 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import type { AlertResponse } from '$lib/server/siemApiClient';
 
 	let { alert }: { alert: AlertResponse } = $props();
+
+	let muting = $state(false);
 
 	function ageLabel(iso: string): string {
 		const ms = Date.now() - new Date(iso).getTime();
 		const minutes = Math.floor(ms / 60000);
 		if (minutes < 60) return `${minutes}m`;
 		return `${Math.floor(minutes / 60)}h`;
+	}
+
+	async function mute() {
+		muting = true;
+		try {
+			await fetch(`/api/alerts/${alert.id}/mute`, { method: 'POST' });
+			await invalidateAll();
+		} finally {
+			muting = false;
+		}
 	}
 </script>
 
@@ -19,8 +32,8 @@
 	<div class="title">{alert.title}</div>
 	<div class="body">{alert.body}</div>
 	<div class="actions">
-		<button class="primary">Investigate</button>
-		<button class="ghost">Mute 1h</button>
+		<a class="primary" href="/alerts?id={alert.id}">Investigate</a>
+		<button class="ghost" onclick={mute} disabled={muting}>Mute 1h</button>
 	</div>
 </div>
 
@@ -65,17 +78,23 @@
 		gap: var(--space-3);
 	}
 	.primary {
+		display: inline-block;
 		background: transparent;
 		border: 1px solid var(--color-accent);
 		color: var(--color-text);
 		border-radius: var(--radius-sm);
 		padding: var(--space-1) var(--space-3);
 		font-size: 11px;
+		text-decoration: none;
 	}
 	.ghost {
 		background: none;
 		border: none;
 		color: var(--color-accent-light);
 		font-size: 11px;
+	}
+	.ghost:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 </style>

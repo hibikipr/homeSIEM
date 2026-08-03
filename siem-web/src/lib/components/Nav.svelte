@@ -24,7 +24,7 @@
 		{ label: 'Wall', href: '/' },
 		{ label: 'Search', href: '/search' as Pathname },
 		{ label: 'Live tail', href: '/tail' as Pathname },
-		{ label: 'Alerts', href: '/alerts' as Pathname },
+		{ label: 'Alerts', href: '/alerts' },
 		{ label: 'Sources', href: '/sources' as Pathname },
 		{ label: 'Settings', href: '/settings' as Pathname }
 	];
