@@ -49,3 +49,17 @@ and Settings are separate future sub-projects.
   response is out of scope for v1.
 - The "reputation" stat on the Alerts detail panel is a static placeholder — nothing in the
   pipeline populates real threat-intel data yet.
+- The Alerts screen's "distinct ports"/"source IP" stat cards depend on log lines carrying
+  structured `src_ip`/`dst_port` JSON fields (`dst_port` as a JSON number) — nothing in the
+  pipeline populates these yet, same class of gap as Wall's country breakdown.
+- Acknowledge/Mute buttons are shown to every role, not just `analyst`+/`admin` — siem-api
+  correctly rejects the request either way, but a `viewer` clicking either button now sees
+  an inline "failed" message rather than the button being hidden/disabled up front. Proper
+  role-gating needs `user.role` plumbed through both the Wall and Alerts screens' loads —
+  deferred as its own small follow-up, not done in this pass.
+- Muting an alert removes it from every list (Wall's triage lane, the Alerts inbox) for the
+  full mute window with no "Muted" tab or countdown — this matches the design's intent for
+  Wall's triage lane, but is an easy-to-miss side effect from the Alerts detail pane.
+- Ack/mute changes made by one analyst aren't pushed live to other open browser sessions —
+  only new alerts raised by the rule engine publish over SSE; a second person's ack/mute
+  only becomes visible to you on your next own action or reload.
