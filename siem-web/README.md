@@ -23,9 +23,9 @@ for the design.
 
 ## What's built so far
 
-OIDC login, session cookie, global nav chrome, Screen 1 (Wall). The other
-five screens (Search, Live tail, Alerts, Sources, Settings) are separate
-future sub-projects.
+OIDC login, session cookie, global nav chrome, Screen 1 (Wall), Screen 4
+(Alerts — inbox, detail, read-only Rules tab). Search, Live tail, Sources,
+and Settings are separate future sub-projects.
 
 ## Known gaps in this pass
 
@@ -43,3 +43,9 @@ future sub-projects.
   automated development environment used to build this sub-project. Someone
   with Pocket ID admin access needs to register a client and run this by
   hand before shipping.
+- The Alerts screen's Rules tab is read-only — no create/edit/delete/enable-toggle UI yet;
+  that's a future sub-project.
+- "Block at gateway" on the Alerts detail panel is a disabled button — SOAR-style automated
+  response is out of scope for v1.
+- The "reputation" stat on the Alerts detail panel is a static placeholder — nothing in the
+  pipeline populates real threat-intel data yet.
