@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
@@ -11,9 +11,8 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-			// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
+			// Node adapter: siem-web deploys as a standalone Node server in Docker,
+			// not to a platform adapter-auto could detect (Vercel/Netlify/Cloudflare/etc).
 			adapter: adapter()
 		})
 	],
