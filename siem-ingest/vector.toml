@@ -1,0 +1,237 @@
+# $${MY_DOCKER_DATA_DIR}/homesiem/vector/vector.toml
+#
+# One source + transform pair per device family; the sink and label set
+# are shared. The job label is what keeps this feed distinct from the
+# alloy and unpoller feeds already in the same Loki tenant.
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+# ---------------------------------------------------------------- sources
+
+[sources.unifi]
+type = "syslog"
+address = "0.0.0.0:514"
+mode = "udp"
+receive_buffer_bytes = 8388608   # needs net.core.rmem_max raised on the host
+
+[sources.hosts_tcp]
+type = "syslog"
+address = "0.0.0.0:601"
+mode = "tcp"
+
+[sources.hosts_tls]
+type = "syslog"
+address = "0.0.0.0:6514"
+mode = "tcp"
+[sources.hosts_tls.tls]
+enabled = true
+crt_file = "/etc/vector/tls/server.crt"
+key_file = "/etc/vector/tls/server.key"
+## verify_certificate on a Vector *source* controls CLIENT-certificate
+## verification, i.e. mutual TLS - not "verify our own cert". Confirmed
+## empirically against timberio/vector:0.49.0-alpine during the final review:
+## with `= true` and no ca_file, port 6514 rejects every connection. A client
+## offering no certificate gets TLS alert 40 (handshake_failure); a client
+## offering a self-signed certificate gets alert 48 (unknown_ca), because
+## Vector falls back to the container's system root store, which will never
+## contain a private homelab cert. The port was therefore 100% unusable as
+## originally configured.
+##
+## `false` gives ordinary one-way TLS: the connection is encrypted and the
+## SENDER verifies Vector's certificate - which is exactly what the design
+## and docs/tls-setup.md describe ("trust this specific self-signed cert on
+## the sending host"). Verified working end-to-end at this setting: a plain
+## `openssl s_client` with no client cert completes the handshake, and the
+## line lands in Loki with transport="tls/6514" and produces a heartbeat.
+##
+## To opt into REAL mutual TLS later, set this back to `true` AND add
+## `ca_file = "/etc/vector/tls/ca.crt"` pointing at a private CA, then issue
+## each sending host a client certificate from that CA. See docs/tls-setup.md.
+verify_certificate = false
+
+# ------------------------------------------------------------- transforms
+
+[transforms.parse_unifi]
+type = "remap"
+inputs = ["unifi"]
+source = '''
+  .job = "siem"
+  .source = "udm-ultra"
+  .transport = "udp/514"
+  .parser = "unifi-os"
+  if match(string!(.message), r'\[(?P<rule>[A-Z_]+-\w+-[ADR])\]') {
+    .rule     = parse_regex!(.message, r'\[(?P<rule>[A-Z_]+-\w+-[ADR])\]').rule
+    .src_ip   = parse_regex(.message, r'(?:^| )SRC=(?P<val>[^ ]+)').val ?? null
+    .dst_ip   = parse_regex(.message, r'(?:^| )DST=(?P<val>[^ ]+)').val ?? null
+    dpt       = parse_regex(.message, r'(?:^| )DPT=(?P<val>[^ ]+)').val ?? null
+    .dst_port = to_int(dpt) ?? null
+    proto     = parse_regex(.message, r'(?:^| )PROTO=(?P<val>[^ ]+)').val ?? ""
+    .proto    = downcase(proto)
+    .action   = if ends_with(.rule, "-D") { "drop" } else { "accept" }
+  }
+'''
+
+## Step 3 finding: Vector's syslog source populates `.source_type` with the
+## *component type* ("syslog"), not the component id — confirmed empirically
+## against this harness: both the hosts_tcp-sourced event and the
+## unifi-sourced event carry `"source_type":"syslog"`, so `.source_type`
+## cannot distinguish hosts_tcp from hosts_tls (both are also type="syslog").
+## Using the brief's documented fallback instead: split into two
+## branch transforms that each set only the transport-specific field, then
+## feed a shared downstream transform for the common host-parsing logic.
+
+[transforms.parse_hosts_tcp]
+type = "remap"
+inputs = ["hosts_tcp"]
+source = '''
+  .transport = "tcp/601"
+'''
+
+[transforms.parse_hosts_tls]
+type = "remap"
+inputs = ["hosts_tls"]
+source = '''
+  .transport = "tls/6514"
+'''
+
+[transforms.parse_hosts]
+type = "remap"
+inputs = ["parse_hosts_tcp", "parse_hosts_tls"]
+source = '''
+  .job = "siem"
+  .source = downcase(string!(.host))
+  .parser = "rfc5424"
+'''
+
+# ---------------------------------------------------------- enrichment
+
+[transforms.enrich_geo]
+type = "remap"
+inputs = ["parse_unifi", "parse_hosts"]
+source = '''
+  if exists(.src_ip) && !ip_cidr_contains!("10.0.0.0/8", .src_ip) {
+    .geoip = get_enrichment_table_record("geolite", { "ip": .src_ip }) ?? {}
+    .threat_intel = get_enrichment_table_record("threatlist", { "ip": .src_ip }).tag ?? null
+  }
+'''
+
+## Bug found and fixed here (same direct-testing process as Task 3's
+## parse_key_value finding): the naive fast_path condition
+## `exists(.threat_intel)` is always true for every enriched event once
+## enrich_geo runs, because enrich_geo assigns `.threat_intel` (even to
+## literal `null` via `?? null`) for every event with a public src_ip.
+## `exists()` checks key *presence*, not whether the value is non-null, so
+## that condition would forward every enriched event to siem-api instead of
+## just real threat-intel hits. Fixed with `!is_null(.threat_intel)`, which
+## correctly distinguishes "key present with a real tag" from "key present
+## but null."
+[transforms.fast_path]
+type = "filter"
+inputs = ["enrich_geo"]
+condition = '''
+  !is_null(.threat_intel) || (.action == "drop" && !is_null(.dst_port))
+'''
+
+## Defaults to the real production filename, so deploying this file as-is
+## needs no edit - just provision the database per docs/geoip-setup.md. The
+## local test harness overrides GEOIP_MMDB_PATH to point at MaxMind's
+## test-only database, which has a different filename. Note that if the file
+## is missing Vector does NOT fail with "file not found": it silently drops
+## the enrichment table, and enrich_geo then fails to compile with
+## `invalid enum variant for argument "table" ... received: "geolite"`, so a
+## missing mmdb takes the whole topology down. Provision it before deploying.
+[enrichment_tables.geolite]
+type = "geoip"
+path = "${GEOIP_MMDB_PATH:-/geoip/GeoLite2-City.mmdb}"
+
+[enrichment_tables.threatlist]
+type = "file"
+[enrichment_tables.threatlist.file]
+path = "/geoip/threatlist.csv"
+encoding = { type = "csv" }
+[enrichment_tables.threatlist.schema]
+ip = "string"
+tag = "string"
+
+# ---------------------------------------------------------- heartbeat
+
+[transforms.heartbeat_throttle]
+type = "throttle"
+inputs = ["enrich_geo"]
+threshold = 1
+window_secs = 900
+key_field = "{{ source }}"
+
+[transforms.heartbeat_shape]
+type = "remap"
+inputs = ["heartbeat_throttle"]
+source = '''
+  . = {
+    "name": .source,
+    "address": .source_ip,
+    "transport": .transport,
+    "parser": .parser
+  }
+'''
+
+# ------------------------------------------------------------------ sinks
+
+## Bug found and fixed here during Task 5's real-siem-api end-to-end check
+## (Step 4): the http sink's default framing for `encoding.codec = "json"`
+## wraps every request body in a JSON array (`[{...}]`), even for a single
+## buffered event. siem-api's real handlers (`handleFastpath`,
+## `handleSourceHeartbeat`) `json.Decode` the body into a single struct, not
+## a slice, so an array-wrapped body fails with 400 "invalid json body" —
+## confirmed directly: identical curl payloads returned 400 for
+## `[{...}]` and 202 for `{...}`. This was invisible against the stub
+## receiver (Task 2-4's harness), which just logs whatever JSON it parses
+## regardless of shape, so it never caught the mismatch. `framing.method =
+## "newline_delimited"` makes each event its own request body, unwrapped.
+## Applies to both http sinks below (`siem_api`, the pre-existing fast_path
+## sink from Task 4, and `siem_heartbeat`, new in this task) since both
+## send single-object bodies to handlers with the same decode shape.
+[sinks.siem_api]
+type = "http"
+inputs = ["fast_path"]
+uri = "${SIEM_API_URL}/ingest/fastpath"
+method = "post"
+encoding.codec = "json"
+framing.method = "newline_delimited"
+[sinks.siem_api.request.headers]
+X-Fastpath-Token = "${SIEM_FASTPATH_TOKEN}"
+[sinks.siem_api.buffer]
+type = "memory"
+max_events = 1000
+when_full = "drop_newest"
+
+[sinks.siem_heartbeat]
+type = "http"
+inputs = ["heartbeat_shape"]
+uri = "${SIEM_API_URL}/sources/heartbeat"
+method = "post"
+encoding.codec = "json"
+framing.method = "newline_delimited"
+[sinks.siem_heartbeat.request.headers]
+X-Fastpath-Token = "${SIEM_FASTPATH_TOKEN}"
+
+[sinks.loki]
+type = "loki"
+inputs = ["enrich_geo"]
+endpoint = "${LOKI_ENDPOINT}"
+out_of_order_action = "accept"
+
+[sinks.loki.encoding]
+codec = "json"
+
+[sinks.loki.labels]
+job = "siem"
+source = "{{ source }}"
+host = "{{ host }}"
+program = "{{ appname }}"
+severity = "{{ severity }}"
+
+[sinks.loki.buffer]
+type = "disk"
+max_size = 536870912
