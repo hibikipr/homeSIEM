@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  loki:
+    image: grafana/loki:3.0.0
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+
+  stub-receiver:
+    image: python:3-alpine
+    working_dir: /app
+    volumes:
+      - ./stub-receiver.py:/app/stub-receiver.py:ro
+    command: ["python3", "stub-receiver.py", "8080"]
+    ports:
+      - "8081:8080"
+
+  vector:
+    image: timberio/vector:0.49.0-alpine
+    # Without this, the image silently falls back to its own bundled demo
+    # config at /etc/vector/vector.yaml (verified empirically: it starts up
+    # cleanly and streams fake movie-quote log lines, giving no indication
+    # the mounted vector.toml below was never read). Confirmed this exact
+    # flag against the real image before writing this task.
+    command: ["--config-toml", "/etc/vector/vector.toml"]
+    depends_on:
+      - loki
+      - stub-receiver
+    environment:
+      - LOKI_ENDPOINT=http://loki:3100
+      - SIEM_API_URL=http://stub-receiver:8080
+      - SIEM_FASTPATH_TOKEN=test-fastpath-token
+    volumes:
+      - ../vector.toml:/etc/vector/vector.toml:ro
+      - ./fixtures:/geoip:ro
+      - ./threatlist.csv:/geoip/threatlist.csv:ro
+    ports:
+      - "514:514/udp"
+      - "601:601/tcp"
+      - "6514:6514/tcp"
+      - "8686:8686"
