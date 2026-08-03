@@ -127,20 +127,66 @@ encoding = { type = "csv" }
 ip = "string"
 tag = "string"
 
+# ---------------------------------------------------------- heartbeat
+
+[transforms.heartbeat_throttle]
+type = "throttle"
+inputs = ["enrich_geo"]
+threshold = 1
+window_secs = 900
+key_field = "{{ source }}"
+
+[transforms.heartbeat_shape]
+type = "remap"
+inputs = ["heartbeat_throttle"]
+source = '''
+  . = {
+    "name": .source,
+    "address": .source_ip,
+    "transport": .transport,
+    "parser": .parser
+  }
+'''
+
 # ------------------------------------------------------------------ sinks
 
+## Bug found and fixed here during Task 5's real-siem-api end-to-end check
+## (Step 4): the http sink's default framing for `encoding.codec = "json"`
+## wraps every request body in a JSON array (`[{...}]`), even for a single
+## buffered event. siem-api's real handlers (`handleFastpath`,
+## `handleSourceHeartbeat`) `json.Decode` the body into a single struct, not
+## a slice, so an array-wrapped body fails with 400 "invalid json body" —
+## confirmed directly: identical curl payloads returned 400 for
+## `[{...}]` and 202 for `{...}`. This was invisible against the stub
+## receiver (Task 2-4's harness), which just logs whatever JSON it parses
+## regardless of shape, so it never caught the mismatch. `framing.method =
+## "newline_delimited"` makes each event its own request body, unwrapped.
+## Applies to both http sinks below (`siem_api`, the pre-existing fast_path
+## sink from Task 4, and `siem_heartbeat`, new in this task) since both
+## send single-object bodies to handlers with the same decode shape.
 [sinks.siem_api]
 type = "http"
 inputs = ["fast_path"]
 uri = "${SIEM_API_URL}/ingest/fastpath"
 method = "post"
 encoding.codec = "json"
+framing.method = "newline_delimited"
 [sinks.siem_api.request.headers]
 X-Fastpath-Token = "${SIEM_FASTPATH_TOKEN}"
 [sinks.siem_api.buffer]
 type = "memory"
 max_events = 1000
 when_full = "drop_newest"
+
+[sinks.siem_heartbeat]
+type = "http"
+inputs = ["heartbeat_shape"]
+uri = "${SIEM_API_URL}/sources/heartbeat"
+method = "post"
+encoding.codec = "json"
+framing.method = "newline_delimited"
+[sinks.siem_heartbeat.request.headers]
+X-Fastpath-Token = "${SIEM_FASTPATH_TOKEN}"
 
 [sinks.loki]
 type = "loki"
