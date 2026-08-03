@@ -33,8 +33,10 @@ services:
       - SIEM_FASTPATH_TOKEN=test-fastpath-token
     volumes:
       - ../vector.toml:/etc/vector/vector.toml:ro
-      - ./fixtures:/geoip:ro
+      - ./fixtures/GeoLite2-City-Test.mmdb:/geoip/GeoLite2-City-Test.mmdb:ro
       - ./threatlist.csv:/geoip/threatlist.csv:ro
+      - ./fixtures/tls/server.crt:/etc/vector/tls/server.crt:ro
+      - ./fixtures/tls/server.key:/etc/vector/tls/server.key:ro
     ports:
       - "514:514/udp"
       - "601:601/tcp"
