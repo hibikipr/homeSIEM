@@ -1,0 +1,108 @@
+# $${MY_DOCKER_DATA_DIR}/homesiem/vector/vector.toml
+#
+# One source + transform pair per device family; the sink and label set
+# are shared. The job label is what keeps this feed distinct from the
+# alloy and unpoller feeds already in the same Loki tenant.
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+# ---------------------------------------------------------------- sources
+
+[sources.unifi]
+type = "syslog"
+address = "0.0.0.0:514"
+mode = "udp"
+receive_buffer_bytes = 8388608   # needs net.core.rmem_max raised on the host
+
+[sources.hosts_tcp]
+type = "syslog"
+address = "0.0.0.0:601"
+mode = "tcp"
+
+[sources.hosts_tls]
+type = "syslog"
+address = "0.0.0.0:6514"
+mode = "tcp"
+[sources.hosts_tls.tls]
+enabled = true
+crt_file = "/etc/vector/tls/server.crt"
+key_file = "/etc/vector/tls/server.key"
+verify_certificate = true
+
+# ------------------------------------------------------------- transforms
+
+[transforms.parse_unifi]
+type = "remap"
+inputs = ["unifi"]
+source = '''
+  .job = "siem"
+  .source = "udm-ultra"
+  .transport = "udp/514"
+  .parser = "unifi-os"
+  if match(string!(.message), r'\[(?P<rule>[A-Z_]+-\w+-[ADR])\]') {
+    .rule     = parse_regex!(.message, r'\[(?P<rule>[A-Z_]+-\w+-[ADR])\]').rule
+    .src_ip   = parse_regex(.message, r'(?:^| )SRC=(?P<val>[^ ]+)').val ?? null
+    .dst_ip   = parse_regex(.message, r'(?:^| )DST=(?P<val>[^ ]+)').val ?? null
+    dpt       = parse_regex(.message, r'(?:^| )DPT=(?P<val>[^ ]+)').val ?? null
+    .dst_port = to_int(dpt) ?? null
+    proto     = parse_regex(.message, r'(?:^| )PROTO=(?P<val>[^ ]+)').val ?? ""
+    .proto    = downcase(proto)
+    .action   = if ends_with(.rule, "-D") { "drop" } else { "accept" }
+  }
+'''
+
+## Step 3 finding: Vector's syslog source populates `.source_type` with the
+## *component type* ("syslog"), not the component id — confirmed empirically
+## against this harness: both the hosts_tcp-sourced event and the
+## unifi-sourced event carry `"source_type":"syslog"`, so `.source_type`
+## cannot distinguish hosts_tcp from hosts_tls (both are also type="syslog").
+## Using the brief's documented fallback instead: split into two
+## branch transforms that each set only the transport-specific field, then
+## feed a shared downstream transform for the common host-parsing logic.
+
+[transforms.parse_hosts_tcp]
+type = "remap"
+inputs = ["hosts_tcp"]
+source = '''
+  .transport = "tcp/601"
+'''
+
+[transforms.parse_hosts_tls]
+type = "remap"
+inputs = ["hosts_tls"]
+source = '''
+  .transport = "tls/6514"
+'''
+
+[transforms.parse_hosts]
+type = "remap"
+inputs = ["parse_hosts_tcp", "parse_hosts_tls"]
+source = '''
+  .job = "siem"
+  .source = downcase(string!(.host))
+  .parser = "rfc5424"
+'''
+
+# ------------------------------------------------------------------ sinks
+
+[sinks.loki]
+type = "loki"
+inputs = ["parse_unifi", "parse_hosts"]
+endpoint = "${LOKI_ENDPOINT}"
+out_of_order_action = "accept"
+
+[sinks.loki.encoding]
+codec = "json"
+
+[sinks.loki.labels]
+job = "siem"
+source = "{{ source }}"
+host = "{{ host }}"
+program = "{{ appname }}"
+severity = "{{ severity }}"
+
+[sinks.loki.buffer]
+type = "disk"
+max_size = 536870912
