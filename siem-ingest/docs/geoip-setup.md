@@ -40,8 +40,65 @@ ip,tag
 203.0.113.44,c2-server
 ```
 
-No specific feed is prescribed here — pick a threat-intel source you trust
-and are licensed to use (many free/open feeds exist; check each one's terms
-before ingesting it), and write a small script to transform it into this
-two-column CSV shape. Place the result at
-`${MY_DOCKER_DATA_DIR}/homesiem/geoip/threatlist.csv`.
+`scripts/update-threatlist.py` generates this file for you, pulled from
+five free, no-signup IP threat-intel feeds (picked from
+[awesome-threat-intelligence](https://github.com/hslatman/awesome-threat-intelligence),
+cross-checked against
+[MISP's default feed manifest](https://raw.githubusercontent.com/MISP/MISP/2.4/app/files/feed-metadata/defaults.json)
+— see "Why these five feeds, and not MISP itself" below):
+
+```bash
+python3 scripts/update-threatlist.py \
+  --output ${MY_DOCKER_DATA_DIR}/homesiem/geoip/threatlist.csv
+```
+
+Stdlib-only (`python3`, no `pip install` needed). An IP seen in more than
+one feed gets a combined tag (`attacker+ipsum-aggregate`) rather than being
+deduped down to one source. To add your own entries alongside the fetched
+feeds without editing the script, pass `--extra your-own.csv` (same
+`ip,tag` shape) — they're merged in, not overwritten on the next run.
+
+**Nothing here is committed to this repo** (matches the project's existing
+decision not to embed GeoIP data either) — the feeds change multiple times
+a day, so a checked-in copy would be stale before it shipped. Run the
+script on the deployment host instead, ideally on a schedule:
+
+```cron
+# /etc/cron.d/homesiem-threatlist — refresh daily at 06:00
+0 6 * * * root python3 /path/to/homeSIEM/siem-ingest/scripts/update-threatlist.py --output ${MY_DOCKER_DATA_DIR}/homesiem/geoip/threatlist.csv >> /var/log/homesiem-threatlist.log 2>&1
+```
+
+The **file itself still has to exist** before first start, same failure
+mode as the GeoIP database (a missing enrichment-table file takes down the
+whole pipeline, not just that one enrichment lookup) — but unlike the
+GeoIP database, it's fine for it to have zero data rows below the header
+while you wait on the first real fetch, same as the checked-in fixture at
+`test/threatlist.csv`. Run the script once before deploying `siem-ingest`
+so real data is already there from the start.
+
+### Why these five feeds, and not MISP itself
+
+[MISP](https://github.com/MISP/MISP) is a full threat-intel *sharing
+platform* (PHP + MySQL + Redis), not just a feed — running one solely to
+re-expose IP lists you can already fetch as plain text is unnecessary
+weight for a homelab. What MISP actually gives you for free, with no
+server required, is its
+[default feed manifest](https://www.misp-project.org/feeds/): a JSON list
+of ~88 community OSINT feeds (URLs + formats), several of which are the
+same sources used here (blocklist.de, the IPsum levels). That manifest is
+a good place to look when you want to add more feeds later — the script's
+`SOURCES` list is deliberately small and hand-picked, not comprehensive.
+
+Feeds that only publish CIDR ranges rather than individual IPs (Spamhaus
+DROP, SANS ISC/DShield's `block.txt`) are excluded on purpose: Vector's
+file-based enrichment table does an **exact-key lookup**, not CIDR
+matching, so a `/20` network block in the CSV would never match a real
+`src_ip` anyway. abuse.ch's SSLBL feed is also excluded — it was
+deprecated in January 2025.
+
+If you already run your own MISP instance, its REST API
+(`POST {MISP_URL}/attributes/restSearch`, `Authorization: <api-key>`
+header, `{"returnFormat":"json","type":{"OR":["ip-src","ip-dst"]}}` body)
+is a reasonable future extension point for this script — not implemented
+here since it needs a live instance + API key most homelab setups won't
+have.
