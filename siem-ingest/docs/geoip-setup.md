@@ -45,23 +45,50 @@ five free, no-signup IP threat-intel feeds (picked from
 [awesome-threat-intelligence](https://github.com/hslatman/awesome-threat-intelligence),
 cross-checked against
 [MISP's default feed manifest](https://raw.githubusercontent.com/MISP/MISP/2.4/app/files/feed-metadata/defaults.json)
-— see "Why these five feeds, and not MISP itself" below):
+— see "Why these five feeds, and not MISP itself" below).
+
+**Nothing it produces is committed to this repo** (matches the project's
+existing decision not to embed GeoIP data either) — the feeds change
+multiple times a day, so a checked-in copy would be stale before it
+shipped.
+
+### Recommended: the `siem-threatlist-updater` container
+
+Both `docker-compose.yml` here and the root example stack already run it
+for you as a service — `siem-threatlist-updater`, built from
+`scripts/Dockerfile` and published to
+`ghcr.io/hibikipr/siem-threatlist-updater`. It fetches once at container
+start, then re-fetches every `UPDATE_INTERVAL_SECONDS` (default 86400 = 24h),
+writing straight into the mounted geoip volume. Nothing else to run — bring
+the stack up and it stays current on its own. It deliberately isn't on the
+`backend` network (that's `internal: true` in a real deployment sharing
+this repo's existing infra, with no route to the actual feed URLs), so it
+gets its own default network with a normal route out.
+
+`siem-ingest`'s `depends_on` waits on this container's healthcheck (which
+only passes once `threatlist.csv` has real content), not just "container
+started" — so on a fresh deploy Vector genuinely won't try to boot before
+the file exists. This is the one piece of the "file must exist before
+first start" requirement below that the container path handles for you
+automatically; GeoLite2-City.mmdb still needs the manual steps above
+regardless of which threatlist.csv path you use.
+
+### Alternative: run the script directly
+
+If you'd rather not run it as a container — a bare-metal deployment, or
+you want a one-off fetch — `python3 scripts/update-threatlist.py` works
+standalone, stdlib-only, no `pip install` needed:
 
 ```bash
 python3 scripts/update-threatlist.py \
   --output ${MY_DOCKER_DATA_DIR}/homesiem/geoip/threatlist.csv
 ```
 
-Stdlib-only (`python3`, no `pip install` needed). An IP seen in more than
-one feed gets a combined tag (`attacker+ipsum-aggregate`) rather than being
-deduped down to one source. To add your own entries alongside the fetched
-feeds without editing the script, pass `--extra your-own.csv` (same
-`ip,tag` shape) — they're merged in, not overwritten on the next run.
-
-**Nothing here is committed to this repo** (matches the project's existing
-decision not to embed GeoIP data either) — the feeds change multiple times
-a day, so a checked-in copy would be stale before it shipped. Run the
-script on the deployment host instead, ideally on a schedule:
+An IP seen in more than one feed gets a combined tag
+(`attacker+ipsum-aggregate`) rather than being deduped down to one source.
+To add your own entries alongside the fetched feeds without editing the
+script, pass `--extra your-own.csv` (same `ip,tag` shape) — they're merged
+in, not overwritten on the next run. On a schedule via cron:
 
 ```cron
 # /etc/cron.d/homesiem-threatlist — refresh daily at 06:00

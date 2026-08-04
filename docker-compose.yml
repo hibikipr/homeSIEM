@@ -137,6 +137,8 @@ services:
         condition: service_healthy
       loki:
         condition: service_healthy
+      siem-threatlist-updater:
+        condition: service_healthy
     ports:
       - "514:514/udp"
       - "601:601/tcp"
@@ -164,3 +166,27 @@ services:
         limits:
           memory: 384m
           cpus: "1.5"
+
+  # Threat-intel updater — fetches scripts/update-threatlist.py's five free
+  # IP feeds daily and writes threatlist.csv into the same geoip directory
+  # siem-ingest reads from (bind-mounted rw here, ro above). siem-ingest's
+  # depends_on above waits on this container's healthcheck (file written),
+  # not just "started", so threatlist.csv exists before Vector boots on a
+  # fresh deploy. Same "ingest" profile as siem-ingest itself since it only
+  # exists to feed that pipeline.
+  siem-threatlist-updater:
+    container_name: siem-threatlist-updater
+    image: ghcr.io/hibikipr/siem-threatlist-updater:latest
+    build: ./siem-ingest/scripts
+    profiles: ["ingest"]
+    restart: unless-stopped
+    environment:
+      - UPDATE_INTERVAL_SECONDS=86400
+    volumes:
+      - ./siem-ingest/geoip:/geoip
+    healthcheck:
+      test: ["CMD-SHELL", "[ -s /geoip/threatlist.csv ] || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

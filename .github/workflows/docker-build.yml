@@ -19,6 +19,8 @@ jobs:
             context: siem-api
           - service: siem-web
             context: siem-web
+          - service: siem-threatlist-updater
+            context: siem-ingest/scripts
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -42,7 +44,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 

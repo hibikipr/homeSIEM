@@ -21,9 +21,12 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
   data requires a MaxMind account; TLS needs a cert generated on the real
   host).
 - `scripts/update-threatlist.py` — generates `threatlist.csv` from five
-  free IP threat-intel feeds (stdlib-only, no `pip install`). See
-  `docs/geoip-setup.md`'s threatlist.csv section for usage and why these
-  particular feeds.
+  free IP threat-intel feeds (stdlib-only, no `pip install`). Runs as the
+  `siem-threatlist-updater` service in `docker-compose.yml` (built from
+  `scripts/Dockerfile`, published to
+  `ghcr.io/hibikipr/siem-threatlist-updater`) — see `docs/geoip-setup.md`'s
+  threatlist.csv section for how that's wired up and why these particular
+  feeds.
 - `test/` — a local Docker-based verification harness (real Vector, real
   Loki, a stub HTTP receiver standing in for siem-api). Run
   `test/fetch-test-fixtures.sh` once, then `docker compose -f test/docker-compose.yml up`,
@@ -33,11 +36,13 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
 
 ## Known gaps in this pass
 
-- No real GeoIP data is provisioned — see `docs/geoip-setup.md`.
-  Threat-intel is closer to solved: `scripts/update-threatlist.py` fetches
-  real data from five feeds, but nothing schedules it to run
-  automatically — set up your own cron/systemd timer per the doc's
-  suggested crontab line.
+- No real GeoIP data is provisioned — see `docs/geoip-setup.md`. Nothing
+  can automate this one (needs your own MaxMind account). Threat-intel is
+  fully solved when deployed via Docker Compose: the
+  `siem-threatlist-updater` service fetches and refreshes real data on its
+  own. Running `scripts/update-threatlist.py` outside of Compose (bare
+  metal) still needs your own cron/systemd timer per the doc's suggested
+  crontab line.
 - The TLS source (port 6514) needs a certificate generated per
   `docs/tls-setup.md` before any host can use it.
 - Port 6514 runs **one-way** TLS (`verify_certificate = false`). On a Vector
