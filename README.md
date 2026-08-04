@@ -115,7 +115,12 @@ takes down the whole pipeline, not just enrichment (see
 `siem-ingest/docs/geoip-setup.md`). Before enabling it:
 
 1. Follow `siem-ingest/docs/geoip-setup.md` to place `GeoLite2-City.mmdb`
-   and `threatlist.csv` under `./siem-ingest/geoip/`.
+   under `./siem-ingest/geoip/` — this one still needs your own MaxMind
+   account, nothing can automate it. `threatlist.csv` in the same
+   directory, by contrast, is handled for you: the `ingest` profile also
+   brings up `siem-threatlist-updater`, which fetches real threat-intel
+   data on its own and keeps it refreshed daily — `siem-ingest` won't even
+   start until that file actually has content.
 2. Follow `siem-ingest/docs/tls-setup.md` to generate a self-signed
    cert/key pair under `./siem-ingest/tls/` (needed for the syslog-TLS
    source on port 6514 even if you don't plan to use it).
@@ -139,15 +144,17 @@ Subscribe to alert delivery at `http://localhost:8081/<SIEM_NTFY_TOPIC>`
 ## Building and publishing images
 
 [`.github/workflows/docker-build.yml`](.github/workflows/docker-build.yml)
-builds `siem-api` and `siem-web` for `linux/amd64,linux/arm64` (the
-Raspberry Pi 5 target the design handoff calls out) whenever a GitHub
-Release is published (or on a manual `workflow_dispatch` run), and
-publishes to `ghcr.io/hibikipr/siem-api` / `ghcr.io/hibikipr/siem-web`,
-tagged `:latest`, `:<version>` (e.g. `:0.1.0`), and `:<major>.<minor>`.
-Cut a release (`git tag vX.Y.Z && git push origin vX.Y.Z`, then
+builds `siem-api`, `siem-web`, and `siem-threatlist-updater` for
+`linux/amd64,linux/arm64` (the Raspberry Pi 5 target the design handoff
+calls out) whenever a GitHub Release is published (or on a manual
+`workflow_dispatch` run), and publishes to `ghcr.io/hibikipr/<service>`,
+tagged `:latest` (stable releases only — a prerelease/beta never becomes
+`:latest`), `:<version>` (e.g. `:0.1.0`), and `:<major>.<minor>`. Cut a
+release (`git tag vX.Y.Z && git push origin vX.Y.Z`, then
 `gh release create vX.Y.Z`) to publish new images — pushes to `main`
-alone no longer trigger a build. `siem-ingest` has no image of its own —
-it runs the upstream `timberio/vector` image with a mounted config.
+alone no longer trigger a build. `siem-ingest` itself still has no image
+of its own — it runs the upstream `timberio/vector` image with a mounted
+config.
 
 To build locally instead of pulling from GHCR:
 
