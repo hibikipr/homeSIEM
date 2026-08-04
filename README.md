@@ -88,10 +88,19 @@ is rejected. Seed one mapping before you try to log in, using whatever
 group name your OIDC provider actually sends for your account:
 
 ```bash
-docker compose run --rm --entrypoint sh siem-api -c \
+docker run --rm -v siem_data:/data alpine:3.19 sh -c \
   "apk add --no-cache sqlite && sqlite3 /data/siem.db \
    \"INSERT INTO role_mappings (group_claim, role, priority) VALUES ('admins', 'admin', 1);\""
 ```
+
+This runs a throwaway container on Docker's default network rather than
+`docker compose run` on `siem-api`'s own — `apk add` needs internet access,
+and a real deployment (e.g. a stack sharing this repo's existing Loki/ntfy
+over an internal-only Docker network) may well have `siem-api` on a network
+with no route out. Mounting the `siem_data` volume directly sidesteps that
+regardless of topology. It doesn't need to run from any particular
+directory, only that the `siem_data` volume already exists (i.e. `siem-api`
+has started at least once).
 
 (This only needs to run once — after that, manage additional mappings from
 the console's Settings → Authentication screen as an admin.)
