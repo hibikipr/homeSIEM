@@ -29,9 +29,9 @@ describe('filterBySeverity', () => {
 	});
 
 	it('returns an empty array when nothing matches', () => {
-		expect(filterBySeverity([fakeEntry({ Labels: { severity: 'debug' } })], new Set(['crit']))).toEqual(
-			[]
-		);
+		expect(
+			filterBySeverity([fakeEntry({ Labels: { severity: 'debug' } })], new Set(['crit']))
+		).toEqual([]);
 	});
 });
 

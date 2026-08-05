@@ -10,6 +10,7 @@
 		activeSeverities = $bindable(),
 		paused = $bindable(false),
 		buffer = $bindable([]),
+		// eslint-disable-next-line no-useless-assignment -- read by the parent via bind:connected, not locally
 		connected = $bindable(true)
 	}: {
 		activeSeverities: Set<string>;
@@ -49,10 +50,13 @@
 	// reassigning it in appendEntry does not retrigger this effect (that
 	// would double-process every message).
 	$effect(() => {
-		activeSeverities;
-		paused;
+		void activeSeverities;
+		void paused;
 		if (!paused) {
-			rendered = filterBySeverity(untrack(() => buffer), activeSeverities);
+			rendered = filterBySeverity(
+				untrack(() => buffer),
+				activeSeverities
+			);
 			if (autoFollow) queueScrollToBottom();
 		}
 	});
@@ -112,9 +116,7 @@
 					<tr>
 						<td class="col-time mono">{entry.Timestamp}</td>
 						<td class="col-severity">
-							<span
-								class="dot"
-								style:background={severityColor(entry.Labels.severity ?? 'info')}
+							<span class="dot" style:background={severityColor(entry.Labels.severity ?? 'info')}
 							></span>
 						</td>
 						<td class="col-host mono">{entry.Labels.host ?? ''}</td>
