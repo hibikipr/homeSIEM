@@ -31,7 +31,9 @@ function fakeHealth() {
 
 describe('Sources load', () => {
 	it('loads sources, health, and a preview sample for the first source by default', async () => {
-		const searchMock = vi.fn().mockResolvedValue({ logql: '', count: 1, entries: [{ Line: '{}' }] });
+		const searchMock = vi
+			.fn()
+			.mockResolvedValue({ logql: '', count: 1, entries: [{ Line: '{}' }] });
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
 				getSources: vi.fn().mockResolvedValue([fakeSource({ name: 'udm-ultra' })]),
@@ -54,10 +56,12 @@ describe('Sources load', () => {
 		const searchMock = vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] });
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
-				getSources: vi.fn().mockResolvedValue([
-					fakeSource({ id: 1, name: 'udm-ultra' }),
-					fakeSource({ id: 2, name: 'host-1' })
-				]),
+				getSources: vi
+					.fn()
+					.mockResolvedValue([
+						fakeSource({ id: 1, name: 'udm-ultra' }),
+						fakeSource({ id: 2, name: 'host-1' })
+					]),
 				getIngestHealth: vi.fn().mockResolvedValue(fakeHealth()),
 				search: searchMock
 			};
@@ -119,6 +123,45 @@ describe('Sources load', () => {
 				getSources: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
 				getIngestHealth: vi.fn().mockResolvedValue(fakeHealth()),
 				search: vi.fn()
+			};
+		});
+
+		await expect(
+			load({
+				locals: { sessionToken: 'stale-token' },
+				url: new URL('https://siem.townsville.cc/sources')
+			} as never)
+		).rejects.toMatchObject({ status: 302, location: '/auth/logout' });
+	});
+
+	it('degrades ingest health to a safe default instead of failing the page on a non-auth error', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getSources: vi.fn().mockResolvedValue([fakeSource()]),
+				getIngestHealth: vi.fn().mockRejectedValue(new SiemApiError(500, 'ingest-health down')),
+				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] })
+			};
+		});
+
+		const result = (await load({
+			locals: { sessionToken: 'token-123' },
+			url: new URL('https://siem.townsville.cc/sources')
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.sources).toHaveLength(1);
+		expect(result.health).toEqual({
+			received_events_per_source: {},
+			loki_sent_events_total: 0,
+			degraded: true
+		});
+	});
+
+	it('redirects to /auth/logout on a 401/403 from the ingest-health fetch', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getSources: vi.fn().mockResolvedValue([fakeSource()]),
+				getIngestHealth: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
+				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] })
 			};
 		});
 
