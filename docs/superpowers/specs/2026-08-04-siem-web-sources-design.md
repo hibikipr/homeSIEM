@@ -68,17 +68,22 @@ No store-layer change — `StaleSources` stays as-is for its existing internal c
 - `viewer`+ role, matching `GET /sources`.
 - New `internal/vector` package: a small GraphQL client (`POST {VectorGraphQLURL}/graphql`)
   mirroring `internal/loki/client.go`'s shape (a `*http.Client`-backed struct with one
-  `Query(ctx, query string, vars map[string]any) (json.RawMessage, error)` method), so the
-  handler can be tested against a fake HTTP server the same way `stats_test.go` fakes Loki.
-- One query fetching: `SourceMetrics.receivedEventsTotal` for `unifi`, `hosts_tcp`,
-  `hosts_tls`; `SinkMetrics.sentEventsTotal` for `loki`; `ComponentErrorsTotal` summed
-  across `parse_unifi`, `parse_hosts`, `enrich_geo`, `siem_api`, `siem_heartbeat`.
+  `Query(ctx, query string) (json.RawMessage, error)` method), so the handler can be tested
+  against a fake HTTP server the same way `stats_test.go` fakes Loki.
+- One query fetching `sources { nodes { componentId metrics { receivedEventsTotal {
+  receivedEventsTotal } } } }` and `sinks { nodes { componentId metrics { sentEventsTotal {
+  sentEventsTotal } } } }` — schema verified against a real `timberio/vector:0.49.0-alpine`
+  instance during planning (`sources`/`sinks` are Relay-style connections off the root
+  `Query` type; `nodes` skips the `edges`/`cursor` wrapper since this pass doesn't paginate).
+  **Component error counts are not included**: introspection found `componentErrorsTotals`
+  only exists on the `Subscription` root type (websocket push), not `Query` — there is no
+  one-shot HTTP way to read it. Adding a GraphQL-over-websocket client for one metric isn't
+  justified this pass; see "Known gaps."
 - Handler shapes the response as:
   ```json
   {
     "received_events_per_source": {"unifi": 1234, "hosts_tcp": 56, "hosts_tls": 0},
-    "loki_sent_events_total": 1290,
-    "component_errors_total": 0
+    "loki_sent_events_total": 1290
   }
   ```
 - New config: `VECTOR_GRAPHQL_URL` (default `http://siem-ingest:8686`), added to
