@@ -23,8 +23,9 @@
 		{#each sources as source (source.id)}
 			<tr class:selected={source.name === selectedName}>
 				<td
-					><a class="name-link" href={resolve(`/sources?preview=${source.name}`)}
-						>{source.name}</a
+					><a
+						class="name-link"
+						href={resolve(`/sources?preview=${encodeURIComponent(source.name)}`)}>{source.name}</a
 					></td
 				>
 				<td class="mono">{source.address}</td>
