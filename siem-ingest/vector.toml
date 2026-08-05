@@ -122,6 +122,21 @@ source = '''
     .severity = "info"
   }
 
+  ## Defensive clamp: found against a real UniFi device whose "SIEM
+  ## Server" test event (a malformed, CEF-wrapped, non-PRI message - see
+  ## the README's known-gaps entry on this integration) confused Vector's
+  ## syslog timestamp decoder into producing a value 4 hours in the
+  ## future. Confirmed empirically this is specific to malformed input:
+  ## a well-formed RFC5424 message with an explicit `Z` UTC timestamp
+  ## parses correctly even with the exact same TZ env var set on the
+  ## process, so this isn't a blanket TZ-handling bug - just don't trust
+  ## a source that hands back an implausible future timestamp, since
+  ## Loki rejects anything too far ahead of real time and drops the
+  ## entire event, not just the bad timestamp.
+  if to_unix_timestamp(timestamp!(.timestamp)) > to_unix_timestamp(now()) + 300 {
+    .timestamp = now()
+  }
+
   if exists(.src_ip) && !ip_cidr_contains!("10.0.0.0/8", .src_ip) {
     .geoip = get_enrichment_table_record("geolite", { "ip": .src_ip }) ?? {}
     .threat_intel = get_enrichment_table_record("threatlist", { "ip": .src_ip }).tag ?? null
