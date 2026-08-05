@@ -11,11 +11,13 @@ import (
 	"github.com/hibikipr/homeSIEM/siem-api/internal/rules"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/sse"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
+	"github.com/hibikipr/homeSIEM/siem-api/internal/vector"
 )
 
 type Deps struct {
 	Store           *store.Store
 	Loki            *loki.Client
+	Vector          *vector.Client
 	JobLabel        string
 	Hub             *sse.Hub
 	Alerts          *alerts.Service
@@ -63,6 +65,7 @@ func (s *Server) routes() {
 	s.mux.Handle("PUT /rules/{id}", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleUpdateRule)))
 	s.mux.Handle("DELETE /rules/{id}", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleDeleteRule)))
 	s.mux.Handle("GET /sources", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListSources)))
+	s.mux.Handle("GET /sources/ingest-health", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleIngestHealth)))
 	s.mux.Handle("POST /sources/{id}/claim", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleClaimSource)))
 	s.mux.Handle("GET /settings/auth", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleGetAuthSettings)))
 	s.mux.Handle("PUT /settings/auth", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleUpdateAuthSettings)))
