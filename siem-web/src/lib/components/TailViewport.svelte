@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { untrack } from 'svelte';
 	import type { LogEntry } from '$lib/server/siemApiClient';
 	import { filterBySeverity, severityColor } from '$lib/tail';
 
@@ -43,13 +44,15 @@
 
 	// Re-derive the full rendered list from the buffer whenever the severity
 	// filter changes or the view un-pauses — new-message-driven updates are
-	// handled incrementally by appendEntry above, so this effect intentionally
-	// does not depend on `buffer` (that would double-process every message).
+	// handled incrementally by appendEntry above. This effect only tracks
+	// `activeSeverities` and `paused`; `buffer` is read via `untrack` so
+	// reassigning it in appendEntry does not retrigger this effect (that
+	// would double-process every message).
 	$effect(() => {
 		activeSeverities;
 		paused;
 		if (!paused) {
-			rendered = filterBySeverity(buffer, activeSeverities);
+			rendered = filterBySeverity(untrack(() => buffer), activeSeverities);
 			if (autoFollow) queueScrollToBottom();
 		}
 	});
