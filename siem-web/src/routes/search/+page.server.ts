@@ -1,0 +1,75 @@
+import { error, redirect } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
+import type { PageServerLoad } from './$types';
+import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
+import {
+	parseFiltersFromURL,
+	filtersToSearchParams,
+	rangeToSeconds,
+	extractSrcIp
+} from '$lib/search';
+
+export const load: PageServerLoad = async ({ locals, url }) => {
+	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const token = locals.sessionToken as string;
+
+	const filters = parseFiltersFromURL(url);
+	const end = new Date();
+	const start = new Date(end.getTime() - rangeToSeconds(filters.range) * 1000);
+
+	let result;
+	try {
+		result = await client.search(token, {
+			...filtersToSearchParams(filters),
+			start: start.toISOString(),
+			end: end.toISOString(),
+			limit: '10000'
+		});
+	} catch (err) {
+		if (err instanceof SiemApiError) {
+			if (err.status === 401 || err.status === 403) {
+				redirect(302, '/auth/logout');
+			}
+			error(502, 'siem-api unavailable');
+		}
+		throw err;
+	}
+
+	const previewParam = url.searchParams.get('preview');
+	const previewIndex = previewParam !== null ? Number(previewParam) : null;
+	const selectedEntry =
+		previewIndex !== null && previewIndex >= 0 && previewIndex < result.entries.length
+			? result.entries[previewIndex]
+			: null;
+
+	let contextSummary: { count: number } | null = null;
+	if (selectedEntry) {
+		const srcIp = extractSrcIp(selectedEntry.Line);
+		if (srcIp) {
+			try {
+				const contextResult = await client.search(token, {
+					q: srcIp,
+					start: new Date(end.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+					end: end.toISOString(),
+					limit: '1'
+				});
+				contextSummary = { count: contextResult.count };
+			} catch {
+				// Context callout is supplementary — a failure here shouldn't
+				// take down the rest of the page.
+				contextSummary = null;
+			}
+		}
+	}
+
+	return {
+		filters,
+		logql: result.logql,
+		count: result.count,
+		entries: result.entries,
+		volume: result.volume,
+		previewIndex,
+		selectedEntry,
+		contextSummary
+	};
+};
