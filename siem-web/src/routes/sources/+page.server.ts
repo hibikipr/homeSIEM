@@ -46,6 +46,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		unclaimedSources: unclaimed,
 		previewName,
 		previewSample,
-		health
+		health,
+		userRole: locals.user?.role
 	};
 };
