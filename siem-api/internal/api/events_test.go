@@ -46,6 +46,79 @@ func TestEventsSearch_ReturnsCompiledQueryAndEntries(t *testing.T) {
 	}
 }
 
+func TestEventsSearch_IncludesVolumeBuckets(t *testing.T) {
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(query, "count_over_time") {
+			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[
+				{"metric":{},"values":[[1700000000,"3"],[1700000300,"7"]]}
+			]}}`))
+			return
+		}
+		w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search?start=2023-11-14T00:00:00Z&end=2023-11-14T01:00:00Z", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(resp.Volume) != 2 || resp.Volume[0].Count != 3 || resp.Volume[1].Count != 7 {
+		t.Fatalf("Volume = %+v", resp.Volume)
+	}
+}
+
+func TestEventsSearch_SucceedsWhenVolumeQueryFails(t *testing.T) {
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(query, "count_over_time") {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write([]byte(`{"status":"success","data":{"result":[
+			{"stream":{"job":"siem"},"values":[["1700000000000000000","hello"]]}
+		]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (volume failure must not fail the whole request), body=%s", rec.Code, rec.Body.String())
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if resp.Count != 1 {
+		t.Fatalf("Count = %d, want 1", resp.Count)
+	}
+	if resp.Volume == nil || len(resp.Volume) != 0 {
+		t.Fatalf("Volume = %+v, want a non-nil empty slice", resp.Volume)
+	}
+}
+
 func TestEventsSearch_RequiresAuth(t *testing.T) {
 	s, _ := newTestServer(t)
 
