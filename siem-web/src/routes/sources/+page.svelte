@@ -20,9 +20,18 @@
 				UniFi: <strong>Settings → System → Advanced → Remote Logging</strong>. Point it at:
 			</p>
 			<dl class="mono">
-				<div class="row"><dt>Syslog (UDP)</dt><dd>514</dd></div>
-				<div class="row"><dt>Syslog (TCP)</dt><dd>601</dd></div>
-				<div class="row"><dt>Syslog (TLS)</dt><dd>6514</dd></div>
+				<div class="row">
+					<dt>Syslog (UDP)</dt>
+					<dd>514</dd>
+				</div>
+				<div class="row">
+					<dt>Syslog (TCP)</dt>
+					<dd>601</dd>
+				</div>
+				<div class="row">
+					<dt>Syslog (TLS)</dt>
+					<dd>6514</dd>
+				</div>
 			</dl>
 		</section>
 		<IngestHealthPanel health={data.health} />

@@ -146,7 +146,10 @@ export class SiemApiClient {
 	}
 
 	async getIngestHealth(sessionToken: string): Promise<IngestHealthResponse> {
-		return this.request<IngestHealthResponse>('/sources/ingest-health', this.authInit(sessionToken));
+		return this.request<IngestHealthResponse>(
+			'/sources/ingest-health',
+			this.authInit(sessionToken)
+		);
 	}
 
 	async claimSource(sessionToken: string, id: number): Promise<void> {
