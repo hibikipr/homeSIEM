@@ -117,3 +117,27 @@ export function computeVolumeTiers(
 		return 'normal';
 	});
 }
+
+export interface VisibleRange {
+	startIndex: number;
+	endIndex: number; // exclusive
+	offsetTop: number;
+}
+
+const VIRTUALIZATION_BUFFER_ROWS = 10;
+
+export function computeVisibleRange(
+	scrollTop: number,
+	containerHeight: number,
+	rowHeight: number,
+	totalRows: number
+): VisibleRange {
+	if (totalRows === 0 || rowHeight <= 0) {
+		return { startIndex: 0, endIndex: 0, offsetTop: 0 };
+	}
+	const firstVisible = Math.floor(scrollTop / rowHeight);
+	const visibleCount = Math.ceil(containerHeight / rowHeight);
+	const startIndex = Math.max(0, firstVisible - VIRTUALIZATION_BUFFER_ROWS);
+	const endIndex = Math.min(totalRows, firstVisible + visibleCount + VIRTUALIZATION_BUFFER_ROWS);
+	return { startIndex, endIndex, offsetTop: startIndex * rowHeight };
+}

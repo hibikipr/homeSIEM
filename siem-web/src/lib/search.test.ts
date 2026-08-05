@@ -6,7 +6,8 @@ import {
 	deriveFacetCounts,
 	deriveCountryFacet,
 	extractSrcIp,
-	computeVolumeTiers
+	computeVolumeTiers,
+	computeVisibleRange
 } from './search';
 import type { LogEntry } from './server/siemApiClient';
 
@@ -123,5 +124,30 @@ describe('computeVolumeTiers', () => {
 
 	it('returns an empty array for no buckets', () => {
 		expect(computeVolumeTiers([])).toEqual([]);
+	});
+});
+
+describe('computeVisibleRange', () => {
+	it('returns a range around the scroll position with a buffer', () => {
+		// scrollTop=1000, rowHeight=25 -> first visible row is index 40.
+		// containerHeight=500 -> ~20 rows visible.
+		const range = computeVisibleRange(1000, 500, 25, 1000);
+		expect(range.startIndex).toBeLessThanOrEqual(40);
+		expect(range.endIndex).toBeGreaterThanOrEqual(60);
+		expect(range.offsetTop).toBe(range.startIndex * 25);
+	});
+
+	it('clamps startIndex to 0 near the top', () => {
+		const range = computeVisibleRange(0, 500, 25, 1000);
+		expect(range.startIndex).toBe(0);
+	});
+
+	it('clamps endIndex to totalRows near the bottom', () => {
+		const range = computeVisibleRange(100000, 500, 25, 50);
+		expect(range.endIndex).toBe(50);
+	});
+
+	it('returns an empty range for zero total rows', () => {
+		expect(computeVisibleRange(0, 500, 25, 0)).toEqual({ startIndex: 0, endIndex: 0, offsetTop: 0 });
 	});
 });
