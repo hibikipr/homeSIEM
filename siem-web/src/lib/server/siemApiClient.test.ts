@@ -3,7 +3,7 @@ import { SiemApiClient } from './siemApiClient';
 
 function fakeFetch(body: unknown, status = 200) {
 	return vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => {
-		return new Response(JSON.stringify(body), { status });
+		return new Response(body === null ? null : JSON.stringify(body), { status });
 	});
 }
 
@@ -135,5 +135,57 @@ describe('SiemApiClient', () => {
 		expect(result).toHaveLength(1);
 		const [url] = fetchFn.mock.calls[0];
 		expect(url).toBe('http://siem-api:8080/rules');
+	});
+
+	it('getSources attaches Authorization and parses the response', async () => {
+		const fetchFn = fakeFetch([
+			{
+				id: 1,
+				name: 'udm-ultra',
+				address: '10.0.0.1',
+				transport: 'udp/514',
+				parser: 'unifi-os',
+				claimed: true,
+				heartbeat_sec: 900,
+				status: 'healthy',
+				events_per_min: 12
+			}
+		]);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.getSources('token-123');
+
+		expect(result).toHaveLength(1);
+		expect(result[0].status).toBe('healthy');
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/sources');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('getIngestHealth attaches Authorization and parses the response', async () => {
+		const fetchFn = fakeFetch({
+			received_events_per_source: { unifi: 1234 },
+			loki_sent_events_total: 1290,
+			degraded: false
+		});
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.getIngestHealth('token-123');
+
+		expect(result.loki_sent_events_total).toBe(1290);
+		const [url] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/sources/ingest-health');
+	});
+
+	it('claimSource POSTs to the claim endpoint with Authorization', async () => {
+		const fetchFn = fakeFetch(null, 204);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.claimSource('token-123', 7);
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/sources/7/claim');
+		expect(init?.method).toBe('POST');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
 	});
 });

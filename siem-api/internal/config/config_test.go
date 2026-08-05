@@ -39,6 +39,9 @@ func TestLoad_DefaultsApplied(t *testing.T) {
 	if cfg.OIDCGroupsScope != "groups" {
 		t.Errorf("OIDCGroupsScope = %q, want groups", cfg.OIDCGroupsScope)
 	}
+	if cfg.VectorGraphQLURL != "http://siem-ingest:8686" {
+		t.Errorf("VectorGraphQLURL = %q, want http://siem-ingest:8686", cfg.VectorGraphQLURL)
+	}
 	if len(cfg.SessionSecret) != 32 {
 		t.Errorf("SessionSecret len = %d, want 32", len(cfg.SessionSecret))
 	}

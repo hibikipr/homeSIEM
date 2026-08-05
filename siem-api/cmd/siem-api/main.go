@@ -18,6 +18,7 @@ import (
 	"github.com/hibikipr/homeSIEM/siem-api/internal/rules"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/sse"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
+	"github.com/hibikipr/homeSIEM/siem-api/internal/vector"
 )
 
 func main() {
@@ -49,6 +50,7 @@ func main() {
 	}
 
 	lokiClient := loki.New(cfg.LokiURL, &http.Client{Timeout: 30 * time.Second})
+	vectorClient := vector.New(cfg.VectorGraphQLURL, &http.Client{Timeout: 10 * time.Second})
 	ntfyClient := ntfy.New(cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyToken, &http.Client{Timeout: 10 * time.Second})
 	hub := sse.NewHub()
 	alertsSvc := alerts.NewService(st, hub, ntfyClient, logger)
@@ -76,11 +78,11 @@ func main() {
 	go api.RunTailPoller(appCtx, lokiClient, cfg.LokiJobLabel, hub, time.Second, logger)
 
 	server := api.NewServer(api.Deps{
-		Store: st, Loki: lokiClient, JobLabel: cfg.LokiJobLabel, Hub: hub,
+		Store: st, Loki: lokiClient, Vector: vectorClient, JobLabel: cfg.LokiJobLabel, Hub: hub,
 		Alerts: alertsSvc, Scheduler: scheduler, SchedulerCtx: appCtx,
 		Verifier: verifier, SessionEst: sessionEst, LocalAuth: localAuth,
 		FastpathToken: cfg.FastpathToken,
-		OIDCIssuer: cfg.OIDCIssuer, OIDCClientID: cfg.OIDCClientID, OIDCGroupsScope: cfg.OIDCGroupsScope,
+		OIDCIssuer:    cfg.OIDCIssuer, OIDCClientID: cfg.OIDCClientID, OIDCGroupsScope: cfg.OIDCGroupsScope,
 		Logger: logger,
 	})
 

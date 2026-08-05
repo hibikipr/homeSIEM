@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -18,13 +20,30 @@ type sourceResponse struct {
 	Claimed      bool       `json:"claimed"`
 	HeartbeatSec int        `json:"heartbeat_sec"`
 	LastSeenAt   *time.Time `json:"last_seen_at,omitempty"`
+	Status       string     `json:"status"`
+	EventsPerMin float64    `json:"events_per_min"`
 }
 
-func toSourceResponse(src store.Source) sourceResponse {
+func toSourceResponse(src store.Source, now time.Time, eventsPerMin float64) sourceResponse {
 	return sourceResponse{
 		ID: src.ID, Name: src.Name, Address: src.Address, Transport: src.Transport,
 		Parser: src.Parser, Claimed: src.Claimed, HeartbeatSec: src.HeartbeatSec, LastSeenAt: src.LastSeenAt,
+		Status:       sourceStatus(src, now),
+		EventsPerMin: eventsPerMin,
 	}
+}
+
+// sourceStatus reimplements the same threshold store.StaleSources uses
+// internally, as a plain comparison against fields handleListSources
+// already fetched — not a second SQL round trip.
+func sourceStatus(src store.Source, now time.Time) string {
+	if src.LastSeenAt == nil {
+		return "silent"
+	}
+	if now.Sub(*src.LastSeenAt) > time.Duration(src.HeartbeatSec)*time.Second {
+		return "silent"
+	}
+	return "healthy"
 }
 
 func (s *Server) handleListSources(w http.ResponseWriter, r *http.Request) {
@@ -33,9 +52,21 @@ func (s *Server) handleListSources(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "list sources failed", http.StatusInternalServerError)
 		return
 	}
+
+	eventsPerMin := map[string]float64{}
+	if s.deps.Loki != nil {
+		rates, err := s.queryEventsPerMinBySource(r.Context())
+		if err != nil {
+			s.deps.Logger.Error("list sources: events-per-min query failed", "error", err)
+		} else {
+			eventsPerMin = rates
+		}
+	}
+
+	now := time.Now().UTC()
 	resp := make([]sourceResponse, len(sources))
 	for i, src := range sources {
-		resp[i] = toSourceResponse(src)
+		resp[i] = toSourceResponse(src, now, eventsPerMin[src.Name])
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -99,4 +130,28 @@ func (s *Server) handleSourceHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// queryEventsPerMinBySource returns a 5-minute rolling events/min rate per
+// source, the same query shape as stats.go's queryHourlyBySource but over a
+// short window with no severity filter.
+func (s *Server) queryEventsPerMinBySource(ctx context.Context) (map[string]float64, error) {
+	end := time.Now().UTC()
+	start := end.Add(-5 * time.Minute)
+	logql := fmt.Sprintf(`sum by (source) (count_over_time({job=%q}[5m]))`, s.deps.JobLabel)
+
+	result, err := s.deps.Loki.QueryMatrix(ctx, logql, start, end, 5*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+
+	out := map[string]float64{}
+	for _, series := range result.Series {
+		if len(series.Samples) == 0 {
+			continue
+		}
+		latest := series.Samples[len(series.Samples)-1].Value
+		out[series.Labels["source"]] = latest / 5
+	}
+	return out, nil
 }

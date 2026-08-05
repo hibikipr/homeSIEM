@@ -11,6 +11,7 @@ type Config struct {
 	DatabaseURL            string
 	LokiURL                string
 	LokiJobLabel           string
+	VectorGraphQLURL       string
 	NtfyURL                string
 	NtfyTopic              string
 	NtfyToken              string
@@ -26,18 +27,19 @@ type Config struct {
 
 func Load() (Config, error) {
 	cfg := Config{
-		Addr:            getenv("ADDR", ":8080"),
-		DatabaseURL:     os.Getenv("DATABASE_URL"),
-		LokiURL:         os.Getenv("LOKI_URL"),
-		LokiJobLabel:    getenv("LOKI_JOB_LABEL", "siem"),
-		NtfyURL:         os.Getenv("NTFY_URL"),
-		NtfyTopic:       os.Getenv("NTFY_TOPIC"),
-		NtfyToken:       os.Getenv("NTFY_TOKEN"),
-		OIDCIssuer:      os.Getenv("OIDC_ISSUER"),
-		OIDCClientID:    os.Getenv("OIDC_CLIENT_ID"),
-		OIDCGroupsScope: getenv("OIDC_GROUPS_SCOPE", "groups"),
-		GeoIPDB:         os.Getenv("GEOIP_DB"),
-		FastpathToken:   os.Getenv("SIEM_FASTPATH_TOKEN"),
+		Addr:             getenv("ADDR", ":8080"),
+		DatabaseURL:      os.Getenv("DATABASE_URL"),
+		LokiURL:          os.Getenv("LOKI_URL"),
+		LokiJobLabel:     getenv("LOKI_JOB_LABEL", "siem"),
+		VectorGraphQLURL: getenv("VECTOR_GRAPHQL_URL", "http://siem-ingest:8686"),
+		NtfyURL:          os.Getenv("NTFY_URL"),
+		NtfyTopic:        os.Getenv("NTFY_TOPIC"),
+		NtfyToken:        os.Getenv("NTFY_TOKEN"),
+		OIDCIssuer:       os.Getenv("OIDC_ISSUER"),
+		OIDCClientID:     os.Getenv("OIDC_CLIENT_ID"),
+		OIDCGroupsScope:  getenv("OIDC_GROUPS_SCOPE", "groups"),
+		GeoIPDB:          os.Getenv("GEOIP_DB"),
+		FastpathToken:    os.Getenv("SIEM_FASTPATH_TOKEN"),
 
 		LocalAdminUsername:     os.Getenv("SIEM_LOCAL_ADMIN_USERNAME"),
 		LocalAdminPasswordHash: os.Getenv("SIEM_LOCAL_ADMIN_PASSWORD_HASH"),
