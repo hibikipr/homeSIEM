@@ -13,7 +13,7 @@
 	// eslint-disable-next-line svelte/no-unnecessary-state-wrap
 	let activeSeverities = $state(new SvelteSet<string>(SYSLOG_SEVERITIES));
 	let paused = $state(false);
-	let buffer = $state<LogEntry[]>([]);
+	let buffer = $state.raw<LogEntry[]>([]);
 	let connected = $state(true);
 
 	function toggleSeverity(sev: string) {
@@ -43,7 +43,7 @@
 			<h1>Live tail</h1>
 			<span class="status" class:disconnected={!connected}>
 				<span class="dot"></span>
-				{connected ? 'following' : 'disconnected · retrying'}
+				{connected ? 'live' : 'disconnected · retrying'}
 			</span>
 		</div>
 		<div class="chips">
