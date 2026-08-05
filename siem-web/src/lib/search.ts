@@ -135,7 +135,8 @@ export function computeVisibleRange(
 	if (totalRows === 0 || rowHeight <= 0) {
 		return { startIndex: 0, endIndex: 0, offsetTop: 0 };
 	}
-	const firstVisible = Math.floor(scrollTop / rowHeight);
+	const maxFirstVisible = Math.max(0, totalRows - 1);
+	const firstVisible = Math.min(Math.max(0, Math.floor(scrollTop / rowHeight)), maxFirstVisible);
 	const visibleCount = Math.ceil(containerHeight / rowHeight);
 	const startIndex = Math.max(0, firstVisible - VIRTUALIZATION_BUFFER_ROWS);
 	const endIndex = Math.min(totalRows, firstVisible + visibleCount + VIRTUALIZATION_BUFFER_ROWS);

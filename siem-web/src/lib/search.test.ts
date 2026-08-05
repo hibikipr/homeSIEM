@@ -147,6 +147,17 @@ describe('computeVisibleRange', () => {
 		expect(range.endIndex).toBe(50);
 	});
 
+	it('clamps startIndex when scrollTop overshoots totalRows (stale scroll after filter narrows results)', () => {
+		// scrollTop=100000 with rowHeight=25 implies firstVisible=4000, far beyond
+		// totalRows=50. Without clamping firstVisible to a valid row index,
+		// startIndex (3990) would exceed endIndex (50), producing a blank table.
+		const range = computeVisibleRange(100000, 500, 25, 50);
+		expect(range.startIndex).toBeLessThanOrEqual(range.endIndex);
+		expect(range.startIndex).toBe(39);
+		expect(range.endIndex).toBe(50);
+		expect(range.offsetTop).toBe(39 * 25);
+	});
+
 	it('returns an empty range for zero total rows', () => {
 		expect(computeVisibleRange(0, 500, 25, 0)).toEqual({
 			startIndex: 0,
