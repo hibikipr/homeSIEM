@@ -47,9 +47,7 @@ describe('POST /api/search/rules', () => {
 	it('propagates a SiemApiError status code as a JSON error response', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
-				createRule: vi
-					.fn()
-					.mockRejectedValue(new siemApiClientModule.SiemApiError(403, 'denied'))
+				createRule: vi.fn().mockRejectedValue(new siemApiClientModule.SiemApiError(403, 'denied'))
 			};
 		});
 
