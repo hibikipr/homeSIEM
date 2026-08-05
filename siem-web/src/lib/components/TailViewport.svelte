@@ -35,7 +35,7 @@
 		if (paused) return;
 		if (!activeSeverities.has(entry.Labels.severity ?? 'info')) return;
 
-		rendered = [...rendered, entry];
+		rendered = [...rendered, entry].slice(-MAX_BUFFER);
 		if (autoFollow) {
 			queueScrollToBottom();
 		} else {
@@ -50,14 +50,14 @@
 	// reassigning it in appendEntry does not retrigger this effect (that
 	// would double-process every message).
 	$effect(() => {
-		void activeSeverities;
+		void activeSeverities.size;
 		void paused;
 		if (!paused) {
 			rendered = filterBySeverity(
 				untrack(() => buffer),
 				activeSeverities
 			);
-			if (autoFollow) queueScrollToBottom();
+			if (untrack(() => autoFollow)) queueScrollToBottom();
 		}
 	});
 
