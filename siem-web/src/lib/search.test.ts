@@ -148,6 +148,10 @@ describe('computeVisibleRange', () => {
 	});
 
 	it('returns an empty range for zero total rows', () => {
-		expect(computeVisibleRange(0, 500, 25, 0)).toEqual({ startIndex: 0, endIndex: 0, offsetTop: 0 });
+		expect(computeVisibleRange(0, 500, 25, 0)).toEqual({
+			startIndex: 0,
+			endIndex: 0,
+			offsetTop: 0
+		});
 	});
 });
