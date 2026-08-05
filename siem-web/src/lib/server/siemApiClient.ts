@@ -52,6 +52,25 @@ export interface SearchResponse {
 	entries: LogEntry[];
 }
 
+export interface SourceResponse {
+	id: number;
+	name: string;
+	address: string;
+	transport: string;
+	parser: string;
+	claimed: boolean;
+	heartbeat_sec: number;
+	last_seen_at?: string;
+	status: 'healthy' | 'silent';
+	events_per_min: number;
+}
+
+export interface IngestHealthResponse {
+	received_events_per_source: Record<string, number>;
+	loki_sent_events_total: number;
+	degraded: boolean;
+}
+
 export interface EstablishSessionRequest {
 	subject: string;
 	email: string;
@@ -120,6 +139,21 @@ export class SiemApiClient {
 
 	async getRules(sessionToken: string): Promise<RuleResponse[]> {
 		return this.request<RuleResponse[]>('/rules', this.authInit(sessionToken));
+	}
+
+	async getSources(sessionToken: string): Promise<SourceResponse[]> {
+		return this.request<SourceResponse[]>('/sources', this.authInit(sessionToken));
+	}
+
+	async getIngestHealth(sessionToken: string): Promise<IngestHealthResponse> {
+		return this.request<IngestHealthResponse>('/sources/ingest-health', this.authInit(sessionToken));
+	}
+
+	async claimSource(sessionToken: string, id: number): Promise<void> {
+		return this.requestNoContent(`/sources/${id}/claim`, {
+			method: 'POST',
+			...this.authInit(sessionToken)
+		});
 	}
 
 	async search(sessionToken: string, params: Record<string, string>): Promise<SearchResponse> {
