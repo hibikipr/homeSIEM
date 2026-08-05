@@ -79,3 +79,13 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
     embedded timestamp landing in the `host` field) rather than real
     values. A proper fix would need a CEF-aware parse transform,
     conditioned on detecting the `CEF:` prefix — not implemented here.
+  - The same malformed shape also confused Vector's timestamp decoder
+    into producing a value 4 hours in the future (confirmed: matches the
+    process's `TZ=America/New_York` offset exactly), which made Loki
+    reject the event outright with "timestamp too new" — a second,
+    independent way this one integration's malformed input caused total
+    data loss beyond just the missing severity. `enrich_geo` now clamps
+    any implausibly-future timestamp back to real receipt time. Verified
+    this is specific to malformed input, not a blanket TZ bug: a
+    well-formed RFC5424 message with an explicit `Z` timestamp parses
+    correctly even with the same `TZ` set.
