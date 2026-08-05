@@ -24,8 +24,10 @@ for the design.
 ## What's built so far
 
 OIDC login, session cookie, global nav chrome, Screen 1 (Wall), Screen 4
-(Alerts — inbox, detail, read-only Rules tab). Search, Live tail, Sources,
-and Settings are separate future sub-projects.
+(Alerts — inbox, detail, read-only Rules tab), and the Sources screen
+(claimed/unclaimed sources table, parser preview, ingest-health panel,
+claim flow). Search, Live tail, and Settings are separate future
+sub-projects.
 
 ## Known gaps in this pass
 
@@ -63,3 +65,13 @@ and Settings are separate future sub-projects.
 - Ack/mute changes made by one analyst aren't pushed live to other open browser sessions —
   only new alerts raised by the rule engine publish over SSE; a second person's ack/mute
   only becomes visible to you on your next own action or reload.
+- The Sources screen's parser preview only shows the single most recent sample
+  (`limit=1`), not a scrollable history.
+- There's no "dropped UDP" metric on the Sources screen — Vector doesn't expose one,
+  and component-error counts aren't queryable over one-shot HTTP (only Subscription is),
+  so this isn't currently obtainable at all.
+- `heartbeat_sec` still isn't editable per-source; it's shown but not configurable from
+  the Sources screen yet.
+- The ingest-health panel will show as degraded unless `siem-ingest` is actually
+  running — it's an optional/profiled service in the deployment compose file, not
+  started by default.
