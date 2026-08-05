@@ -111,6 +111,17 @@ source = '''
 type = "remap"
 inputs = ["parse_unifi", "parse_hosts"]
 source = '''
+  ## Found against a real UniFi device: its "SIEM Server" integration's
+  ## test event didn't carry a standard syslog PRI header, so Vector's
+  ## syslog source never populated .severity - and sinks.loki's severity
+  ## label template unconditionally requires it, so Loki 400'd and the
+  ## whole event was silently dropped (not just the label). Any event
+  ## missing severity for any reason (malformed sender, non-standard
+  ## client) must not be dropped outright - default it instead.
+  if is_null(.severity) {
+    .severity = "info"
+  }
+
   if exists(.src_ip) && !ip_cidr_contains!("10.0.0.0/8", .src_ip) {
     .geoip = get_enrichment_table_record("geolite", { "ip": .src_ip }) ?? {}
     .threat_intel = get_enrichment_table_record("threatlist", { "ip": .src_ip }).tag ?? null

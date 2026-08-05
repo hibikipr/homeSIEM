@@ -61,3 +61,21 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
 - This pass verifies the pipeline against synthetic traffic in a local
   Docker harness, not against the real UDM-Ultra or real hosts — that's the
   next real-world verification step once deployed.
+- **UniFi OS's "SIEM Server" integration** (Settings → System Logging /
+  SIEM — a distinct feature from the classic "Remote Logging" toggle this
+  pipeline was originally built against) sends **CEF-formatted** messages
+  wrapped in a syslog envelope with no `<PRI>` header, confirmed against a
+  real UDM device's "Send Test Event" (raw packet captured via `tcpdump`).
+  Two consequences, both handled but not ideal:
+  - No `<PRI>` header means Vector's syslog decoder can't derive
+    `.severity` — `enrich_geo` now defaults it to `"info"` when missing
+    (see the comment in `vector.toml`) so the event isn't dropped
+    outright, but the event's *real* CEF severity (present in the CEF
+    header itself, e.g. `CEF:0|Ubiquiti|UniFi OS|...|<severity>|...`) is
+    currently ignored — it's just always `"info"` for CEF-shaped events.
+  - Nothing here parses CEF's pipe-delimited structure, so `host`/
+    `hostname`/`appname` end up populated with whatever Vector's lenient
+    RFC3164-ish decoder guessed at (observed: the CEF payload's own
+    embedded timestamp landing in the `host` field) rather than real
+    values. A proper fix would need a CEF-aware parse transform,
+    conditioned on detecting the `CEF:` prefix — not implemented here.
