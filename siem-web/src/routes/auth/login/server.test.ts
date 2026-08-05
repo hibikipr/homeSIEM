@@ -16,10 +16,11 @@ vi.mock('$lib/server/oidc', async (importOriginal) => {
 });
 
 describe('GET /auth/login', () => {
-	it('redirects to the OIDC authorization URL and sets the PKCE cookie', async () => {
+	it('redirects to the OIDC authorization URL and sets the PKCE and state cookies', async () => {
 		vi.mocked(oidc.buildLoginRedirect).mockResolvedValue({
 			url: 'https://pocketid.townsville.cc/authorize?state=abc',
-			codeVerifier: 'verifier-abc'
+			codeVerifier: 'verifier-abc',
+			state: 'state-abc'
 		});
 		const setCookie = vi.fn();
 
@@ -31,6 +32,11 @@ describe('GET /auth/login', () => {
 		expect(setCookie).toHaveBeenCalledWith(
 			oidc.PKCE_COOKIE_NAME,
 			'verifier-abc',
+			expect.objectContaining({ httpOnly: true, maxAge: 600 })
+		);
+		expect(setCookie).toHaveBeenCalledWith(
+			oidc.STATE_COOKIE_NAME,
+			'state-abc',
 			expect.objectContaining({ httpOnly: true, maxAge: 600 })
 		);
 	});

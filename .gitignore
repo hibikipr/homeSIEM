@@ -1,12 +1,18 @@
 # Handoff bundle (reference material, not tracked)
 design_handoff_homesiem/
 
+# Claude Code worktrees/session state (never meant to be committed)
+.claude/
+
 # macOS
 .DS_Store
 
 # Editors
 .vscode/
 .idea/
+
+# Claude Code session/worktree bookkeeping
+.claude/
 
 # Environment
 .env

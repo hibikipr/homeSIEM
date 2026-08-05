@@ -16,9 +16,11 @@ export interface OidcClaims {
 export interface LoginRedirect {
 	url: string;
 	codeVerifier: string;
+	state: string;
 }
 
 export const PKCE_COOKIE_NAME = 'siem_pkce_verifier';
+export const STATE_COOKIE_NAME = 'siem_oidc_state';
 
 let cachedConfig: client.Configuration | undefined;
 
@@ -36,25 +38,32 @@ export async function buildLoginRedirect(oidcConfig: OidcConfig): Promise<LoginR
 	const config = await getConfig(oidcConfig);
 	const codeVerifier = client.randomPKCECodeVerifier();
 	const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
+	// Pocket ID rejects the callback with invalid_state if this is absent
+	// (it requires state, unlike some providers that treat PKCE alone as
+	// sufficient CSRF protection) — confirmed against a real deployment.
+	const state = client.randomState();
 
 	const authUrl = client.buildAuthorizationUrl(config, {
 		redirect_uri: oidcConfig.redirectUri,
 		scope: 'openid profile email groups',
 		code_challenge: codeChallenge,
-		code_challenge_method: 'S256'
+		code_challenge_method: 'S256',
+		state
 	});
 
-	return { url: authUrl.href, codeVerifier };
+	return { url: authUrl.href, codeVerifier, state };
 }
 
 export async function completeLogin(
 	oidcConfig: OidcConfig,
 	callbackUrl: URL,
-	codeVerifier: string
+	codeVerifier: string,
+	expectedState: string
 ): Promise<OidcClaims> {
 	const config = await getConfig(oidcConfig);
 	const tokens = await client.authorizationCodeGrant(config, callbackUrl, {
-		pkceCodeVerifier: codeVerifier
+		pkceCodeVerifier: codeVerifier,
+		expectedState
 	});
 	const idTokenClaims = tokens.claims();
 	if (!idTokenClaims) {

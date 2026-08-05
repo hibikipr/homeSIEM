@@ -1,7 +1,7 @@
 import { redirect, error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
-import { completeLogin, PKCE_COOKIE_NAME } from '$lib/server/oidc';
+import { completeLogin, PKCE_COOKIE_NAME, STATE_COOKIE_NAME } from '$lib/server/oidc';
 import { mintSessionToken, SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from '$lib/server/session';
 import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
 
@@ -12,6 +12,12 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	}
 	cookies.delete(PKCE_COOKIE_NAME, { path: '/' });
 
+	const expectedState = cookies.get(STATE_COOKIE_NAME);
+	if (!expectedState) {
+		error(400, 'missing state cookie');
+	}
+	cookies.delete(STATE_COOKIE_NAME, { path: '/' });
+
 	const claims = await completeLogin(
 		{
 			issuer: env.OIDC_ISSUER!,
@@ -19,7 +25,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 			redirectUri: `${env.APP_URL!}/auth/callback`
 		},
 		url,
-		codeVerifier
+		codeVerifier,
+		expectedState
 	);
 
 	const apiClient = new SiemApiClient({ baseUrl: env.API_URL! });

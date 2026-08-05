@@ -1,0 +1,192 @@
+name: homesiem
+
+##############################################################################
+# Self-contained example stack for homeSIEM.
+#
+# Brings up everything homeSIEM itself owns (siem-ingest, siem-api, siem-web)
+# plus the two pieces of shared infra it depends on that a fresh install
+# won't already have (Loki for log storage, ntfy for alert delivery).
+#
+# What this does NOT provide: an OIDC identity provider. siem-web/siem-api
+# require one (Pocket ID recommended: https://github.com/pocket-id/pocket-id) —
+# see the root README's Quickstart for registering a client.
+#
+# siem-ingest is behind the "ingest" profile because it needs a GeoLite2
+# City database and a threat-intel CSV provisioned first (see
+# siem-ingest/docs/geoip-setup.md) — without them Vector refuses to start.
+# Default `docker compose up` brings up everything else so you can explore
+# the console immediately; add `--profile ingest` once that data is in place.
+##############################################################################
+
+volumes:
+  siem_data:
+    name: siem_data
+  siem_buffer:
+    name: siem_buffer
+  loki_data:
+    name: siem_loki_data
+
+services:
+  loki:
+    container_name: siem-loki
+    image: grafana/loki:3.3.2
+    restart: unless-stopped
+    expose:
+      - "3100"
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3100/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  ntfy:
+    container_name: siem-ntfy
+    image: binwiederhier/ntfy:v2.11.0
+    command: serve
+    restart: unless-stopped
+    expose:
+      - "80"
+    ports:
+      - "8081:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:80/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  siem-api:
+    container_name: siem-api
+    image: ghcr.io/hibikipr/siem-api:latest
+    build: ./siem-api
+    restart: unless-stopped
+    depends_on:
+      loki:
+        condition: service_healthy
+      ntfy:
+        condition: service_healthy
+    expose:
+      - "8080"
+    environment:
+      - TZ=${TZ:-UTC}
+      - DATABASE_URL=sqlite:///data/siem.db?_journal_mode=WAL&_busy_timeout=5000
+      - LOKI_URL=http://loki:3100
+      - LOKI_JOB_LABEL=siem
+      - NTFY_URL=http://ntfy
+      - NTFY_TOPIC=${SIEM_NTFY_TOPIC:-homesiem}
+      - OIDC_ISSUER=${SIEM_OIDC_ISSUER}
+      - OIDC_CLIENT_ID=${SIEM_OIDC_CLIENT_ID}
+      - OIDC_GROUPS_SCOPE=groups
+      - SIEM_SESSION_SECRET=${SIEM_SESSION_SECRET}
+      - SIEM_FASTPATH_TOKEN=${SIEM_FASTPATH_TOKEN}
+    volumes:
+      - siem_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.5"
+
+  siem-web:
+    container_name: siem-web
+    image: ghcr.io/hibikipr/siem-web:latest
+    build: ./siem-web
+    restart: unless-stopped
+    depends_on:
+      siem-api:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - TZ=${TZ:-UTC}
+      - PORT=8080
+      - API_URL=http://siem-api:8080
+      - APP_URL=${SIEM_APP_URL:-http://localhost:8080}
+      - ORIGIN=${SIEM_APP_URL:-http://localhost:8080}
+      - SESSION_SECRET=${SIEM_SESSION_SECRET}
+      - OIDC_ISSUER=${SIEM_OIDC_ISSUER}
+      - OIDC_CLIENT_ID=${SIEM_OIDC_CLIENT_ID}
+      - OIDC_LOGOUT_URL=${SIEM_OIDC_LOGOUT_URL}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "1.0"
+
+  siem-ingest:
+    container_name: siem-ingest
+    image: timberio/vector:0.49.0-alpine
+    command: ["--config-toml", "/etc/vector/vector.toml"]
+    profiles: ["ingest"]
+    restart: unless-stopped
+    depends_on:
+      siem-api:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      siem-threatlist-updater:
+        condition: service_healthy
+    ports:
+      - "514:514/udp"
+      - "601:601/tcp"
+      - "6514:6514/tcp"
+    expose:
+      - "8686"
+    environment:
+      - TZ=${TZ:-UTC}
+      - LOKI_ENDPOINT=http://loki:3100
+      - SIEM_API_URL=http://siem-api:8080
+      - SIEM_FASTPATH_TOKEN=${SIEM_FASTPATH_TOKEN}
+    volumes:
+      - ./siem-ingest/vector.toml:/etc/vector/vector.toml:ro
+      - ./siem-ingest/tls:/etc/vector/tls:ro
+      - ./siem-ingest/geoip:/geoip:ro
+      - siem_buffer:/var/lib/vector
+    tmpfs: /tmp
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8686/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "1.5"
+
+  # Threat-intel updater — fetches scripts/update-threatlist.py's five free
+  # IP feeds daily and writes threatlist.csv into the same geoip directory
+  # siem-ingest reads from (bind-mounted rw here, ro above). siem-ingest's
+  # depends_on above waits on this container's healthcheck (file written),
+  # not just "started", so threatlist.csv exists before Vector boots on a
+  # fresh deploy. Same "ingest" profile as siem-ingest itself since it only
+  # exists to feed that pipeline.
+  siem-threatlist-updater:
+    container_name: siem-threatlist-updater
+    image: ghcr.io/hibikipr/siem-threatlist-updater:latest
+    build: ./siem-ingest/scripts
+    profiles: ["ingest"]
+    restart: unless-stopped
+    environment:
+      - UPDATE_INTERVAL_SECONDS=86400
+    volumes:
+      - ./siem-ingest/geoip:/geoip
+    healthcheck:
+      test: ["CMD-SHELL", "[ -s /geoip/threatlist.csv ] || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

@@ -23,9 +23,10 @@ vi.mock('$lib/server/siemApiClient', async (importOriginal) => {
 	return { ...actual, SiemApiClient: vi.fn() };
 });
 
-function fakeEvent(pkceCookie: string | undefined) {
+function fakeEvent(pkceCookie: string | undefined, stateCookie: string | undefined) {
 	const cookieStore = new Map<string, string>();
 	if (pkceCookie) cookieStore.set(oidc.PKCE_COOKIE_NAME, pkceCookie);
+	if (stateCookie) cookieStore.set(oidc.STATE_COOKIE_NAME, stateCookie);
 	return {
 		url: new URL('https://siem.townsville.cc/auth/callback?code=abc&state=xyz'),
 		cookies: {
@@ -54,12 +55,17 @@ describe('GET /auth/callback', () => {
 	});
 
 	it('errors with 400 when the PKCE cookie is missing', async () => {
-		const event = fakeEvent(undefined);
+		const event = fakeEvent(undefined, 'state-xyz');
 		await expect(GET(event as never)).rejects.toMatchObject({ status: 400 });
 	});
 
-	it('sets the session cookie and redirects to / on success', async () => {
-		const event = fakeEvent('verifier-abc');
+	it('errors with 400 when the state cookie is missing', async () => {
+		const event = fakeEvent('verifier-abc', undefined);
+		await expect(GET(event as never)).rejects.toMatchObject({ status: 400 });
+	});
+
+	it('sets the session cookie, clears the PKCE/state cookies, and redirects to / on success', async () => {
+		const event = fakeEvent('verifier-abc', 'state-xyz');
 
 		await expect(GET(event as never)).rejects.toMatchObject({ status: 302, location: '/' });
 
@@ -69,6 +75,13 @@ describe('GET /auth/callback', () => {
 			expect.objectContaining({ httpOnly: true })
 		);
 		expect(event.cookies.delete).toHaveBeenCalledWith(oidc.PKCE_COOKIE_NAME, { path: '/' });
+		expect(event.cookies.delete).toHaveBeenCalledWith(oidc.STATE_COOKIE_NAME, { path: '/' });
+		expect(oidc.completeLogin).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			'verifier-abc',
+			'state-xyz'
+		);
 	});
 
 	it('propagates an error when siem-api denies session establishment', async () => {
@@ -79,7 +92,7 @@ describe('GET /auth/callback', () => {
 					.mockRejectedValue(new siemApiClientModule.SiemApiError(403, 'denied'))
 			} as never;
 		});
-		const event = fakeEvent('verifier-abc');
+		const event = fakeEvent('verifier-abc', 'state-xyz');
 
 		await expect(GET(event as never)).rejects.toMatchObject({ status: 403 });
 	});

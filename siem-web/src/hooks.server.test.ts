@@ -33,6 +33,15 @@ describe('handle', () => {
 		expect(resolve).toHaveBeenCalled();
 	});
 
+	it('passes through /healthz without requiring a session', async () => {
+		const { event } = fakeEvent('/healthz', undefined);
+		const resolve = vi.fn().mockResolvedValue(new Response('ok'));
+
+		await handle({ event: event as never, resolve });
+
+		expect(resolve).toHaveBeenCalled();
+	});
+
 	it('redirects to /auth/login when no session cookie is present', async () => {
 		const { event } = fakeEvent('/', undefined);
 		const resolve = vi.fn();

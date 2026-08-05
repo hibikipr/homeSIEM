@@ -1,0 +1,92 @@
+version: "3.9"
+
+networks:
+  # Created by the root Portainer stack - reference, never re-create.
+  backend:
+    name: backend
+    external: true
+
+volumes:
+  siem_buffer:
+    driver: local
+    name: siem_buffer
+
+services:
+  # Vector - syslog receiver, parser and enricher. The only service in the
+  # homeSIEM stack that publishes host ports, because devices dial it directly.
+  siem-ingest:
+    container_name: siem-ingest
+    image: timberio/vector:0.49.0-alpine
+    # Required: without this, the image silently falls back to its own
+    # bundled demo config instead of the mounted vector.toml below
+    # (verified empirically — it starts up cleanly with no error, so this
+    # is easy to miss without checking).
+    command: ["--config-toml", "/etc/vector/vector.toml"]
+    restart: unless-stopped
+    depends_on:
+      siem-threatlist-updater:
+        condition: service_healthy
+    networks:
+      - backend
+    ports:
+      - "514:514/udp"
+      - "601:601/tcp"
+      - "6514:6514/tcp"
+    expose:
+      - "8686"
+    environment:
+      - TZ=${DOCKER_TZ:-America/New_York}
+      - LOKI_ENDPOINT=http://loki:3100
+      - SIEM_API_URL=http://siem-api:8080
+      - SIEM_FASTPATH_TOKEN=${SIEM_FASTPATH_TOKEN}
+    volumes:
+      - ${MY_DOCKER_DATA_DIR}/homesiem/vector:/etc/vector:ro
+      - ${MY_DOCKER_DATA_DIR}/homesiem/geoip:/geoip:ro
+      - siem_buffer:/var/lib/vector
+    tmpfs: /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8686/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "1.5"
+
+  # Threat-intel updater — fetches scripts/update-threatlist.py's five free
+  # IP feeds daily and writes threatlist.csv into the geoip volume above.
+  # siem-ingest's depends_on waits on this container's healthcheck (file
+  # written) rather than just "started", so threatlist.csv genuinely exists
+  # before Vector boots on a fresh deploy - no more manual "touch an empty
+  # file first" step (GeoLite2-City.mmdb still needs the manual MaxMind
+  # step in docs/geoip-setup.md; nothing can automate that one).
+  # Deliberately NOT on the backend network: apk/pip-free but still needs
+  # outbound internet to reach the feeds, and backend is internal-only in
+  # some deployments (confirmed against the real homelab-siem stack) -
+  # omitting `networks:` here gets this service its own default network
+  # with a normal route out instead.
+  siem-threatlist-updater:
+    container_name: siem-threatlist-updater
+    image: ghcr.io/hibikipr/siem-threatlist-updater:latest
+    build: ./scripts
+    restart: unless-stopped
+    environment:
+      - UPDATE_INTERVAL_SECONDS=86400
+    volumes:
+      - ${MY_DOCKER_DATA_DIR}/homesiem/geoip:/geoip
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "[ -s /geoip/threatlist.csv ] || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+# End siem-ingest stack. Deploy alongside stacks/homelab-siem's siem-api and
+# siem-web service blocks (see the design handoff's reference compose) and
+# after stacks/homelab-monitoring (loki, ntfy must already exist).

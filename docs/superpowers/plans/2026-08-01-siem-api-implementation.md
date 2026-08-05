@@ -6646,8 +6646,13 @@ would kill the rule's evaluation loop immediately. `SchedulerCtx` is a long-live
 covering the server's whole run (set once in Task 29's `main.go`, cancelled only at
 shutdown), used as the parent for every `Scheduler.StartRule` call this package makes.
 
-Requires `analyst`+ for all four routes, per the handoff's role table ("siem-analysts...
-create and edit rules"). Create/update start (or restart) the rule's scheduler goroutine
+Requires `analyst`+ to create, update, or delete a rule, per the handoff's role table
+("siem-analysts... create and edit rules"); `GET /rules` only requires `viewer`+, matching
+the code below — reading rule definitions is as permissive as reading anything else a
+viewer can already see (Screen 4's alert detail view shows a fired rule's name and LogQL
+to any authenticated role, so gating the rules list itself behind `analyst` would be an
+inconsistent, not-actually-protective restriction). Create/update start (or restart) the
+rule's scheduler goroutine
 when `Enabled`, or stop it when not; delete always stops it.
 
 - [ ] **Step 1: Write the failing test**
