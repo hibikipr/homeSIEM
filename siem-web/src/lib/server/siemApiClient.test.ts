@@ -188,4 +188,57 @@ describe('SiemApiClient', () => {
 		expect(init?.method).toBe('POST');
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
 	});
+
+	it('search parses the volume field from the response', async () => {
+		const fetchFn = fakeFetch({
+			logql: '{job="siem"}',
+			count: 1,
+			entries: [],
+			volume: [{ bucket_start: '2026-08-05T00:00:00Z', count: 3 }]
+		});
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.search('token-123', {});
+
+		expect(result.volume).toEqual([{ bucket_start: '2026-08-05T00:00:00Z', count: 3 }]);
+	});
+
+	it('createRule POSTs to /rules with Authorization and parses the response', async () => {
+		const fetchFn = fakeFetch(
+			{
+				id: 9,
+				name: 'search-alert',
+				shape: 'threshold',
+				logql: '{job="siem"}',
+				window_sec: 60,
+				group_by: [],
+				severity: 'warning',
+				destinations: ['inapp'],
+				cooldown_sec: 3600,
+				interval_sec: 60,
+				enabled: true
+			},
+			201
+		);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.createRule('token-123', {
+			name: 'search-alert',
+			shape: 'threshold',
+			logql: '{job="siem"}',
+			window_sec: 60,
+			group_by: [],
+			severity: 'warning',
+			destinations: ['inapp'],
+			cooldown_sec: 3600,
+			interval_sec: 60,
+			enabled: true
+		});
+
+		expect(result.id).toBe(9);
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/rules');
+		expect(init?.method).toBe('POST');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
 });

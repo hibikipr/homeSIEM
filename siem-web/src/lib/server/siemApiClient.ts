@@ -46,10 +46,30 @@ export interface RuleResponse {
 	last_run_at?: string;
 }
 
+export interface CreateRuleRequest {
+	name: string;
+	shape: string;
+	logql: string;
+	window_sec: number;
+	threshold?: number;
+	group_by: string[];
+	severity: string;
+	destinations: string[];
+	cooldown_sec: number;
+	interval_sec: number;
+	enabled: boolean;
+}
+
+export interface VolumeBucket {
+	bucket_start: string;
+	count: number;
+}
+
 export interface SearchResponse {
 	logql: string;
 	count: number;
 	entries: LogEntry[];
+	volume: VolumeBucket[];
 }
 
 export interface SourceResponse {
@@ -139,6 +159,14 @@ export class SiemApiClient {
 
 	async getRules(sessionToken: string): Promise<RuleResponse[]> {
 		return this.request<RuleResponse[]>('/rules', this.authInit(sessionToken));
+	}
+
+	async createRule(sessionToken: string, req: CreateRuleRequest): Promise<RuleResponse> {
+		return this.request<RuleResponse>('/rules', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', ...this.authInit(sessionToken).headers },
+			body: JSON.stringify(req)
+		});
 	}
 
 	async getSources(sessionToken: string): Promise<SourceResponse[]> {
