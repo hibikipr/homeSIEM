@@ -23,7 +23,7 @@
 	const navItems: { label: string; href: Pathname }[] = [
 		{ label: 'Wall', href: '/' },
 		{ label: 'Search', href: '/search' as Pathname },
-		{ label: 'Live tail', href: '/tail' as Pathname },
+		{ label: 'Live tail', href: '/tail' },
 		{ label: 'Alerts', href: '/alerts' },
 		{ label: 'Sources', href: '/sources' },
 		{ label: 'Settings', href: '/settings' as Pathname }
