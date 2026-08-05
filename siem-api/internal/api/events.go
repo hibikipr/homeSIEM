@@ -92,7 +92,7 @@ func (s *Server) queryVolumeBuckets(ctx context.Context, logql string, start, en
 		bucketWidth = time.Second
 	}
 	bucketSeconds := int64(math.Ceil(bucketWidth.Seconds()))
-	countLogQL := fmt.Sprintf("count_over_time(%s[%ds])", logql, bucketSeconds)
+	countLogQL := fmt.Sprintf("sum(count_over_time(%s[%ds]))", logql, bucketSeconds)
 
 	result, err := s.deps.Loki.QueryMatrix(ctx, countLogQL, start, end, time.Duration(bucketSeconds)*time.Second)
 	if err != nil {
