@@ -37,7 +37,7 @@
 			<button
 				type="button"
 				class:selected={selectedSection === section.key}
-				on:click={() => selectSection(section.key)}
+				onclick={() => selectSection(section.key)}
 			>
 				{section.label}
 			</button>
