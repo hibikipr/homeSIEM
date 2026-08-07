@@ -3,9 +3,16 @@ package sse
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
+
+// streamPaddingBytes works around WebKit/Safari content-sniffing the start
+// of a text/event-stream response and withholding it from EventSource
+// until enough bytes have arrived, independent of flushing. It's an SSE
+// comment (never dispatched to onmessage) so other clients ignore it.
+const streamPaddingBytes = 2048
 
 // heartbeatInterval is a var, not a const, so tests can shrink it rather
 // than waiting out a real 15s idle period.
@@ -73,6 +80,7 @@ func (h *Hub) ServeHTTP(topic string, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, ": %s\n\n", strings.Repeat(" ", streamPaddingBytes))
 	flusher.Flush()
 
 	ch, cancel := h.Subscribe(topic)
