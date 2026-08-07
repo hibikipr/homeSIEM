@@ -1,0 +1,95 @@
+[[tests]]
+name = "cef parsing extracts real fields"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    message = "CGU CEF:0|Ubiquiti|UniFi OS|5.1.19|1000|Admin Accessed UniFi OS|7|proto=TCP src=81.181.129.172 spt=54321 dst=192.168.0.233 dpt=443 UNIFIhost=Host UNIFIdeviceName=Townsville UNIFIdeviceMac=84:78:48:80:0d:86 UNIFIdeviceIp=192.168.0.1"
+
+  [[tests.outputs]]
+  extract_from = "parse_unifi"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "err")
+      assert_eq!(.src_ip, "81.181.129.172")
+      assert_eq!(.dst_ip, "192.168.0.233")
+      assert_eq!(.dst_port, 443)
+      assert_eq!(.proto, "tcp")
+      assert_eq!(.host, "Townsville")
+      assert_eq!(.hostname, "Townsville")
+      assert_eq!(.program, "Admin Accessed UniFi OS")
+      assert_eq!(.unifi_device_mac, "84:78:48:80:0d:86")
+      assert_eq!(.unifi_device_ip, "192.168.0.1")
+      assert_eq!(.parser, "unifi-cef")
+    '''
+
+[[tests]]
+name = "malformed CEF (too few fields) falls through without setting CEF fields"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    message = "CGU CEF:0|Ubiquiti|UniFi OS|5.1.19"
+
+  [[tests.outputs]]
+  extract_from = "parse_unifi"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.parser, "unifi-cef")
+      assert!(!exists(.severity))
+      assert!(!exists(.src_ip))
+    '''
+
+[[tests]]
+name = "cef falls back to UNIFIhost when UNIFIdeviceName is absent"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    message = "CGU CEF:0|Ubiquiti|UniFi OS|5.1.19|1000|Admin Accessed UniFi OS|1|UNIFIhost=Office-UDM-Pro"
+
+  [[tests.outputs]]
+  extract_from = "parse_unifi"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.host, "Office-UDM-Pro")
+      assert_eq!(.hostname, "Office-UDM-Pro")
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "netfilter-bracket branch still works unaffected"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    message = "[WAN_LOCAL-DEFAULT-D]IN=eth0 OUT= SRC=203.0.113.9 DST=192.168.1.1 PROTO=TCP DPT=22"
+
+  [[tests.outputs]]
+  extract_from = "parse_unifi"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.rule, "WAN_LOCAL-DEFAULT-D")
+      assert_eq!(.src_ip, "203.0.113.9")
+      assert_eq!(.dst_ip, "192.168.1.1")
+      assert_eq!(.dst_port, 22)
+      assert_eq!(.proto, "tcp")
+      assert_eq!(.action, "drop")
+      assert!(!exists(.cef_vendor))
+    '''

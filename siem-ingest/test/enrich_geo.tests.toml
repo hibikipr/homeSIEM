@@ -1,0 +1,100 @@
+[[tests]]
+name = "CEF event with no src= reaches enrich_geo without the transform erroring"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    message = "CGU CEF:0|Ubiquiti|UniFi OS|5.1.19|1000|Admin Accessed UniFi OS|1|UNIFIhost=Office-UDM-Pro"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## This asserts the event survives to enrich_geo's output at all (a
+      ## dropped/errored event yields zero output events and fails the test
+      ## outright) and that severity/host - set upstream by parse_unifi -
+      ## are untouched. It does NOT, by itself, prove enrich_geo's own
+      ## src_ip guard avoided a runtime error: VRL's default remap error
+      ## behavior reverts to the transform's *input* on error rather than
+      ## dropping the event, and severity/host are already set by
+      ## parse_unifi (upstream of enrich_geo), so they read the same either
+      ## way. The guard fix itself (is_string(.src_ip) instead of
+      ## exists(.src_ip), non-bang ip_cidr_contains with a ?? false
+      ## fallback) was verified directly against the real Vector binary:
+      ## the unfixed guard logs
+      ## `error="function call error for \"ip_cidr_contains\" ... expected
+      ## string, got null"` for this exact message; the fixed guard logs
+      ## nothing.
+      assert_eq!(.severity, "info")
+      assert_eq!(.host, "Office-UDM-Pro")
+    '''
+
+[[tests]]
+name = "CEF event with a garbage non-IP src reaches enrich_geo without the transform erroring"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    message = "CGU CEF:0|Ubiquiti|UniFi OS|5.1.19|1000|Admin Accessed UniFi OS|1|src=not-an-ip UNIFIhost=Office-UDM-Pro"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Same caveat as the test above. The garbage-src case is the
+      ## attacker-reachable variant (unauthenticated UDP/514): the unfixed
+      ## guard's bang ip_cidr_contains!() logs
+      ## `error="... unable to parse IP address: invalid IP address
+      ## syntax"` for this exact message; verified directly against the
+      ## real Vector binary that the fixed guard does not.
+      assert_eq!(.severity, "info")
+      assert_eq!(.host, "Office-UDM-Pro")
+    '''
+
+[[tests]]
+name = "CEF event with a valid public src still gets geoip enrichment (regression check)"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    message = "CGU CEF:0|Ubiquiti|UniFi OS|5.1.19|1000|Admin Accessed UniFi OS|7|proto=TCP src=81.181.129.172 spt=54321 dst=192.168.0.233 dpt=443 UNIFIhost=Host UNIFIdeviceName=Townsville UNIFIdeviceMac=84:78:48:80:0d:86 UNIFIdeviceIp=192.168.0.1"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "err")
+      assert!(exists(.geoip), "a valid public src_ip must still reach the geoip lookup after the guard fix")
+    '''
+
+[[tests]]
+name = "netfilter event with a valid public src still gets geoip enrichment (pre-existing path, unaffected)"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    message = "[WAN_LOCAL-DEFAULT-D]IN=eth0 OUT= SRC=203.0.113.9 DST=192.168.1.1 PROTO=TCP DPT=22"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.action, "drop")
+      assert!(exists(.geoip), "the pre-existing netfilter path must still reach the geoip lookup after the guard fix")
+    '''
