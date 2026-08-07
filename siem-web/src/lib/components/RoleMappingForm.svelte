@@ -43,6 +43,8 @@
 			}
 			await invalidateAll();
 			onClose();
+		} catch {
+			error = 'Failed to save role mapping.';
 		} finally {
 			submitting = false;
 		}
