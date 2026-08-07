@@ -104,6 +104,39 @@ func TestServeHTTP_StreamsPublishedMessages(t *testing.T) {
 	}
 }
 
+func TestServeHTTP_SendsInitialPaddingBeforeAnyPublish(t *testing.T) {
+	h := NewHub()
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/events/tail", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handlerDone := make(chan struct{})
+	go func() {
+		h.ServeHTTP("tail", rec, req)
+		close(handlerDone)
+	}()
+
+	for h.subscriberCount("tail") == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	// Nothing published yet - only the initial connect should have written
+	// anything so far.
+	cancel()
+	select {
+	case <-handlerDone:
+	case <-time.After(time.Second):
+		t.Fatal("ServeHTTP did not return after context cancellation")
+	}
+
+	body := rec.Body.String()
+	if !strings.HasPrefix(body, ":") {
+		t.Errorf("body = %q, want it to start with an SSE comment", body)
+	}
+	if len(body) < streamPaddingBytes {
+		t.Errorf("len(body) = %d, want at least %d bytes of initial padding", len(body), streamPaddingBytes)
+	}
+}
+
 func TestServeHTTP_SendsHeartbeatWhenIdle(t *testing.T) {
 	original := heartbeatInterval
 	heartbeatInterval = 10 * time.Millisecond
