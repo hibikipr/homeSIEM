@@ -53,7 +53,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 			email: claims.email,
 			displayName: session.display_name,
 			groups: claims.groups,
-			role: session.role
+			role: session.role,
+			picture: claims.picture
 		},
 		secret
 	);

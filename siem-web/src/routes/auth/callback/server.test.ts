@@ -43,7 +43,8 @@ describe('GET /auth/callback', () => {
 			sub: 'oidc-sub-1',
 			email: 'alice@townsville.cc',
 			displayName: 'Alice',
-			groups: ['siem-analysts']
+			groups: ['siem-analysts'],
+			picture: 'https://pocketid.townsville.cc/api/users/oidc-sub-1/profile-picture.png'
 		});
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
