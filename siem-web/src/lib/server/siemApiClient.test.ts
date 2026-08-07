@@ -241,4 +241,39 @@ describe('SiemApiClient', () => {
 		expect(init?.method).toBe('POST');
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
 	});
+
+	it('getAuthSettings attaches Authorization and parses the response', async () => {
+		const fetchFn = fakeFetch({
+			oidc_issuer: 'https://pocketid.townsville.cc',
+			oidc_client_id: 'homeSIEM',
+			oidc_groups_scope: 'groups',
+			role_mappings: [{ id: 1, group_claim: 'admins', role: 'admin', priority: 10 }]
+		});
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.getAuthSettings('token-123');
+
+		expect(result.role_mappings).toHaveLength(1);
+		expect(result.role_mappings[0].group_claim).toBe('admins');
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/settings/auth');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('updateRoleMappings PUTs to /settings/auth with Authorization and a JSON body', async () => {
+		const fetchFn = fakeFetch(null, 204);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.updateRoleMappings('token-123', {
+			role_mappings: [{ group_claim: 'homelab', role: 'viewer', priority: 100 }]
+		});
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/settings/auth');
+		expect(init?.method).toBe('PUT');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+		expect(JSON.parse(init?.body as string)).toEqual({
+			role_mappings: [{ group_claim: 'homelab', role: 'viewer', priority: 100 }]
+		});
+	});
 });

@@ -104,6 +104,24 @@ export interface EstablishSessionResponse {
 	display_name: string;
 }
 
+export interface RoleMappingResponse {
+	id: number;
+	group_claim: string;
+	role: string;
+	priority: number;
+}
+
+export interface AuthSettingsResponse {
+	oidc_issuer: string;
+	oidc_client_id: string;
+	oidc_groups_scope: string;
+	role_mappings: RoleMappingResponse[];
+}
+
+export interface UpdateRoleMappingsRequest {
+	role_mappings: { group_claim: string; role: string; priority: number }[];
+}
+
 export class SiemApiError extends Error {
 	status: number;
 	constructor(status: number, message: string) {
@@ -191,6 +209,18 @@ export class SiemApiClient {
 		const qs = new URLSearchParams(params).toString();
 		const path = qs ? `/events/search?${qs}` : '/events/search';
 		return this.request<SearchResponse>(path, this.authInit(sessionToken));
+	}
+
+	async getAuthSettings(sessionToken: string): Promise<AuthSettingsResponse> {
+		return this.request<AuthSettingsResponse>('/settings/auth', this.authInit(sessionToken));
+	}
+
+	async updateRoleMappings(sessionToken: string, req: UpdateRoleMappingsRequest): Promise<void> {
+		return this.requestNoContent('/settings/auth', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json', ...this.authInit(sessionToken).headers },
+			body: JSON.stringify(req)
+		});
 	}
 
 	private authInit(sessionToken: string): RequestInit {
