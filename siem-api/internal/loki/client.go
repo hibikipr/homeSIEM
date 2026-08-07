@@ -71,7 +71,7 @@ func (c *Client) QueryRange(ctx context.Context, logql string, start, end time.T
 		return QueryResult{}, fmt.Errorf("loki: query_range failed: status=%d error=%q", resp.StatusCode, parsed.Error)
 	}
 
-	var entries []LogEntry
+	entries := []LogEntry{}
 	for _, stream := range parsed.Data.Result {
 		for _, v := range stream.Values {
 			nanos, err := strconv.ParseInt(v[0], 10, 64)
