@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { LogEntry } from '$lib/server/siemApiClient';
-	import { computeVisibleRange } from '$lib/search';
+	import { computeVisibleRange, formatTimestamp } from '$lib/search';
 	import { severityColor } from '$lib/tail';
 
 	const ROW_HEIGHT = 28;
@@ -91,7 +91,7 @@
 					style:top="{(range.startIndex + i) * ROW_HEIGHT}px"
 					onclick={() => onSelect(range.startIndex + i)}
 				>
-					<span class="col-time mono">{entry.Timestamp}</span>
+					<span class="col-time mono">{formatTimestamp(entry.Timestamp)}</span>
 					<span class="col-severity">
 						<span class="dot" style:background={severityColor(entry.Labels.severity ?? 'info')}
 						></span>
@@ -163,7 +163,7 @@
 		font-family: var(--font-mono);
 	}
 	.col-time {
-		width: 150px;
+		width: 190px;
 		color: var(--color-muted);
 		flex-shrink: 0;
 		white-space: nowrap;
@@ -177,11 +177,18 @@
 	.col-host {
 		width: 88px;
 		flex-shrink: 0;
+		color: var(--color-text-3);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.col-program {
 		width: 78px;
 		flex-shrink: 0;
 		color: var(--color-accent-light);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.col-message {
 		flex: 1;
