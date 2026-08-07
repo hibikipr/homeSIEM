@@ -16,13 +16,13 @@
 		userRole: string;
 	} = $props();
 
-	// Only `/` (Wall) exists in this sub-project; the other five screens are separate
-	// future sub-projects, so their paths aren't in SvelteKit's generated `Pathname`
-	// union yet. They're asserted to `Pathname` so `resolve()` (which applies `base`)
-	// can still be used uniformly — drop each assertion as its route lands.
+	// Only `/settings` remains a future sub-project whose path isn't in SvelteKit's
+	// generated `Pathname` union yet; it's asserted to `Pathname` so `resolve()`
+	// (which applies `base`) can still be used uniformly — drop the assertion once
+	// that route lands.
 	const navItems: { label: string; href: Pathname }[] = [
 		{ label: 'Wall', href: '/' },
-		{ label: 'Search', href: '/search' as Pathname },
+		{ label: 'Search', href: '/search' },
 		{ label: 'Live tail', href: '/tail' },
 		{ label: 'Alerts', href: '/alerts' },
 		{ label: 'Sources', href: '/sources' },
