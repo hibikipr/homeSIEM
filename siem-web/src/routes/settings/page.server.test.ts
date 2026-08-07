@@ -39,9 +39,10 @@ describe('Settings load', () => {
 			};
 		});
 
-		await expect(
-			load({ locals: { sessionToken: 'stale-token' } } as never)
-		).rejects.toMatchObject({ status: 302, location: '/auth/logout' });
+		await expect(load({ locals: { sessionToken: 'stale-token' } } as never)).rejects.toMatchObject({
+			status: 302,
+			location: '/auth/logout'
+		});
 	});
 
 	it('surfaces a 502 when siem-api fails for a reason other than auth', async () => {
@@ -51,8 +52,8 @@ describe('Settings load', () => {
 			};
 		});
 
-		await expect(
-			load({ locals: { sessionToken: 'token-123' } } as never)
-		).rejects.toMatchObject({ status: 502 });
+		await expect(load({ locals: { sessionToken: 'token-123' } } as never)).rejects.toMatchObject({
+			status: 502
+		});
 	});
 });

@@ -1,5 +1,6 @@
 <script lang="ts">
-	type SectionKey = 'authentication' | 'retention' | 'notifications' | 'parsers' | 'backups' | 'about';
+	type SectionKey =
+		'authentication' | 'retention' | 'notifications' | 'parsers' | 'backups' | 'about';
 
 	let selectedSection = $state<SectionKey>('authentication');
 
@@ -33,7 +34,7 @@
 
 <main class="settings-shell">
 	<nav class="sidebar" aria-label="Settings sections">
-		{#each sections as section}
+		{#each sections as section (section.key)}
 			<button
 				type="button"
 				class:selected={selectedSection === section.key}
@@ -111,7 +112,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each roleMappings as mapping}
+						{#each roleMappings as mapping (mapping.group)}
 							<tr>
 								<td class="mono">{mapping.group}</td>
 								<td><span class="pill accent">{mapping.role}</span></td>
