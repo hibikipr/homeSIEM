@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { LogEntry } from '$lib/server/siemApiClient';
 	import { computeVisibleRange } from '$lib/search';
+	import { severityColor } from '$lib/tail';
 
 	const ROW_HEIGHT = 28;
 
@@ -31,6 +32,41 @@
 		measure();
 	});
 
+	// Keep the scroll position sane across two situations that can otherwise
+	// leave the table looking broken:
+	//   1. `entries` gets a new array reference (a new search ran) — reset
+	//      scroll back to the top rather than leaving the user scrolled deep
+	//      into a result set that no longer matches what's on screen.
+	//   2. `selectedIndex` points at a row that isn't currently mounted in the
+	//      visible window (e.g. deep-linking to `?preview=3000`) — scroll it
+	//      into view, centered, but only when it's actually out of view so we
+	//      don't fight the user's own scrolling on every render.
+	let previousEntries: LogEntry[] | undefined;
+	$effect(() => {
+		const currentEntries = entries;
+		const idx = selectedIndex;
+		if (!containerEl) return;
+
+		if (currentEntries !== previousEntries) {
+			previousEntries = currentEntries;
+			scrollTop = 0;
+			containerEl.scrollTop = 0;
+		}
+
+		if (idx !== null) {
+			const rowTop = idx * ROW_HEIGHT;
+			const rowBottom = rowTop + ROW_HEIGHT;
+			const visibleTop = containerEl.scrollTop;
+			const visibleBottom = visibleTop + containerHeight;
+			const isVisible = rowTop >= visibleTop && rowBottom <= visibleBottom;
+			if (!isVisible) {
+				const target = Math.max(0, idx * ROW_HEIGHT - containerHeight / 2);
+				containerEl.scrollTop = target;
+				scrollTop = target;
+			}
+		}
+	});
+
 	let range = $derived(computeVisibleRange(scrollTop, containerHeight, ROW_HEIGHT, entries.length));
 	let visibleEntries = $derived(entries.slice(range.startIndex, range.endIndex));
 </script>
@@ -51,12 +87,14 @@
 				<button
 					class="row"
 					class:selected={range.startIndex + i === selectedIndex}
+					class:stripe={(range.startIndex + i) % 2 === 1}
 					style:top="{(range.startIndex + i) * ROW_HEIGHT}px"
 					onclick={() => onSelect(range.startIndex + i)}
 				>
 					<span class="col-time mono">{entry.Timestamp}</span>
 					<span class="col-severity">
-						<span class="dot severity-{entry.Labels.severity ?? 'info'}"></span>
+						<span class="dot" style:background={severityColor(entry.Labels.severity ?? 'info')}
+						></span>
 					</span>
 					<span class="col-host mono">{entry.Labels.host ?? ''}</span>
 					<span class="col-program mono">{entry.Labels.program ?? ''}</span>
@@ -109,22 +147,28 @@
 		cursor: pointer;
 		font-size: 12px;
 	}
-	.row:nth-child(even) {
+	.row.stripe {
 		background: rgba(255, 255, 255, 0.015);
+	}
+	.row:hover {
+		background: var(--row-hover-bg);
 	}
 	.row.selected {
 		background: var(--row-selected-bg);
 	}
-	.row:hover {
-		background: var(--row-hover-bg);
+	.row.selected:hover {
+		background: var(--row-selected-bg);
 	}
 	.mono {
 		font-family: var(--font-mono);
 	}
 	.col-time {
-		width: 66px;
+		width: 150px;
 		color: var(--color-muted);
 		flex-shrink: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.col-severity {
 		width: 14px;
@@ -151,15 +195,5 @@
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
-	}
-	.dot.severity-critical {
-		background: var(--color-severity-critical);
-	}
-	.dot.severity-warning {
-		background: var(--color-severity-warning);
-	}
-	.dot.severity-info,
-	.dot.severity-notice {
-		background: var(--color-severity-info);
 	}
 </style>
