@@ -24,6 +24,7 @@
 	function filterToSrc(srcIp: string) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
 		const params = new URLSearchParams(window.location.search);
+		params.delete('preview');
 		params.set('q', srcIp);
 		goto(resolve(`/search?${params.toString()}`));
 	}
@@ -31,6 +32,7 @@
 	function facetClick(field: string, value: string) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
 		const params = new URLSearchParams(window.location.search);
+		params.delete('preview');
 		params.set(field, value);
 		goto(resolve(`/search?${params.toString()}`));
 	}
