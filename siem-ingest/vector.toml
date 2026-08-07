@@ -61,7 +61,57 @@ source = '''
   .source = "udm-ultra"
   .transport = "udp/514"
   .parser = "unifi-os"
-  if match(string!(.message), r'\[(?P<rule>[A-Z_]+-\w+-[ADR])\]') {
+
+  ## UniFi OS's "SIEM Server" integration (Settings → System Logging / SIEM) sends
+  ## CEF-formatted messages with no <PRI> header, wrapped behind an arbitrary leading
+  ## envelope token (observed: "CGU ", also "pandora " in vendor docs) that isn't a
+  ## stable/parseable hostname. Splitting on the literal "CEF:0|" (rather than assuming
+  ## the message starts with it) discards that leading token regardless of its content.
+  if contains(string!(.message), "CEF:0|") {
+    .parser = "unifi-cef"
+    cef_body = split(string!(.message), "CEF:0|")[1]
+    ## split!(): cef_body's static type is "string or null" (array indexing can't be
+    ## proven non-null at compile time), even though contains() above guarantees a
+    ## match exists at runtime. The bang assertion is required here, not optional.
+    fields = split!(cef_body, "|")
+    if length(fields) >= 7 {
+      .cef_vendor = fields[0]
+      .cef_product = fields[1]
+      .cef_version = fields[2]
+      .cef_signature_id = fields[3]
+      .cef_name = fields[4]
+      .appname = fields[4]
+      .program = fields[4]
+      ## to_int() is genuinely fallible (non-numeric input), so ?? is correct here —
+      ## unlike the plain-field-access cases below, where ?? is rejected by the compiler
+      ## as "unnecessary error coalescing" since field access on a map can't fail.
+      cef_severity = to_int(fields[5]) ?? 0
+      .severity = if cef_severity >= 9 { "crit" } else if cef_severity >= 7 { "err" } else if cef_severity >= 4 { "warning" } else { "info" }
+      extension = join(slice!(fields, 6), "|") ?? ""
+      ext, err = parse_key_value(extension, key_value_delimiter: "=", field_delimiter: " ")
+      if err == null {
+        .src_ip = ext.src
+        .dst_ip = ext.dst
+        dpt = ext.dpt
+        .dst_port = to_int(dpt) ?? null
+        proto = ext.proto
+        ## downcase!() (bang): parse_key_value's values are typed as
+        ## "string, boolean, null or array", not guaranteed string, even inside this
+        ## is_null-guarded branch — the compiler still requires the assertion.
+        .proto = if is_null(proto) { "" } else { downcase!(proto) }
+        .unifi_device_mac = ext.UNIFIdeviceMac
+        .unifi_device_ip = ext.UNIFIdeviceIp
+        ## UNIFIhost has been observed as a useless literal "Host" placeholder on a
+        ## real device, while UNIFIdeviceName held the actual device name in the same
+        ## message — prefer UNIFIdeviceName, fall back to UNIFIhost only if absent.
+        device_name = if !is_null(ext.UNIFIdeviceName) { ext.UNIFIdeviceName } else { ext.UNIFIhost }
+        if !is_null(device_name) {
+          .host = device_name
+          .hostname = device_name
+        }
+      }
+    }
+  } else if match(string!(.message), r'\[(?P<rule>[A-Z_]+-\w+-[ADR])\]') {
     .rule     = parse_regex!(.message, r'\[(?P<rule>[A-Z_]+-\w+-[ADR])\]').rule
     .src_ip   = parse_regex(.message, r'(?:^| )SRC=(?P<val>[^ ]+)').val ?? null
     .dst_ip   = parse_regex(.message, r'(?:^| )DST=(?P<val>[^ ]+)').val ?? null
