@@ -16,17 +16,13 @@
 		userRole: string;
 	} = $props();
 
-	// Only `/settings` remains a future sub-project whose path isn't in SvelteKit's
-	// generated `Pathname` union yet; it's asserted to `Pathname` so `resolve()`
-	// (which applies `base`) can still be used uniformly — drop the assertion once
-	// that route lands.
 	const navItems: { label: string; href: Pathname }[] = [
 		{ label: 'Wall', href: '/' },
 		{ label: 'Search', href: '/search' },
 		{ label: 'Live tail', href: '/tail' },
 		{ label: 'Alerts', href: '/alerts' },
 		{ label: 'Sources', href: '/sources' },
-		{ label: 'Settings', href: '/settings' as Pathname }
+		{ label: 'Settings', href: '/settings' }
 	];
 </script>
 
