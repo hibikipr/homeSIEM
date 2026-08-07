@@ -49,9 +49,11 @@
 			<button onclick={() => onRuleFromThis(entry)}>Rule from this</button>
 		</div>
 		{#if contextSummary}
+			{@const displayCount =
+				contextSummary.count >= 5000 ? '5,000+' : contextSummary.count.toLocaleString()}
 			<div class="context">
-				{contextSummary.count} matching event{contextSummary.count === 1 ? '' : 's'} from this source
-				IP in the last 24h.
+				{displayCount} matching event{contextSummary.count === 1 ? '' : 's'} from this source IP in the
+				last 24h.
 			</div>
 		{/if}
 	{/if}

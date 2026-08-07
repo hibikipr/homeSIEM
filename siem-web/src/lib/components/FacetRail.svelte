@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { deriveFacetCounts, deriveCountryFacet } from '$lib/search';
+	import { severityColor } from '$lib/tail';
 	import type { LogEntry } from '$lib/server/siemApiClient';
 
 	let {
@@ -20,7 +21,7 @@
 		<h2>Severity</h2>
 		{#each severities as facet (facet.value)}
 			<button class="facet-row" onclick={() => onFacetClick('severity', facet.value)}>
-				<span class="dot severity-{facet.value}"></span>
+				<span class="dot" style:background={severityColor(facet.value)}></span>
 				<span class="name">{facet.value}</span>
 				<span class="count mono">{facet.count}</span>
 			</button>
@@ -93,15 +94,5 @@
 		height: 7px;
 		border-radius: 50%;
 		flex-shrink: 0;
-	}
-	.dot.severity-critical {
-		background: var(--color-severity-critical);
-	}
-	.dot.severity-warning {
-		background: var(--color-severity-warning);
-	}
-	.dot.severity-info,
-	.dot.severity-notice {
-		background: var(--color-severity-info);
 	}
 </style>

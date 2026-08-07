@@ -9,6 +9,7 @@
 	import RuleFromEventForm from '$lib/components/RuleFromEventForm.svelte';
 	import type { LogEntry } from '$lib/server/siemApiClient';
 	import type { PageData } from './$types';
+	import { extractSrcIp } from '$lib/search';
 
 	let { data }: { data: PageData } = $props();
 
@@ -41,18 +42,22 @@
 		ruleFormSeed = { name: 'search-alert', logql: data.logql };
 	}
 
-	function ruleFromEvent(_entry: LogEntry) {
-		ruleFormSeed = { name: 'event-rule', logql: data.logql };
+	function ruleFromEvent(entry: LogEntry) {
+		const srcIp = extractSrcIp(entry.Line);
+		const logql = srcIp ? `${data.logql} |= "${srcIp}"` : data.logql;
+		ruleFormSeed = { name: 'event-rule', logql };
 	}
 </script>
 
 <div class="search-screen">
-	<QueryBar
-		filters={data.filters}
-		logql={data.logql}
-		count={data.count}
-		onAlertOnThis={alertOnThis}
-	/>
+	{#key data.logql}
+		<QueryBar
+			filters={data.filters}
+			logql={data.logql}
+			count={data.count}
+			onAlertOnThis={alertOnThis}
+		/>
+	{/key}
 	<VolumeRibbon volume={data.volume} />
 	<div class="body">
 		<FacetRail entries={data.entries} onFacetClick={facetClick} />

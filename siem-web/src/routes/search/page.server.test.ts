@@ -80,6 +80,28 @@ describe('Search load', () => {
 		expect(result.selectedEntry?.Line).toBe('{"src_ip":"10.0.0.5"}');
 		expect(result.contextSummary).toEqual({ count: 4 });
 		expect(searchMock).toHaveBeenCalledTimes(2);
+		expect(searchMock).toHaveBeenNthCalledWith(
+			2,
+			'token-123',
+			expect.objectContaining({ limit: '5000' })
+		);
+	});
+
+	it('resolves previewIndex to null when ?preview= is non-numeric', async () => {
+		const searchMock = vi.fn().mockResolvedValue(fakeSearchResult());
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return { search: searchMock };
+		});
+
+		const result = (await load({
+			locals: { sessionToken: 'token-123' },
+			url: new URL('https://siem.townsville.cc/search?preview=abc')
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.previewIndex).toBeNull();
+		expect(result.selectedEntry).toBeNull();
+		expect(result.contextSummary).toBeNull();
+		expect(searchMock).toHaveBeenCalledTimes(1);
 	});
 
 	it('redirects to /auth/logout on a 401/403 from the primary search', async () => {

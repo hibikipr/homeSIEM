@@ -41,6 +41,7 @@
 	function setRange(range: SearchFilters['range']) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
 		const params = new URLSearchParams(window.location.search);
+		params.delete('preview');
 		params.set('range', range);
 		goto(resolve(`/search?${params.toString()}`));
 	}

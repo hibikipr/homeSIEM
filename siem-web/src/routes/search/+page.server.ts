@@ -36,7 +36,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const previewParam = url.searchParams.get('preview');
-	const previewIndex = previewParam !== null ? Number(previewParam) : null;
+	const parsedPreview = previewParam !== null ? Number(previewParam) : null;
+	const previewIndex =
+		parsedPreview !== null && Number.isInteger(parsedPreview) ? parsedPreview : null;
 	const selectedEntry =
 		previewIndex !== null && previewIndex >= 0 && previewIndex < result.entries.length
 			? result.entries[previewIndex]
@@ -51,12 +53,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					q: srcIp,
 					start: new Date(end.getTime() - 24 * 60 * 60 * 1000).toISOString(),
 					end: end.toISOString(),
-					limit: '1'
+					limit: '5000'
 				});
 				contextSummary = { count: contextResult.count };
-			} catch {
+			} catch (err) {
 				// Context callout is supplementary — a failure here shouldn't
 				// take down the rest of the page.
+				console.error('search: context summary lookup failed', err);
 				contextSummary = null;
 			}
 		}
