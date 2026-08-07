@@ -28,6 +28,11 @@
 		event.preventDefault();
 		submitting = true;
 		error = null;
+		if (mode === 'add' && existingMappings.some((m) => m.group_claim === groupClaim)) {
+			error = 'A mapping for this group already exists — edit it from the table instead.';
+			submitting = false;
+			return;
+		}
 		try {
 			const priority = mode === 'edit' && initial ? initial.priority : nextPriority();
 			const response = await fetch('/api/settings/auth', {

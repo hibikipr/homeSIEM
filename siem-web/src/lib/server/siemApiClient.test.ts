@@ -254,7 +254,7 @@ describe('SiemApiClient', () => {
 		const result = await client.getAuthSettings('token-123');
 
 		expect(result.role_mappings).toHaveLength(1);
-		expect(result.role_mappings[0].group_claim).toBe('admins');
+		expect(result.role_mappings?.[0].group_claim).toBe('admins');
 		const [url, init] = fetchFn.mock.calls[0];
 		expect(url).toBe('http://siem-api:8080/settings/auth');
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');

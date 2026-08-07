@@ -115,7 +115,7 @@ export interface AuthSettingsResponse {
 	oidc_issuer: string;
 	oidc_client_id: string;
 	oidc_groups_scope: string;
-	role_mappings: RoleMappingResponse[];
+	role_mappings: RoleMappingResponse[] | null;
 }
 
 export interface UpdateRoleMappingsRequest {

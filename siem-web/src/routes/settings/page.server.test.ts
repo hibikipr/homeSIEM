@@ -32,7 +32,26 @@ describe('Settings load', () => {
 		]);
 	});
 
-	it('redirects to /auth/logout on a 401/403 from siem-api', async () => {
+	it('returns an empty array when siem-api sends role_mappings: null', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getAuthSettings: vi.fn().mockResolvedValue({
+					oidc_issuer: 'https://pocketid.townsville.cc',
+					oidc_client_id: 'homeSIEM',
+					oidc_groups_scope: 'groups',
+					role_mappings: null
+				})
+			};
+		});
+
+		const result = (await load({
+			locals: { sessionToken: 'token-123' }
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.roleMappings).toEqual([]);
+	});
+
+	it('redirects to /auth/logout on a 401 from siem-api', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
 				getAuthSettings: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session'))
@@ -43,6 +62,20 @@ describe('Settings load', () => {
 			status: 302,
 			location: '/auth/logout'
 		});
+	});
+
+	it('rejects with 403 when siem-api reports the session is not an admin', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getAuthSettings: vi.fn().mockRejectedValue(new SiemApiError(403, 'not an admin'))
+			};
+		});
+
+		await expect(load({ locals: { sessionToken: 'viewer-token' } } as never)).rejects.toMatchObject(
+			{
+				status: 403
+			}
+		);
 	});
 
 	it('surfaces a 502 when siem-api fails for a reason other than auth', async () => {

@@ -12,13 +12,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 		settings = await client.getAuthSettings(token);
 	} catch (err) {
 		if (err instanceof SiemApiError) {
-			if (err.status === 401 || err.status === 403) {
+			if (err.status === 401) {
 				redirect(302, '/auth/logout');
+			}
+			if (err.status === 403) {
+				error(403, 'Settings is only available to admins.');
 			}
 			error(502, 'siem-api unavailable');
 		}
 		throw err;
 	}
 
-	return { roleMappings: settings.role_mappings };
+	return { roleMappings: settings.role_mappings ?? [] };
 };
