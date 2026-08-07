@@ -177,11 +177,18 @@
 	.col-host {
 		width: 88px;
 		flex-shrink: 0;
+		color: var(--color-text-3);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.col-program {
 		width: 78px;
 		flex-shrink: 0;
 		color: var(--color-accent-light);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.col-message {
 		flex: 1;
