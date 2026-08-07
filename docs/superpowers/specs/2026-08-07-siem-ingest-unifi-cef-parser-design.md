@@ -84,24 +84,39 @@ not real parsing:
 ## Verification (before this is considered done)
 
 Same discipline as every other VRL change in this pipeline: tested against the real
-`timberio/vector:0.49.0-alpine` binary via the local Docker harness (`siem-ingest/test/`),
-replaying the real captured CEF line's structure (leading envelope token + full CEF
-header/extension, per the Context section above) — not just written and assumed correct
-from reading VRL documentation. `parse_key_value`'s exact call signature in particular
-needs real-binary confirmation, not just recalled from memory.
+`timberio/vector:0.49.0-alpine` binary — not just written and assumed correct from reading
+VRL documentation. This was actually done during design, not deferred to implementation:
+the exact VRL below was iterated against `vector test` (see Testing) until all cases
+passed, surfacing five real compile errors that pure documentation reading wouldn't have
+caught — most notably that `else`/`else if` must stay on the same line as the preceding
+`}` (a newline before `else` is a syntax error), and that `??` is strictly error-coalescing
+in VRL, not null-coalescing: plain object-field access (`ext.src` on a `parse_key_value`
+result) never fails, so `?? null` after it is rejected as "unnecessary error coalescing,"
+the same distinction this pipeline already learned the hard way for `.severity ?? "info"`
+during the original build.
 
 ## Testing
 
-- Local Docker harness (`siem-ingest/test/docker-compose.yml`, real Vector + real Loki):
-  replay a synthetic CEF-shaped UDP payload matching the real captured structure, confirm
-  the resulting Loki-stored event has real `severity`/`host`/`program`/`src_ip`/`dst_ip`/
-  `dst_port`/`proto` values, not defaults or garbage.
-  - One additional test case: a CEF message with fewer than 7 pipe-delimited fields,
-    confirming it falls through to `enrich_geo`'s existing fallback instead of erroring or
-    being dropped.
-- No unit-test framework exists for VRL itself (Vector doesn't have one) — verification is
-  end-to-end through the real harness, matching how every other transform in this file was
-  verified.
+**Vector has a real unit-test framework** (`vector test`, TOML `[[tests]]` blocks) —
+corrected from an earlier assumption that no such framework exists. This is the primary
+test mechanism for this change, not the full docker-compose harness:
+- A new `siem-ingest/test/parse_unifi.tests.toml` (or equivalent) with `[[tests]]` cases,
+  run via `vector test vector.toml test/parse_unifi.tests.toml`:
+  1. A real CEF message (matching the captured structure) asserts every extracted field:
+     `severity`, `src_ip`, `dst_ip`, `dst_port`, `proto`, `host`, `hostname`, `program`,
+     `unifi_device_mac`, `unifi_device_ip`, `parser`.
+  2. A CEF message with fewer than 7 pipe-delimited fields asserts the branch is skipped
+     (`parser` is still set to `"unifi-cef"`, since detection happens before the field-count
+     guard, but `severity`/`src_ip` are never set) — falling through to `enrich_geo`'s
+     existing fallback rather than erroring or dropping the event.
+  3. A CEF message with `UNIFIdeviceName` absent asserts the `UNIFIhost` fallback actually
+     activates (not just that the preference order is correct when both are present).
+  4. The pre-existing netfilter-bracket branch asserts unaffected — same fields extracted
+     as before this change.
+- The full docker-compose harness (`siem-ingest/test/docker-compose.yml`, real Vector +
+  real Loki) remains the end-to-end check for the whole pipeline, but `vector test` is
+  the right tool for the transform-level cases above — faster, and it was how this design
+  was actually verified.
 
 ## Known gaps after this pass
 
