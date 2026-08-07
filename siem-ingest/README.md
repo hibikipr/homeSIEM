@@ -61,31 +61,30 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
 - This pass verifies the pipeline against synthetic traffic in a local
   Docker harness, not against the real UDM-Ultra or real hosts — that's the
   next real-world verification step once deployed.
-- **UniFi OS's "SIEM Server" integration** (Settings → System Logging /
-  SIEM — a distinct feature from the classic "Remote Logging" toggle this
-  pipeline was originally built against) sends **CEF-formatted** messages
-  wrapped in a syslog envelope with no `<PRI>` header, confirmed against a
-  real UDM device's "Send Test Event" (raw packet captured via `tcpdump`).
-  Two consequences, both handled but not ideal:
-  - No `<PRI>` header means Vector's syslog decoder can't derive
-    `.severity` — `enrich_geo` now defaults it to `"info"` when missing
-    (see the comment in `vector.toml`) so the event isn't dropped
-    outright, but the event's *real* CEF severity (present in the CEF
-    header itself, e.g. `CEF:0|Ubiquiti|UniFi OS|...|<severity>|...`) is
-    currently ignored — it's just always `"info"` for CEF-shaped events.
-  - Nothing here parses CEF's pipe-delimited structure, so `host`/
-    `hostname`/`appname` end up populated with whatever Vector's lenient
-    RFC3164-ish decoder guessed at (observed: the CEF payload's own
-    embedded timestamp landing in the `host` field) rather than real
-    values. A proper fix would need a CEF-aware parse transform,
-    conditioned on detecting the `CEF:` prefix — not implemented here.
-  - The same malformed shape also confused Vector's timestamp decoder
-    into producing a value 4 hours in the future (confirmed: matches the
-    process's `TZ=America/New_York` offset exactly), which made Loki
-    reject the event outright with "timestamp too new" — a second,
-    independent way this one integration's malformed input caused total
-    data loss beyond just the missing severity. `enrich_geo` now clamps
-    any implausibly-future timestamp back to real receipt time. Verified
-    this is specific to malformed input, not a blanket TZ bug: a
-    well-formed RFC5424 message with an explicit `Z` timestamp parses
-    correctly even with the same `TZ` set.
+- **UniFi OS's "SIEM Server" integration** (Settings → System Logging / SIEM — a
+  distinct feature from the classic "Remote Logging" toggle this pipeline was originally
+  built against) sends **CEF-formatted** messages wrapped in a syslog envelope with no
+  `<PRI>` header, confirmed against a real UDM device's "Send Test Event" (raw packet
+  captured via `tcpdump`) and cross-referenced against Ubiquiti's and Graylog's own
+  published documentation for the integration's wire format. `parse_unifi` now parses
+  this directly:
+  - Real CEF severity (the header's 7th pipe-delimited field, numeric 0-10) is mapped to
+    this pipeline's text severity vocabulary (`0-3→info, 4-6→warning, 7-8→err,
+    9-10→crit`) — no longer defaulted to `"info"` for every CEF event.
+  - `host`/`hostname` are set from the CEF extension's `UNIFIdeviceName` field (falling
+    back to `UNIFIhost` if absent), and `program`/`appname` from the CEF header's `Name`
+    field — no longer whatever Vector's lenient RFC3164-ish decoder guessed at.
+  - `src_ip`/`dst_ip`/`dst_port`/`proto` are extracted from the CEF extension's
+    `src`/`dst`/`dpt`/`proto` keys, using the same field names the classic netfilter-style
+    messages already use — GeoIP/threat-intel enrichment and `fast_path` forwarding work
+    identically for both UniFi message formats with no further changes.
+  - `enrich_geo`'s severity-default and timestamp-clamp fallbacks (see
+    `docs/superpowers/specs/2026-08-07-siem-ingest-unifi-cef-parser-design.md` for the
+    original bug reports) remain in place as the safety net for anything the new parsing
+    branch doesn't cover — a CEF message with fewer than 7 pipe-delimited fields
+    (malformed/truncated) still falls through to those defaults rather than being dropped.
+  - **Not handled**: CEF's escape-sequence syntax (`\|` inside a field value) — a plain
+    pipe-split is used, which matches every real example captured or documented so far,
+    but isn't fully CEF-spec-compliant. CEF events also don't set `.action`
+    (`"drop"`/`"accept"`), so they only reach `fast_path`'s forwarding via the
+    threat-intel match path, not the drop-rule path the netfilter branch uses.
