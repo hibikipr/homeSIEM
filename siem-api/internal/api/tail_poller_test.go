@@ -24,6 +24,55 @@ func (f *fakeTailQuerier) QueryRange(ctx context.Context, logql string, start, e
 	return loki.QueryResult{Entries: out}, nil
 }
 
+// lagTailQuerier simulates real Loki ingestion lag: an entry's own event
+// timestamp is early, but the entry doesn't become visible to queries until
+// revealAt (wall-clock), well after that timestamp.
+type lagTailQuerier struct {
+	entries  []loki.LogEntry
+	revealAt time.Time
+}
+
+func (f *lagTailQuerier) QueryRange(ctx context.Context, logql string, start, end time.Time, limit int) (loki.QueryResult, error) {
+	if time.Now().Before(f.revealAt) {
+		return loki.QueryResult{}, nil
+	}
+	var out []loki.LogEntry
+	for _, e := range f.entries {
+		if e.Timestamp.After(start) && !e.Timestamp.After(end) {
+			out = append(out, e)
+		}
+	}
+	return loki.QueryResult{Entries: out}, nil
+}
+
+func TestRunTailPoller_DoesNotDropEntriesDelayedByIngestionLag(t *testing.T) {
+	now := time.Now().UTC()
+	querier := &lagTailQuerier{
+		entries:  []loki.LogEntry{{Timestamp: now.Add(10 * time.Millisecond), Line: "delayed"}},
+		revealAt: time.Now().Add(150 * time.Millisecond),
+	}
+	hub := sse.NewHub()
+	ch, cancel := hub.Subscribe("tail")
+	defer cancel()
+
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	go RunTailPoller(ctx, querier, "siem", hub, 20*time.Millisecond, apiTestLogger())
+
+	var got struct{ Line string }
+	select {
+	case msg := <-ch:
+		if err := json.Unmarshal(msg, &got); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the tail poller to publish the delayed entry")
+	}
+	if got.Line != "delayed" {
+		t.Errorf("Line = %q, want delayed", got.Line)
+	}
+}
+
 func TestRunTailPoller_PublishesNewEntriesOnce(t *testing.T) {
 	now := time.Now().UTC()
 	querier := &fakeTailQuerier{entries: []loki.LogEntry{
