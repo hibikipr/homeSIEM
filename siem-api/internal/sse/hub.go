@@ -4,7 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 )
+
+// heartbeatInterval is a var, not a const, so tests can shrink it rather
+// than waiting out a real 15s idle period.
+var heartbeatInterval = 15 * time.Second
 
 type Hub struct {
 	mu   sync.Mutex
@@ -73,12 +78,24 @@ func (h *Hub) ServeHTTP(topic string, w http.ResponseWriter, r *http.Request) {
 	ch, cancel := h.Subscribe(topic)
 	defer cancel()
 
+	// Without this, a stream that goes quiet (normal for e.g. an idle SIEM
+	// tail) never writes another byte, and any idle timeout downstream -
+	// reverse proxy, NAT conntrack, the browser's own fetch - can silently
+	// kill the connection. The client then has no way to distinguish "quiet
+	// but alive" from "silently dead" and, in practice, doesn't reconnect
+	// until something else prompts a full page reload.
+	heartbeat := time.NewTicker(heartbeatInterval)
+	defer heartbeat.Stop()
+
 	for {
 		select {
 		case <-r.Context().Done():
 			return
 		case data := <-ch:
 			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		case <-heartbeat.C:
+			fmt.Fprint(w, ": heartbeat\n\n")
 			flusher.Flush()
 		}
 	}

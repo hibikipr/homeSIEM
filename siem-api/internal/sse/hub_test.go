@@ -103,3 +103,35 @@ func TestServeHTTP_StreamsPublishedMessages(t *testing.T) {
 		t.Errorf("body = %q, want it to contain %q", rec.Body.String(), "data: hello")
 	}
 }
+
+func TestServeHTTP_SendsHeartbeatWhenIdle(t *testing.T) {
+	original := heartbeatInterval
+	heartbeatInterval = 10 * time.Millisecond
+	defer func() { heartbeatInterval = original }()
+
+	h := NewHub()
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/events/tail", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handlerDone := make(chan struct{})
+	go func() {
+		h.ServeHTTP("tail", rec, req)
+		close(handlerDone)
+	}()
+
+	// No publish at all - an idle stream with no heartbeat would sit
+	// silent forever and never write another byte.
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-handlerDone:
+	case <-time.After(time.Second):
+		t.Fatal("ServeHTTP did not return after context cancellation")
+	}
+
+	if !strings.Contains(rec.Body.String(), ": heartbeat") {
+		t.Errorf("body = %q, want it to contain a heartbeat comment", rec.Body.String())
+	}
+}
