@@ -65,6 +65,31 @@ func TestQueryRange_ParsesAndSortsEntries(t *testing.T) {
 	}
 }
 
+func TestQueryRange_NoMatchesReturnsEmptyNotNilEntries(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status": "success", "data": {"resultType": "streams", "result": []}}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, srv.Client())
+	result, err := c.QueryRange(context.Background(), `{job="siem"}`, time.Now(), time.Now(), 100)
+	if err != nil {
+		t.Fatalf("QueryRange() error = %v", err)
+	}
+
+	// siem-api JSON-encodes this directly as the search response's "entries"
+	// field; a nil slice marshals to `null`, which siem-web's `for (const
+	// entry of entries)` throws TypeError on. Must stay a non-nil empty slice
+	// so the field marshals to `[]`.
+	if result.Entries == nil {
+		t.Fatal("Entries = nil, want non-nil empty slice (marshals to JSON null, crashes siem-web callers)")
+	}
+	if len(result.Entries) != 0 {
+		t.Fatalf("len(Entries) = %d, want 0", len(result.Entries))
+	}
+}
+
 func TestQueryRange_NonSuccessStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
