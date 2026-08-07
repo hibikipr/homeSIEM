@@ -16,18 +16,18 @@
 		userRole: string;
 	} = $props();
 
-	// Only `/settings` remains a future sub-project whose path isn't in SvelteKit's
-	// generated `Pathname` union yet; it's asserted to `Pathname` so `resolve()`
-	// (which applies `base`) can still be used uniformly — drop the assertion once
-	// that route lands.
 	const navItems: { label: string; href: Pathname }[] = [
 		{ label: 'Wall', href: '/' },
 		{ label: 'Search', href: '/search' },
 		{ label: 'Live tail', href: '/tail' },
 		{ label: 'Alerts', href: '/alerts' },
 		{ label: 'Sources', href: '/sources' },
-		{ label: 'Settings', href: '/settings' as Pathname }
+		{ label: 'Settings', href: '/settings' }
 	];
+
+	const visibleNavItems = $derived(
+		navItems.filter((item) => item.label !== 'Settings' || userRole === 'admin')
+	);
 </script>
 
 <header class="nav">
@@ -37,7 +37,7 @@
 	</div>
 
 	<nav class="links">
-		{#each navItems as item (item.href)}
+		{#each visibleNavItems as item (item.href)}
 			<a href={resolve(item.href)} class:active={activeRoute === resolve(item.href)}>
 				{item.label}
 				{#if item.label === 'Alerts' && alertCount > 0}
