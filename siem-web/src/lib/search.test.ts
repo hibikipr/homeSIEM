@@ -5,6 +5,7 @@ import {
 	rangeToSeconds,
 	deriveFacetCounts,
 	deriveCountryFacet,
+	formatTimestamp,
 	extractSrcIp,
 	computeVolumeTiers,
 	computeVisibleRange
@@ -97,6 +98,28 @@ describe('deriveCountryFacet', () => {
 
 	it('skips lines with no geoip.cc, including malformed JSON', () => {
 		expect(deriveCountryFacet([fakeEntry({ Line: 'not json' })])).toEqual([]);
+	});
+});
+
+describe('formatTimestamp', () => {
+	it('pads a timestamp with no fractional seconds to millisecond precision', () => {
+		expect(formatTimestamp('2026-08-06T11:52:00Z')).toBe('2026-08-06T11:52:00.000Z');
+	});
+
+	it('truncates a full nanosecond-precision timestamp to milliseconds', () => {
+		expect(formatTimestamp('2026-08-06T11:52:00.123456789Z')).toBe('2026-08-06T11:52:00.123Z');
+	});
+
+	it('pads a short fractional part out to three digits', () => {
+		expect(formatTimestamp('2026-08-06T11:52:00.7Z')).toBe('2026-08-06T11:52:00.700Z');
+	});
+
+	it('leaves an already-millisecond-precision timestamp unchanged', () => {
+		expect(formatTimestamp('2026-08-06T11:52:00.734Z')).toBe('2026-08-06T11:52:00.734Z');
+	});
+
+	it('returns the input unchanged if it does not match the expected shape', () => {
+		expect(formatTimestamp('not a timestamp')).toBe('not a timestamp');
 	});
 });
 

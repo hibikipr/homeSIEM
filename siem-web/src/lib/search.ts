@@ -90,6 +90,21 @@ export function deriveCountryFacet(entries: LogEntry[]): FacetCount[] {
 		.sort((a, b) => b.count - a.count);
 }
 
+// Go's time.Time JSON marshaling (RFC3339Nano) trims trailing zero
+// fractional-second digits, so the same field can arrive as anywhere from
+// `...:00Z` (no fraction) to `...:00.123456789Z` (9 digits) depending on
+// what a given event's nanosecond component happens to be. Rendering that
+// directly in a fixed-width table column truncates unpredictably — this
+// normalizes every timestamp to a fixed millisecond-precision format so the
+// displayed length is always the same.
+export function formatTimestamp(iso: string): string {
+	const match = iso.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?Z$/);
+	if (!match) return iso;
+	const [, base, frac] = match;
+	const ms = (frac ?? '').slice(1, 4).padEnd(3, '0');
+	return `${base}.${ms}Z`;
+}
+
 export function extractSrcIp(line: string): string | null {
 	const parsed = parseLine(line);
 	if (!parsed) return null;
