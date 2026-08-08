@@ -88,3 +88,16 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
     but isn't fully CEF-spec-compliant. CEF events also don't set `.action`
     (`"drop"`/`"accept"`), so they only reach `fast_path`'s forwarding via the
     threat-intel match path, not the drop-rule path the netfilter branch uses.
+  - CEF detection also handles a real captured variant where Vector's own syslog
+    decoder already consumed the leading envelope token *and* the literal `"CEF:"`
+    text as an RFC3164 hostname+tag pair before `parse_unifi` ever runs (observed
+    for a `"WiFi Client Roamed"` event from a real device) — in that case `.message`
+    starts directly at the CEF version marker (`"0|Ubiquiti|..."`) with no `"CEF:0|"`
+    substring left to find. Detected via the side effect Vector's decoder leaves
+    behind (`.appname == "CEF"`) combined with the message still being CEF-shaped.
+  - **Not handled**: CEF extension values containing a space (e.g. a device or
+    client name like `"Townsville CGU"` or `"Victor's iPhone"`) get truncated at
+    the first space, since `parse_key_value`'s space field-delimiter can't
+    distinguish a space inside a value from the delimiter between key=value pairs.
+    Confirmed against real captured examples. A future pass would need a
+    different extension-parsing approach to handle this correctly.
