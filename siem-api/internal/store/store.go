@@ -12,6 +12,9 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
+//go:embed migrations.sql
+var migrationsSQL string
+
 type Store struct {
 	db *sql.DB
 }
@@ -53,20 +56,27 @@ func Open(databaseURL string) (*sql.DB, error) {
 	return db, nil
 }
 
-// Migrate applies schema.sql if the schema hasn't been created yet.
-// Idempotent: safe to call on every startup.
+// Migrate applies schema.sql if the schema hasn't been created yet, then
+// always applies migrations.sql - a set of individually-idempotent
+// statements for anything added after the initial release. schema.sql only
+// ever runs once (gated on `sources` not existing); migrations.sql runs on
+// every call, including against an already-populated database, since
+// schema.sql's one-time gate would otherwise silently skip new tables on
+// any existing deployment.
 func Migrate(db *sql.DB) error {
 	var exists int
 	err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sources'`).Scan(&exists)
 	if err != nil {
 		return fmt.Errorf("store: check schema: %w", err)
 	}
-	if exists > 0 {
-		return nil
+	if exists == 0 {
+		if _, err := db.Exec(schemaSQL); err != nil {
+			return fmt.Errorf("store: apply schema: %w", err)
+		}
 	}
 
-	if _, err := db.Exec(schemaSQL); err != nil {
-		return fmt.Errorf("store: apply schema: %w", err)
+	if _, err := db.Exec(migrationsSQL); err != nil {
+		return fmt.Errorf("store: apply migrations: %w", err)
 	}
 	return nil
 }
