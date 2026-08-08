@@ -122,6 +122,11 @@ export interface UpdateRoleMappingsRequest {
 	role_mappings: { group_claim: string; role: string; priority: number }[];
 }
 
+export interface NotificationSettingsResponse {
+	ntfy_configured: boolean;
+	min_severity: string;
+}
+
 export class SiemApiError extends Error {
 	status: number;
 	constructor(status: number, message: string) {
@@ -220,6 +225,28 @@ export class SiemApiClient {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json', ...this.authInit(sessionToken).headers },
 			body: JSON.stringify(req)
+		});
+	}
+
+	async getNotificationSettings(sessionToken: string): Promise<NotificationSettingsResponse> {
+		return this.request<NotificationSettingsResponse>(
+			'/settings/notifications',
+			this.authInit(sessionToken)
+		);
+	}
+
+	async updateNotificationSettings(sessionToken: string, minSeverity: string): Promise<void> {
+		return this.requestNoContent('/settings/notifications', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json', ...this.authInit(sessionToken).headers },
+			body: JSON.stringify({ min_severity: minSeverity })
+		});
+	}
+
+	async testNotification(sessionToken: string): Promise<void> {
+		await this.request('/settings/notifications/test', {
+			method: 'POST',
+			...this.authInit(sessionToken)
 		});
 	}
 

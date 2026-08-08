@@ -19,7 +19,10 @@ describe('Settings load', () => {
 					oidc_client_id: 'homeSIEM',
 					oidc_groups_scope: 'groups',
 					role_mappings: [{ id: 1, group_claim: 'admins', role: 'admin', priority: 10 }]
-				})
+				}),
+				getNotificationSettings: vi
+					.fn()
+					.mockResolvedValue({ ntfy_configured: false, min_severity: 'info' })
 			};
 		});
 
@@ -30,6 +33,7 @@ describe('Settings load', () => {
 		expect(result.roleMappings).toEqual([
 			{ id: 1, group_claim: 'admins', role: 'admin', priority: 10 }
 		]);
+		expect(result.notificationSettings).toEqual({ ntfy_configured: false, min_severity: 'info' });
 	});
 
 	it('returns an empty array when siem-api sends role_mappings: null', async () => {
@@ -40,7 +44,10 @@ describe('Settings load', () => {
 					oidc_client_id: 'homeSIEM',
 					oidc_groups_scope: 'groups',
 					role_mappings: null
-				})
+				}),
+				getNotificationSettings: vi
+					.fn()
+					.mockResolvedValue({ ntfy_configured: false, min_severity: 'info' })
 			};
 		});
 
