@@ -67,9 +67,30 @@ source = '''
   ## envelope token (observed: "CGU ", also "pandora " in vendor docs) that isn't a
   ## stable/parseable hostname. Splitting on the literal "CEF:0|" (rather than assuming
   ## the message starts with it) discards that leading token regardless of its content.
-  if contains(string!(.message), "CEF:0|") {
+  ##
+  ## Real captured counter-example: when the envelope's leading token is a real,
+  ## RFC3164-shaped "<hostname> <tag>:" (e.g. "Townsville-CGU CEF:0|..."), Vector's
+  ## OWN syslog source decoder already parses "Townsville-CGU" as .host and "CEF"
+  ## (colon-terminated) as .appname BEFORE this transform ever runs - consuming
+  ## "Townsville-CGU CEF:" out of .message entirely. The literal "CEF:0|" substring
+  ## the check above looks for no longer exists in that case; .message starts
+  ## directly at the CEF version marker ("0|Ubiquiti|..."). Detect this via the
+  ## side effect Vector's decoder leaves behind (.appname == "CEF") combined with
+  ## the message still being CEF-shaped, so a message that merely starts with a
+  ## number for unrelated reasons doesn't false-positive.
+  message_str = string!(.message)
+  cef_tag_stripped_by_decoder = .appname == "CEF" && match(message_str, r'^0\|Ubiquiti\|')
+
+  if contains(message_str, "CEF:0|") || cef_tag_stripped_by_decoder {
     .parser = "unifi-cef"
-    cef_body = split(string!(.message), "CEF:0|")[1]
+    cef_body = if contains(message_str, "CEF:0|") {
+      split(message_str, "CEF:0|")[1]
+    } else {
+      ## The "0|" CEF-version marker is still present (only the "CEF:" tag text
+      ## itself was consumed by Vector's decoder) - drop exactly those 2 chars
+      ## so cef_body has the same "vendor|product|..." shape as the branch above.
+      slice!(message_str, 2)
+    }
     ## split!(): cef_body's static type is "string or null" (array indexing can't be
     ## proven non-null at compile time), even though contains() above guarantees a
     ## match exists at runtime. The bang assertion is required here, not optional.

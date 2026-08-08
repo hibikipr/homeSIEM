@@ -70,6 +70,67 @@ name = "cef falls back to UNIFIhost when UNIFIdeviceName is absent"
     '''
 
 [[tests]]
+name = "cef detected even when Vector's own syslog decoder already consumed the CEF: tag"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    # Real captured example: Vector's syslog source parsed "Townsville-CGU" as
+    # hostname and "CEF" (colon-terminated) as an RFC3164 tag before parse_unifi
+    # ever runs, consuming "Townsville-CGU CEF:" out of .message entirely -
+    # leaving .message starting at the CEF version marker ("0|...") with no
+    # literal "CEF:0|" substring left to detect.
+    appname = "CEF"
+    host = "Townsville-CGU"
+    message = "0|Ubiquiti|UniFi Network|10.5.67|402|WiFi Client Roamed|1|UNIFIcategory=Client Devices UNIFIhost=Townsville CGU UNIFIclientAlias=Victor's iPhone 16 Pro Max"
+
+  [[tests.outputs]]
+  extract_from = "parse_unifi"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.parser, "unifi-cef")
+      assert_eq!(.cef_vendor, "Ubiquiti")
+      assert_eq!(.cef_product, "UniFi Network")
+      assert_eq!(.severity, "info")
+      assert_eq!(.program, "WiFi Client Roamed")
+      ## UNIFIhost=Townsville CGU: parse_key_value's space field-delimiter
+      ## truncates at the first space, same pre-existing limitation the other
+      ## CEF tests already avoid by using space-free values - not something
+      ## this fix changes or is responsible for.
+      assert_eq!(.host, "Townsville")
+      assert_eq!(.hostname, "Townsville")
+    '''
+
+[[tests]]
+name = "real captured Admin Accessed UniFi OS event is parsed correctly (regression check confirming this shape already works)"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    message = "CGU CEF:0|Ubiquiti|UniFi OS|5.1.19|1000|Admin Accessed UniFi OS|1|UNIFIhost=Host UNIFIdeviceName=Townsville CGU UNIFIdeviceModel=UDRULT UNIFIdeviceIp=97.106.158.37 UNIFIdeviceMac=9C:05:D6:6F:3F:0D UNIFIdeviceVersion=5.1.19 UNIFIadmin=Victor Galloza UNIFIaccessMethod=unifi.ui.com"
+
+  [[tests.outputs]]
+  extract_from = "parse_unifi"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.parser, "unifi-cef")
+      assert_eq!(.severity, "info")
+      assert_eq!(.program, "Admin Accessed UniFi OS")
+      assert_eq!(.host, "Townsville")
+      assert_eq!(.hostname, "Townsville")
+      assert_eq!(.unifi_device_mac, "9C:05:D6:6F:3F:0D")
+      assert_eq!(.unifi_device_ip, "97.106.158.37")
+    '''
+
+[[tests]]
 name = "netfilter-bracket branch still works unaffected"
 
   [tests.input]
