@@ -20,11 +20,6 @@
 		<div class="eyebrow">Open alerts</div>
 		<div class="value critical">{openAlertCount}</div>
 	</div>
-	<div class="stat placeholder">
-		<!-- No data source for retention figures in this sub-project yet — see design spec. -->
-		<div class="eyebrow">Retention</div>
-		<div class="value-small">not yet available</div>
-	</div>
 </div>
 
 <style>
@@ -51,13 +46,5 @@
 	.unit {
 		font-size: 22px;
 		color: var(--color-muted);
-	}
-	.placeholder {
-		margin-left: auto;
-		text-align: right;
-	}
-	.value-small {
-		font-size: var(--text-table);
-		color: var(--color-muted-2);
 	}
 </style>
