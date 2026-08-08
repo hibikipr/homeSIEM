@@ -26,7 +26,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 			email: claims.email,
 			displayName: claims.displayName,
 			groups: claims.groups,
-			role: claims.role
+			role: claims.role,
+			picture: claims.picture
 		};
 		event.locals.sessionToken = token;
 	} catch {

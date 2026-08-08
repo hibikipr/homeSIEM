@@ -10,7 +10,8 @@ const testClaims: SessionClaims = {
 	email: 'alice@townsville.cc',
 	displayName: 'Alice',
 	groups: ['siem-analysts'],
-	role: 'analyst'
+	role: 'analyst',
+	picture: 'https://pocketid.townsville.cc/api/users/oidc-sub-1/profile-picture.png'
 };
 
 describe('mintSessionToken / verifySessionToken', () => {

@@ -69,7 +69,8 @@ describe('handle', () => {
 				email: 'alice@townsville.cc',
 				displayName: 'Alice',
 				groups: ['siem-analysts'],
-				role: 'analyst'
+				role: 'analyst',
+				picture: 'https://pocketid.townsville.cc/api/users/oidc-sub-1/profile-picture.png'
 			},
 			secret
 		);
@@ -79,7 +80,12 @@ describe('handle', () => {
 		await handle({ event: event as never, resolve });
 
 		expect(resolve).toHaveBeenCalled();
-		expect(locals.user).toMatchObject({ userId: 42, displayName: 'Alice', role: 'analyst' });
+		expect(locals.user).toMatchObject({
+			userId: 42,
+			displayName: 'Alice',
+			role: 'analyst',
+			picture: 'https://pocketid.townsville.cc/api/users/oidc-sub-1/profile-picture.png'
+		});
 		expect(locals.sessionToken).toBe(token);
 	});
 });

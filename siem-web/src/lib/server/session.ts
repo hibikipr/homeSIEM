@@ -7,6 +7,7 @@ export interface SessionClaims {
 	displayName: string;
 	groups: string[];
 	role: string;
+	picture: string;
 }
 
 export const SESSION_COOKIE_NAME = 'siem_session';
@@ -25,7 +26,8 @@ export async function mintSessionToken(claims: SessionClaims, secret: Uint8Array
 		email: claims.email,
 		display_name: claims.displayName,
 		groups: claims.groups,
-		role: claims.role
+		role: claims.role,
+		picture: claims.picture
 	})
 		.setProtectedHeader({ alg: 'HS256' })
 		.setSubject(claims.sub)
@@ -50,6 +52,7 @@ export async function verifySessionToken(
 		email: payload.email as string,
 		displayName: payload.display_name as string,
 		groups: (payload.groups as string[]) ?? [],
-		role: payload.role as string
+		role: payload.role as string,
+		picture: (payload.picture as string) ?? ''
 	};
 }

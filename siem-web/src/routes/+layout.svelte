@@ -14,6 +14,7 @@
 	ingestRate={0}
 	userDisplayName={data.user?.displayName ?? ''}
 	userRole={data.user?.role ?? ''}
+	userPicture={data.user?.picture ?? ''}
 />
 
 <main>

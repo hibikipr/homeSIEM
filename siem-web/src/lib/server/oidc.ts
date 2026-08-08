@@ -11,6 +11,7 @@ export interface OidcClaims {
 	email: string;
 	displayName: string;
 	groups: string[];
+	picture: string;
 }
 
 export interface LoginRedirect {
@@ -81,6 +82,7 @@ export function extractOidcClaims(raw: Record<string, unknown>): OidcClaims {
 		: [];
 	const email = typeof raw.email === 'string' ? raw.email : '';
 	const displayName = typeof raw.name === 'string' ? raw.name : email || raw.sub;
+	const picture = typeof raw.picture === 'string' ? raw.picture : '';
 
-	return { sub: raw.sub, email, displayName, groups };
+	return { sub: raw.sub, email, displayName, groups, picture };
 }

@@ -13,7 +13,8 @@ describe('extractOidcClaims', () => {
 			sub: 'oidc-sub-1',
 			email: 'alice@townsville.cc',
 			displayName: 'Alice',
-			groups: ['siem-analysts', 'homelab']
+			groups: ['siem-analysts', 'homelab'],
+			picture: ''
 		});
 	});
 
@@ -34,5 +35,22 @@ describe('extractOidcClaims', () => {
 	it('filters out non-string entries in a malformed groups array', () => {
 		const claims = extractOidcClaims({ sub: 'oidc-sub-1', groups: ['ok', 42, null, 'also-ok'] });
 		expect(claims.groups).toEqual(['ok', 'also-ok']);
+	});
+
+	it('maps the picture claim when present', () => {
+		const claims = extractOidcClaims({
+			sub: 'oidc-sub-1',
+			email: 'alice@townsville.cc',
+			name: 'Alice',
+			picture: 'https://pocketid.townsville.cc/api/users/oidc-sub-1/profile-picture.png'
+		});
+		expect(claims.picture).toBe(
+			'https://pocketid.townsville.cc/api/users/oidc-sub-1/profile-picture.png'
+		);
+	});
+
+	it('defaults picture to an empty string when absent or non-string', () => {
+		expect(extractOidcClaims({ sub: 'oidc-sub-1' }).picture).toBe('');
+		expect(extractOidcClaims({ sub: 'oidc-sub-1', picture: 42 }).picture).toBe('');
 	});
 });

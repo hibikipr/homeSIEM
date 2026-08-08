@@ -7,14 +7,18 @@
 		alertCount,
 		ingestRate,
 		userDisplayName,
-		userRole
+		userRole,
+		userPicture
 	}: {
 		activeRoute: string;
 		alertCount: number;
 		ingestRate: number;
 		userDisplayName: string;
 		userRole: string;
+		userPicture: string;
 	} = $props();
+
+	let imgFailed = $state(false);
 
 	const navItems: { label: string; href: Pathname }[] = [
 		{ label: 'Wall', href: '/' },
@@ -54,7 +58,13 @@
 			{userDisplayName}
 			<span class="role">{userRole}</span>
 		</span>
-		<a href={resolve('/auth/logout')} class="avatar" aria-label="Log out"></a>
+		<a href={resolve('/auth/logout')} class="avatar-link" aria-label="Log out">
+			{#if userPicture && !imgFailed}
+				<img class="avatar" src={userPicture} alt="" onerror={() => (imgFailed = true)} />
+			{:else}
+				<span class="avatar"></span>
+			{/if}
+		</a>
 	</div>
 </header>
 
@@ -146,11 +156,18 @@
 		margin-left: var(--space-2);
 	}
 
+	.avatar-link {
+		display: inline-block;
+		line-height: 0;
+	}
 	.avatar {
 		width: 28px;
 		height: 28px;
 		border-radius: 50%;
 		background: var(--color-line-2);
 		display: inline-block;
+	}
+	img.avatar {
+		object-fit: cover;
 	}
 </style>
