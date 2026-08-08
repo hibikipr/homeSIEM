@@ -41,6 +41,44 @@
 		formMode = null;
 		formSeed = null;
 	}
+
+	let minSeverity = $state<'info' | 'warning' | 'critical'>(
+		(data.notificationSettings.min_severity as 'info' | 'warning' | 'critical') ?? 'info'
+	);
+	let savingSeverity = $state(false);
+	let severitySaveError = $state<string | null>(null);
+	let testSending = $state(false);
+	let testResult = $state<'success' | 'error' | null>(null);
+
+	async function saveMinSeverity() {
+		savingSeverity = true;
+		severitySaveError = null;
+		try {
+			const res = await fetch('/api/settings/notifications', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ min_severity: minSeverity })
+			});
+			if (!res.ok) throw new Error('save failed');
+		} catch {
+			severitySaveError = 'Could not save — try again.';
+		} finally {
+			savingSeverity = false;
+		}
+	}
+
+	async function sendTestNotification() {
+		testSending = true;
+		testResult = null;
+		try {
+			const res = await fetch('/api/settings/notifications/test', { method: 'POST' });
+			testResult = res.ok ? 'success' : 'error';
+		} catch {
+			testResult = 'error';
+		} finally {
+			testSending = false;
+		}
+	}
 </script>
 
 <main class="settings-shell">
@@ -74,6 +112,57 @@
 				</div>
 
 				<RoleMappingTable mappings={data.roleMappings} onEdit={openEditForm} />
+			</div>
+		{:else if selectedSection === 'notifications'}
+			<div class="hero">
+				<h1>Notifications</h1>
+				<p>
+					homeSIEM pushes new alerts through ntfy. The server URL and topic are set at deploy time;
+					this page controls how loud it is.
+				</p>
+			</div>
+
+			<div class="panel">
+				<div class="panel-head">
+					<span class="panel-title">ntfy status</span>
+				</div>
+				<p class="status-line">
+					{#if data.notificationSettings.ntfy_configured}
+						<span class="ok">Configured</span> — NTFY_URL and NTFY_TOPIC are set.
+					{:else}
+						<span class="warn">Not configured</span> — set NTFY_URL and NTFY_TOPIC to enable notifications.
+					{/if}
+				</p>
+				<button
+					class="btn ghost"
+					type="button"
+					disabled={!data.notificationSettings.ntfy_configured || testSending}
+					onclick={sendTestNotification}
+				>
+					{testSending ? 'Sending…' : 'Send test notification'}
+				</button>
+				{#if testResult === 'success'}
+					<p class="status-line ok">Test notification sent.</p>
+				{:else if testResult === 'error'}
+					<p class="status-line warn">Could not send the test notification.</p>
+				{/if}
+			</div>
+
+			<div class="panel">
+				<div class="panel-head">
+					<span class="panel-title">Minimum severity to notify</span>
+					<span class="muted">alerts below this severity still appear in-app, just don't push</span>
+				</div>
+				<select bind:value={minSeverity} onchange={saveMinSeverity}>
+					<option value="info">info — notify on everything</option>
+					<option value="warning">warning — skip info-level alerts</option>
+					<option value="critical">critical — only the most severe</option>
+				</select>
+				{#if savingSeverity}
+					<span class="muted">Saving…</span>
+				{:else if severitySaveError}
+					<span class="status-line warn">{severitySaveError}</span>
+				{/if}
 			</div>
 		{:else}
 			<div class="hero">
@@ -189,5 +278,26 @@
 		border-color: transparent;
 		margin-left: auto;
 		padding: 2px 7px;
+	}
+
+	.status-line {
+		font-size: var(--text-table);
+		margin: 0;
+	}
+	.status-line .ok,
+	.status-line.ok {
+		color: var(--color-severity-healthy);
+	}
+	.status-line .warn,
+	.status-line.warn {
+		color: var(--color-severity-warning);
+	}
+	select {
+		background: var(--color-surface-3);
+		color: var(--color-text);
+		border: 1px solid var(--color-line-2);
+		border-radius: var(--radius-sm);
+		padding: 4px 8px;
+		font-size: var(--text-table);
 	}
 </style>

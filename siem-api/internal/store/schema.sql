@@ -27,7 +27,7 @@ CREATE TABLE rules (
   window_sec    INTEGER NOT NULL,
   threshold     INTEGER,
   group_by      TEXT,                       -- JSON array of field names
-  severity      TEXT NOT NULL,              -- 'critical'|'high'|'medium'|'low'
+  severity      TEXT NOT NULL,              -- 'critical'|'warning'|'info'
   destinations  TEXT NOT NULL,              -- JSON array: ["inapp","ntfy"]
   cooldown_sec  INTEGER NOT NULL DEFAULT 3600,
   interval_sec  INTEGER NOT NULL DEFAULT 60,

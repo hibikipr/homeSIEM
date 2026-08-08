@@ -276,4 +276,41 @@ describe('SiemApiClient', () => {
 			role_mappings: [{ group_claim: 'homelab', role: 'viewer', priority: 100 }]
 		});
 	});
+
+	it('getNotificationSettings attaches Authorization and parses the response', async () => {
+		const fetchFn = fakeFetch({ ntfy_configured: true, min_severity: 'warning' });
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.getNotificationSettings('token-123');
+
+		expect(result).toEqual({ ntfy_configured: true, min_severity: 'warning' });
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/settings/notifications');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('updateNotificationSettings PUTs to /settings/notifications with Authorization and a JSON body', async () => {
+		const fetchFn = fakeFetch(null, 204);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.updateNotificationSettings('token-123', 'critical');
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/settings/notifications');
+		expect(init?.method).toBe('PUT');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+		expect(JSON.parse(init?.body as string)).toEqual({ min_severity: 'critical' });
+	});
+
+	it('testNotification POSTs to /settings/notifications/test with Authorization', async () => {
+		const fetchFn = fakeFetch({ ok: true });
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.testNotification('token-123');
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/settings/notifications/test');
+		expect(init?.method).toBe('POST');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
 });

@@ -32,6 +32,7 @@ type AlertStore interface {
 	TouchAlert(ctx context.Context, id int64, at time.Time) error
 	ReopenAlert(ctx context.Context, id int64, at time.Time) error
 	AddAlertSample(ctx context.Context, alertID int64, ts time.Time, line string) error
+	GetMinNotifySeverity(ctx context.Context) (string, error)
 }
 
 type Notifier interface {
@@ -127,8 +128,18 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 	s.hub.Publish("alerts", payload)
 
 	if s.notifier != nil {
-		if err := s.notifier.Publish(ctx, c.Title, c.Body, severityToPriority(c.Severity)); err != nil {
-			s.logger.Error("ntfy publish failed", "error", err, "alert_id", alertID)
+		minSeverity, err := s.store.GetMinNotifySeverity(ctx)
+		if err != nil {
+			// Fail open: a broken threshold read must never silently drop a
+			// real notification. severityRank("") is 0 (the lowest tier),
+			// so this always passes the threshold below.
+			s.logger.Error("get min notify severity failed, notifying anyway", "error", err, "alert_id", alertID)
+			minSeverity = ""
+		}
+		if severityRank(c.Severity) >= severityRank(minSeverity) {
+			if err := s.notifier.Publish(ctx, c.Title, c.Body, severityToPriority(c.Severity)); err != nil {
+				s.logger.Error("ntfy publish failed", "error", err, "alert_id", alertID)
+			}
 		}
 	}
 	return nil
@@ -138,11 +149,20 @@ func severityToPriority(severity string) string {
 	switch severity {
 	case "critical":
 		return "urgent"
-	case "high":
-		return "high"
-	case "medium":
+	case "warning":
 		return "default"
-	default: // "low", or anything unrecognized
+	default: // "info", or anything unrecognized
 		return "low"
+	}
+}
+
+func severityRank(severity string) int {
+	switch severity {
+	case "critical":
+		return 2
+	case "warning":
+		return 1
+	default: // "info", or anything unrecognized
+		return 0
 	}
 }

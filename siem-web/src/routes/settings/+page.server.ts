@@ -8,8 +8,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const token = locals.sessionToken as string;
 
 	let settings;
+	let notificationSettings;
 	try {
 		settings = await client.getAuthSettings(token);
+		notificationSettings = await client.getNotificationSettings(token);
 	} catch (err) {
 		if (err instanceof SiemApiError) {
 			if (err.status === 401) {
@@ -23,5 +25,5 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw err;
 	}
 
-	return { roleMappings: settings.role_mappings ?? [] };
+	return { roleMappings: settings.role_mappings ?? [], notificationSettings };
 };

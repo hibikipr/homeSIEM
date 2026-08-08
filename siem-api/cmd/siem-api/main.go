@@ -83,6 +83,7 @@ func main() {
 		Verifier: verifier, SessionEst: sessionEst, LocalAuth: localAuth,
 		FastpathToken: cfg.FastpathToken,
 		OIDCIssuer:    cfg.OIDCIssuer, OIDCClientID: cfg.OIDCClientID, OIDCGroupsScope: cfg.OIDCGroupsScope,
+		NtfyURL: cfg.NtfyURL, NtfyTopic: cfg.NtfyTopic, Ntfy: ntfyClient,
 		Logger: logger,
 	})
 
