@@ -7,6 +7,7 @@
 		alertCount,
 		ingestRate,
 		userDisplayName,
+		userEmail,
 		userRole,
 		userPicture
 	}: {
@@ -14,11 +15,37 @@
 		alertCount: number;
 		ingestRate: number;
 		userDisplayName: string;
+		userEmail: string;
 		userRole: string;
 		userPicture: string;
 	} = $props();
 
 	let imgFailed = $state(false);
+	let menuOpen = $state(false);
+	let menuEl: HTMLDivElement;
+	let menuButtonEl: HTMLButtonElement;
+
+	function toggleMenu() {
+		menuOpen = !menuOpen;
+	}
+
+	function closeMenu() {
+		menuOpen = false;
+	}
+
+	function handleWindowClick(event: MouseEvent) {
+		if (!menuOpen) return;
+		const target = event.target as Node;
+		if (menuEl?.contains(target) || menuButtonEl?.contains(target)) return;
+		closeMenu();
+	}
+
+	function handleMenuKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			closeMenu();
+			menuButtonEl?.focus();
+		}
+	}
 
 	const navItems: { label: string; href: Pathname }[] = [
 		{ label: 'Wall', href: '/' },
@@ -33,6 +60,8 @@
 		navItems.filter((item) => item.label !== 'Settings' || userRole === 'admin')
 	);
 </script>
+
+<svelte:window onclick={handleWindowClick} />
 
 <header class="nav">
 	<div class="brand">
@@ -58,13 +87,48 @@
 			{userDisplayName}
 			<span class="role">{userRole}</span>
 		</span>
-		<a href={resolve('/auth/logout')} class="avatar-link" aria-label="Log out">
-			{#if userPicture && !imgFailed}
-				<img class="avatar" src={userPicture} alt="" onerror={() => (imgFailed = true)} />
-			{:else}
-				<span class="avatar"></span>
+		<div class="account">
+			<button
+				bind:this={menuButtonEl}
+				type="button"
+				class="avatar-button"
+				aria-haspopup="true"
+				aria-expanded={menuOpen}
+				aria-label="Account menu"
+				onclick={toggleMenu}
+				onkeydown={handleMenuKeydown}
+			>
+				{#if userPicture && !imgFailed}
+					<img class="avatar" src={userPicture} alt="" onerror={() => (imgFailed = true)} />
+				{:else}
+					<span class="avatar"></span>
+				{/if}
+			</button>
+			{#if menuOpen}
+				<div bind:this={menuEl} class="account-menu" role="menu" onkeydown={handleMenuKeydown}>
+					<div class="account-menu-identity">
+						{#if userPicture && !imgFailed}
+							<img
+								class="avatar avatar-large"
+								src={userPicture}
+								alt=""
+								onerror={() => (imgFailed = true)}
+							/>
+						{:else}
+							<span class="avatar avatar-large"></span>
+						{/if}
+						<div class="account-menu-text">
+							<span class="account-menu-name">{userDisplayName}</span>
+							<span class="account-menu-email">{userEmail}</span>
+							<span class="account-menu-role">{userRole}</span>
+						</div>
+					</div>
+					<a href={resolve('/auth/logout')} class="account-menu-signout" role="menuitem">
+						Sign out
+					</a>
+				</div>
 			{/if}
-		</a>
+		</div>
 	</div>
 </header>
 
@@ -156,7 +220,14 @@
 		margin-left: var(--space-2);
 	}
 
-	.avatar-link {
+	.account {
+		position: relative;
+	}
+	.avatar-button {
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
 		display: inline-block;
 		line-height: 0;
 	}
@@ -169,5 +240,67 @@
 	}
 	img.avatar {
 		object-fit: cover;
+	}
+	.account-menu {
+		position: absolute;
+		top: calc(100% + var(--space-2));
+		right: 0;
+		min-width: 220px;
+		background: var(--color-surface-2);
+		border-radius: var(--radius-default);
+		box-shadow: var(--shadow-flat);
+		padding: var(--space-3);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		z-index: 20;
+	}
+	.account-menu-identity {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+	}
+	.avatar-large {
+		width: 40px;
+		height: 40px;
+		flex-shrink: 0;
+	}
+	.account-menu-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+	.account-menu-name {
+		font-size: var(--text-table);
+		color: var(--color-text);
+		font-weight: 500;
+	}
+	.account-menu-email {
+		font-size: var(--text-label);
+		color: var(--color-muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.account-menu-role {
+		font-size: var(--text-label);
+		color: var(--color-muted-2);
+		text-transform: capitalize;
+	}
+	.account-menu-signout {
+		display: block;
+		text-align: left;
+		padding: var(--space-2) var(--space-1);
+		border-radius: var(--radius-sm);
+		color: var(--color-text-2);
+		text-decoration: none;
+		font-size: var(--text-table);
+		border-top: 1px solid var(--color-line-2);
+		padding-top: var(--space-3);
+	}
+	.account-menu-signout:hover {
+		color: var(--color-text);
+		background: var(--row-hover-bg);
 	}
 </style>
