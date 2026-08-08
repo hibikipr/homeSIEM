@@ -73,6 +73,9 @@
 		font-size: var(--text-label);
 		color: var(--color-muted);
 		flex-shrink: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.cells {
 		display: flex;
