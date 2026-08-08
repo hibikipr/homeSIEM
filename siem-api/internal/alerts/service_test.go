@@ -2,6 +2,7 @@ package alerts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -13,13 +14,15 @@ import (
 )
 
 type fakeAlertStore struct {
-	rules        map[int64]store.Rule
-	openAlerts   map[string]*store.Alert // key: ruleID:groupKey
-	nextID       int64
-	inserted     []store.Alert
-	touched      []int64
-	reopened     []int64
-	samplesAdded int
+	rules           map[int64]store.Rule
+	openAlerts      map[string]*store.Alert // key: ruleID:groupKey
+	nextID          int64
+	inserted        []store.Alert
+	touched         []int64
+	reopened        []int64
+	samplesAdded    int
+	minSeverity     string
+	minSeverityErr  error
 }
 
 func newFakeAlertStore() *fakeAlertStore {
@@ -72,6 +75,13 @@ func (f *fakeAlertStore) AddAlertSample(ctx context.Context, alertID int64, ts t
 	return nil
 }
 
+func (f *fakeAlertStore) GetMinNotifySeverity(ctx context.Context) (string, error) {
+	if f.minSeverityErr != nil {
+		return "", f.minSeverityErr
+	}
+	return f.minSeverity, nil
+}
+
 type fakeNotifier struct {
 	calls int
 }
@@ -119,6 +129,55 @@ func TestRaise_NewAlert_InsertsAndNotifies(t *testing.T) {
 	}
 }
 
+func TestRaise_BelowMinSeverity_NoNotify(t *testing.T) {
+	fs := newFakeAlertStore()
+	fs.rules[1] = store.Rule{ID: 1, CooldownSec: 3600}
+	fs.minSeverity = "critical"
+	hub := sse.NewHub()
+	ch, cancel := hub.Subscribe("alerts")
+	defer cancel()
+	notifier := &fakeNotifier{}
+
+	svc := NewService(fs, hub, notifier, testLogger())
+	err := svc.Raise(context.Background(), Candidate{
+		RuleID: 1, GroupKey: "10.0.0.5", Severity: "warning", Title: "t", Body: "b",
+	})
+	if err != nil {
+		t.Fatalf("Raise() error = %v", err)
+	}
+
+	if notifier.calls != 0 {
+		t.Errorf("notifier.calls = %d, want 0 for warning below a critical threshold", notifier.calls)
+	}
+	if len(fs.inserted) != 1 {
+		t.Errorf("inserted = %d, want 1 - the alert itself must still be recorded regardless of the notify filter", len(fs.inserted))
+	}
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		t.Fatal("expected an SSE publish even though the severity is below the notify threshold - in-app visibility is unaffected by this filter")
+	}
+}
+
+func TestRaise_MinSeverityReadFails_NotifiesAnyway(t *testing.T) {
+	fs := newFakeAlertStore()
+	fs.rules[1] = store.Rule{ID: 1, CooldownSec: 3600}
+	fs.minSeverityErr = errors.New("db unavailable")
+	hub := sse.NewHub()
+	notifier := &fakeNotifier{}
+
+	svc := NewService(fs, hub, notifier, testLogger())
+	err := svc.Raise(context.Background(), Candidate{
+		RuleID: 1, GroupKey: "10.0.0.5", Severity: "info", Title: "t", Body: "b",
+	})
+	if err != nil {
+		t.Fatalf("Raise() error = %v", err)
+	}
+	if notifier.calls != 1 {
+		t.Errorf("notifier.calls = %d, want 1 - a failed threshold read must fail open, not silently drop a real notification", notifier.calls)
+	}
+}
+
 func TestRaise_WithinCooldown_TouchesOnlyNoNotify(t *testing.T) {
 	fs := newFakeAlertStore()
 	fs.rules[1] = store.Rule{ID: 1, CooldownSec: 3600}
@@ -158,14 +217,30 @@ func TestSeverityToPriority(t *testing.T) {
 		want     string
 	}{
 		{"critical", "urgent"},
-		{"high", "high"},
-		{"medium", "default"},
-		{"low", "low"},
+		{"warning", "default"},
+		{"info", "low"},
 		{"unrecognized", "low"},
 	}
 	for _, c := range cases {
 		if got := severityToPriority(c.severity); got != c.want {
 			t.Errorf("severityToPriority(%q) = %q, want %q", c.severity, got, c.want)
+		}
+	}
+}
+
+func TestSeverityRank(t *testing.T) {
+	cases := []struct {
+		severity string
+		want     int
+	}{
+		{"critical", 2},
+		{"warning", 1},
+		{"info", 0},
+		{"unrecognized", 0},
+	}
+	for _, c := range cases {
+		if got := severityRank(c.severity); got != c.want {
+			t.Errorf("severityRank(%q) = %d, want %d", c.severity, got, c.want)
 		}
 	}
 }
