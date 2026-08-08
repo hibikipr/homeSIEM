@@ -92,6 +92,42 @@ func TestEventsStats_ReturnsTotalAndHeatGrid(t *testing.T) {
 	if host1.Hours[1] != "quiet" {
 		t.Errorf("host1.Hours[1] = %q, want quiet (3 events)", host1.Hours[1])
 	}
+
+	if len(resp.HourlyTotals) != 2 {
+		t.Fatalf("len(HourlyTotals) = %d, want 2, got %+v", len(resp.HourlyTotals), resp.HourlyTotals)
+	}
+	if resp.HourlyTotals[0].Count != 61 {
+		t.Errorf("HourlyTotals[0].Count = %d, want 61 (1 udm-ultra + 60 host-1)", resp.HourlyTotals[0].Count)
+	}
+	if resp.HourlyTotals[1].Count != 3 {
+		t.Errorf("HourlyTotals[1].Count = %d, want 3 (0 udm-ultra + 3 host-1)", resp.HourlyTotals[1].Count)
+	}
+}
+
+func TestBuildHourlyTotals_SumsAcrossSources(t *testing.T) {
+	volume := bySourceHourly{
+		"udm-ultra": {1700000000: 1, 1700003600: 0},
+		"host-1":    {1700000000: 60, 1700003600: 3},
+	}
+
+	totals := buildHourlyTotals(volume)
+
+	if len(totals) != 2 {
+		t.Fatalf("len(totals) = %d, want 2", len(totals))
+	}
+	if totals[0].HourStart.Unix() != 1700000000 || totals[0].Count != 61 {
+		t.Errorf("totals[0] = %+v, want {1700000000, 61}", totals[0])
+	}
+	if totals[1].HourStart.Unix() != 1700003600 || totals[1].Count != 3 {
+		t.Errorf("totals[1] = %+v, want {1700003600, 3}", totals[1])
+	}
+}
+
+func TestBuildHourlyTotals_EmptyVolume(t *testing.T) {
+	totals := buildHourlyTotals(bySourceHourly{})
+	if len(totals) != 0 {
+		t.Errorf("len(totals) = %d, want 0", len(totals))
+	}
 }
 
 func TestEventsStats_RequiresAuth(t *testing.T) {

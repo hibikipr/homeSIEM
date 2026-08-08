@@ -7,6 +7,7 @@ export interface LogEntry {
 export interface EventsStatsResponse {
 	event_count_24h: number;
 	heat_grid: { source: string; hours: string[] }[];
+	hourly_totals: { hour_start: string; count: number }[];
 }
 
 export interface AlertResponse {

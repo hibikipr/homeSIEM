@@ -12,11 +12,17 @@ import (
 type statsResponse struct {
 	EventCount24h int64           `json:"event_count_24h"`
 	HeatGrid      []sourceHeatRow `json:"heat_grid"`
+	HourlyTotals  []hourlyTotal   `json:"hourly_totals"`
 }
 
 type sourceHeatRow struct {
 	Source string   `json:"source"`
 	Hours  []string `json:"hours"`
+}
+
+type hourlyTotal struct {
+	HourStart time.Time `json:"hour_start"`
+	Count     int64     `json:"count"`
 }
 
 // Heat grid activity tiers for a (source, hour) cell that has neither a
@@ -62,6 +68,7 @@ func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(statsResponse{
 		EventCount24h: total,
 		HeatGrid:      buildHeatGrid(critical, warning, volume),
+		HourlyTotals:  buildHourlyTotals(volume),
 	})
 }
 
@@ -125,6 +132,30 @@ func buildHeatGrid(critical, warning, volume bySourceHourly) []sourceHeatRow {
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// buildHourlyTotals sums the same per-source hourly volume buildHeatGrid uses
+// across all sources, producing a flat total-events-per-hour series - no new
+// Loki query needed, this reuses data already fetched for the heat grid.
+func buildHourlyTotals(volume bySourceHourly) []hourlyTotal {
+	sums := map[int64]float64{}
+	for _, hours := range volume {
+		for ts, count := range hours {
+			sums[ts] += count
+		}
+	}
+
+	var timestamps []int64
+	for ts := range sums {
+		timestamps = append(timestamps, ts)
+	}
+	sort.Slice(timestamps, func(i, j int) bool { return timestamps[i] < timestamps[j] })
+
+	totals := make([]hourlyTotal, len(timestamps))
+	for i, ts := range timestamps {
+		totals[i] = hourlyTotal{HourStart: time.Unix(ts, 0).UTC(), Count: int64(sums[ts])}
+	}
+	return totals
 }
 
 func classifyHeatCell(criticalCount, warningCount, totalCount float64) string {
