@@ -28,6 +28,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		eventCount24h: stats.event_count_24h,
 		heatGrid: stats.heat_grid,
+		hourlyTotals: stats.hourly_totals,
 		openAlertCount: openAlerts.length,
 		triageAlerts: topTriageAlerts(openAlerts),
 		countryBreakdown: deriveCountryBreakdown(sample.entries)

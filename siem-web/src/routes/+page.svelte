@@ -1,5 +1,6 @@
 <script lang="ts">
 	import StatRow from '$lib/components/StatRow.svelte';
+	import EventsOverTime from '$lib/components/EventsOverTime.svelte';
 	import HeatGrid from '$lib/components/HeatGrid.svelte';
 	import TriageCard from '$lib/components/TriageCard.svelte';
 	import CountryBar from '$lib/components/CountryBar.svelte';
@@ -12,6 +13,7 @@
 <div class="wall">
 	<div class="col-main">
 		<StatRow eventCount24h={data.eventCount24h} openAlertCount={data.openAlertCount} />
+		<EventsOverTime totals={data.hourlyTotals} />
 		<HeatGrid rows={data.heatGrid} />
 		<div class="triage-lane">
 			{#each data.triageAlerts as alert (alert.id)}
