@@ -8,6 +8,7 @@ import (
 	"github.com/hibikipr/homeSIEM/siem-api/internal/alerts"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/auth"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
+	"github.com/hibikipr/homeSIEM/siem-api/internal/ntfy"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/rules"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/sse"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
@@ -31,6 +32,9 @@ type Deps struct {
 	OIDCIssuer      string
 	OIDCClientID    string
 	OIDCGroupsScope string
+	NtfyURL         string
+	NtfyTopic       string
+	Ntfy            *ntfy.Client
 }
 
 type Server struct {
@@ -69,6 +73,9 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /sources/{id}/claim", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleClaimSource)))
 	s.mux.Handle("GET /settings/auth", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleGetAuthSettings)))
 	s.mux.Handle("PUT /settings/auth", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleUpdateAuthSettings)))
+	s.mux.Handle("GET /settings/notifications", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleGetNotificationSettings)))
+	s.mux.Handle("PUT /settings/notifications", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleUpdateNotificationSettings)))
+	s.mux.Handle("POST /settings/notifications/test", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleTestNotification)))
 	s.mux.HandleFunc("POST /auth/session", s.handleAuthSession)
 	s.mux.HandleFunc("POST /auth/local", s.handleAuthLocal)
 }
