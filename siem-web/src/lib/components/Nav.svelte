@@ -22,8 +22,8 @@
 
 	let imgFailed = $state(false);
 	let menuOpen = $state(false);
-	let menuEl: HTMLDivElement;
-	let menuButtonEl: HTMLButtonElement;
+	let menuEl = $state<HTMLDivElement | undefined>();
+	let menuButtonEl = $state<HTMLButtonElement | undefined>();
 
 	function toggleMenu() {
 		menuOpen = !menuOpen;
@@ -47,6 +47,12 @@
 		}
 	}
 
+	function handleWindowKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape' && menuOpen) {
+			closeMenu();
+		}
+	}
+
 	const navItems: { label: string; href: Pathname }[] = [
 		{ label: 'Wall', href: '/' },
 		{ label: 'Search', href: '/search' },
@@ -61,7 +67,7 @@
 	);
 </script>
 
-<svelte:window onclick={handleWindowClick} />
+<svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
 
 <header class="nav">
 	<div class="brand">
@@ -105,7 +111,11 @@
 				{/if}
 			</button>
 			{#if menuOpen}
-				<div bind:this={menuEl} class="account-menu" role="menu" onkeydown={handleMenuKeydown}>
+				<!-- This is a static panel (identity info + one link), not a widget; the
+					keydown handler below only catches Escape to dismiss it, so no
+					interactive/menu role applies. -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div bind:this={menuEl} class="account-menu" onkeydown={handleMenuKeydown}>
 					<div class="account-menu-identity">
 						{#if userPicture && !imgFailed}
 							<img
@@ -123,9 +133,7 @@
 							<span class="account-menu-role">{userRole}</span>
 						</div>
 					</div>
-					<a href={resolve('/auth/logout')} class="account-menu-signout" role="menuitem">
-						Sign out
-					</a>
+					<a href={resolve('/auth/logout')} class="account-menu-signout"> Sign out </a>
 				</div>
 			{/if}
 		</div>
