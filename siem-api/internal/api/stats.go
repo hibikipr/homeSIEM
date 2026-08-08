@@ -68,7 +68,7 @@ func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(statsResponse{
 		EventCount24h: total,
 		HeatGrid:      buildHeatGrid(critical, warning, volume),
-		HourlyTotals:  buildHourlyTotals(volume),
+		HourlyTotals:  buildHourlyTotals(volume, start, end),
 	})
 }
 
@@ -137,7 +137,15 @@ func buildHeatGrid(critical, warning, volume bySourceHourly) []sourceHeatRow {
 // buildHourlyTotals sums the same per-source hourly volume buildHeatGrid uses
 // across all sources, producing a flat total-events-per-hour series - no new
 // Loki query needed, this reuses data already fetched for the heat grid.
-func buildHourlyTotals(volume bySourceHourly) []hourlyTotal {
+// Walks every hourly bucket from start to end explicitly (not just the
+// buckets present in `volume`) because Loki's range-vector query omits a
+// sample entirely for an hour with zero matching log lines - it does not
+// return an explicit 0. Without this, a genuinely quiet hour would be
+// silently absent from the series instead of present-with-zero, which
+// would compress real time gaps in the chart (points spaced evenly by
+// array index) and mislabel its hour-axis (every-4th-point stops meaning
+// every 4 real hours once the series isn't dense).
+func buildHourlyTotals(volume bySourceHourly, start, end time.Time) []hourlyTotal {
 	sums := map[int64]float64{}
 	for _, hours := range volume {
 		for ts, count := range hours {
@@ -145,15 +153,9 @@ func buildHourlyTotals(volume bySourceHourly) []hourlyTotal {
 		}
 	}
 
-	var timestamps []int64
-	for ts := range sums {
-		timestamps = append(timestamps, ts)
-	}
-	sort.Slice(timestamps, func(i, j int) bool { return timestamps[i] < timestamps[j] })
-
-	totals := make([]hourlyTotal, len(timestamps))
-	for i, ts := range timestamps {
-		totals[i] = hourlyTotal{HourStart: time.Unix(ts, 0).UTC(), Count: int64(sums[ts])}
+	var totals []hourlyTotal
+	for bucket := start; !bucket.After(end); bucket = bucket.Add(time.Hour) {
+		totals = append(totals, hourlyTotal{HourStart: bucket, Count: int64(sums[bucket.Unix()])})
 	}
 	return totals
 }

@@ -21,6 +21,8 @@
 					<span
 						class="cell"
 						style="background: {heatTierColor(tier)}"
+						role="img"
+						aria-label="{row.source}: {tier}, {ageLabel(row.hours.length - 1 - i)}"
 						onpointerenter={() =>
 							(hovered = { source: row.source, tier, hoursAgo: row.hours.length - 1 - i })}
 						onpointerleave={() => (hovered = null)}
@@ -46,7 +48,9 @@
 	{#if hovered}
 		<div class="hover-tooltip">
 			<span class="tooltip-source">{hovered.source}</span>
-			<span class="tooltip-tier">{hovered.tier} · {ageLabel(hovered.hoursAgo)}</span>
+			<span class="tooltip-tier"
+				><span class="tier-name">{hovered.tier}</span> · {ageLabel(hovered.hoursAgo)}</span
+			>
 		</div>
 	{/if}
 </div>
@@ -107,9 +111,21 @@
 		height: 10px;
 		border-radius: 2px;
 		flex-shrink: 0;
+		box-shadow: inset 0 0 0 1px var(--color-line-2);
 	}
 	.hover-tooltip {
+		/* Anchored to the TOP-right corner, not bottom-right: the legend is
+		   always the last flex child of .heat-grid, so its block-level box
+		   spans the full container width at the bottom regardless of how
+		   little of that width its packed-left content actually uses -
+		   a bottom-right tooltip's box geometrically overlaps it even
+		   though the two never visually collide. Pinning to the top
+		   structurally rules that out for any row count, while the right
+		   offset (instead of the unset default that caused the original
+		   bug) keeps it clear of the .row .label column on the left. */
 		position: absolute;
+		top: 0;
+		right: 0;
 		background: var(--color-surface-3);
 		box-shadow: var(--shadow-flat);
 		border-radius: var(--radius-sm);
@@ -126,6 +142,8 @@
 	}
 	.tooltip-tier {
 		color: var(--color-text);
+	}
+	.tier-name {
 		text-transform: capitalize;
 	}
 </style>

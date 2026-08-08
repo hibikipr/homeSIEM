@@ -23,6 +23,12 @@
 
 	let axisLabelPoints = $derived(points.filter((_, i) => i % 4 === 0));
 
+	function axisLabelTransform(index: number, total: number): string {
+		if (index === 0) return 'translateX(0)';
+		if (index === total - 1) return 'translateX(-100%)';
+		return 'translateX(-50%)';
+	}
+
 	let svgEl: SVGSVGElement | undefined = $state();
 	let hoveredIndex = $state<number | null>(null);
 
@@ -62,6 +68,8 @@
 				viewBox="0 0 {CHART_WIDTH} {CHART_HEIGHT}"
 				preserveAspectRatio="none"
 				class="chart"
+				role="img"
+				aria-label="Events over the last 24 hours, {maxCount} maximum per hour"
 				onpointermove={handlePointerMove}
 				onpointerleave={handlePointerLeave}
 			>
@@ -90,8 +98,12 @@
 			{/if}
 		</div>
 		<div class="axis">
-			{#each axisLabelPoints as point (point.hourStart)}
-				<span class="axis-label" style:left="{(point.x / CHART_WIDTH) * 100}%">
+			{#each axisLabelPoints as point, i (point.hourStart)}
+				<span
+					class="axis-label"
+					style:left="{(point.x / CHART_WIDTH) * 100}%"
+					style:transform={axisLabelTransform(i, axisLabelPoints.length)}
+				>
 					{formatHourLabel(point.hourStart)}
 				</span>
 			{/each}
@@ -146,6 +158,7 @@
 	}
 	.marker {
 		fill: var(--color-accent-light);
+		vector-effect: non-scaling-stroke;
 	}
 	.tooltip {
 		position: absolute;
@@ -176,7 +189,7 @@
 		position: absolute;
 		font-size: var(--text-label);
 		color: var(--color-muted-2);
-		transform: translateX(-50%);
+		white-space: nowrap;
 	}
 	.max-label {
 		position: absolute;

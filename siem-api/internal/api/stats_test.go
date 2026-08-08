@@ -2,32 +2,46 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
 )
 
 func TestEventsStats_ReturnsTotalAndHeatGrid(t *testing.T) {
+	// The heat-grid/hourly-totals queries are keyed off the handler's own
+	// start/end (time.Now()-based), so the fixture timestamps below are
+	// derived from the request's actual "start" param rather than
+	// hardcoded, letting them land inside the dense bucket range that
+	// buildHourlyTotals now walks.
+	var hour0Sec, hour1Sec int64
 	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 
+		startNanos, _ := strconv.ParseInt(r.URL.Query().Get("start"), 10, 64)
+		hour0 := startNanos / int64(time.Second)
+		hour1 := hour0 + 3600
+		hour0Sec, hour1Sec = hour0, hour1
+
 		switch {
 		case strings.Contains(query, `severity="critical"`):
-			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[
-				{"metric":{"source":"udm-ultra"},"values":[[1700000000,"1"],[1700003600,"0"]]}
-			]}}`))
+			fmt.Fprintf(w, `{"status":"success","data":{"resultType":"matrix","result":[
+				{"metric":{"source":"udm-ultra"},"values":[[%d,"1"],[%d,"0"]]}
+			]}}`, hour0, hour1)
 		case strings.Contains(query, `severity="warning"`):
 			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
 		case strings.Contains(query, "by (source)"):
 			// total volume per source per hour (no severity filter)
-			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[
-				{"metric":{"source":"udm-ultra"},"values":[[1700000000,"1"],[1700003600,"0"]]},
-				{"metric":{"source":"host-1"},"values":[[1700000000,"60"],[1700003600,"3"]]}
-			]}}`))
+			fmt.Fprintf(w, `{"status":"success","data":{"resultType":"matrix","result":[
+				{"metric":{"source":"udm-ultra"},"values":[[%d,"1"],[%d,"0"]]},
+				{"metric":{"source":"host-1"},"values":[[%d,"60"],[%d,"3"]]}
+			]}}`, hour0, hour1, hour0, hour1)
 		default:
 			// 24h grand total, no grouping
 			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[
@@ -93,14 +107,26 @@ func TestEventsStats_ReturnsTotalAndHeatGrid(t *testing.T) {
 		t.Errorf("host1.Hours[1] = %q, want quiet (3 events)", host1.Hours[1])
 	}
 
-	if len(resp.HourlyTotals) != 2 {
-		t.Fatalf("len(HourlyTotals) = %d, want 2, got %+v", len(resp.HourlyTotals), resp.HourlyTotals)
+	// buildHourlyTotals now walks every hourly bucket across the handler's
+	// own 24h start/end window (dense, gap-filled), not just the two
+	// timestamps present in the fake Loki fixture - so the response has
+	// ~25 buckets (24h inclusive of both ends), and the fixture's two
+	// known timestamps must be located by HourStart rather than assumed
+	// to be resp.HourlyTotals[0]/[1].
+	if len(resp.HourlyTotals) != 25 {
+		t.Fatalf("len(HourlyTotals) = %d, want 25 (dense 24h+1 series), got %+v", len(resp.HourlyTotals), resp.HourlyTotals)
 	}
-	if resp.HourlyTotals[0].Count != 61 {
-		t.Errorf("HourlyTotals[0].Count = %d, want 61 (1 udm-ultra + 60 host-1)", resp.HourlyTotals[0].Count)
+
+	byHour := map[int64]int64{}
+	for _, ht := range resp.HourlyTotals {
+		byHour[ht.HourStart.Unix()] = ht.Count
 	}
-	if resp.HourlyTotals[1].Count != 3 {
-		t.Errorf("HourlyTotals[1].Count = %d, want 3 (0 udm-ultra + 3 host-1)", resp.HourlyTotals[1].Count)
+
+	if got, want := byHour[hour0Sec], int64(61); got != want {
+		t.Errorf("HourlyTotals count at hour0 = %d, want %d (1 udm-ultra + 60 host-1)", got, want)
+	}
+	if got, want := byHour[hour1Sec], int64(3); got != want {
+		t.Errorf("HourlyTotals count at hour1 = %d, want %d (0 udm-ultra + 3 host-1)", got, want)
 	}
 }
 
@@ -110,7 +136,7 @@ func TestBuildHourlyTotals_SumsAcrossSources(t *testing.T) {
 		"host-1":    {1700000000: 60, 1700003600: 3},
 	}
 
-	totals := buildHourlyTotals(volume)
+	totals := buildHourlyTotals(volume, time.Unix(1700000000, 0).UTC(), time.Unix(1700003600, 0).UTC())
 
 	if len(totals) != 2 {
 		t.Fatalf("len(totals) = %d, want 2", len(totals))
@@ -124,9 +150,54 @@ func TestBuildHourlyTotals_SumsAcrossSources(t *testing.T) {
 }
 
 func TestBuildHourlyTotals_EmptyVolume(t *testing.T) {
-	totals := buildHourlyTotals(bySourceHourly{})
-	if len(totals) != 0 {
-		t.Errorf("len(totals) = %d, want 0", len(totals))
+	start := time.Unix(1700000000, 0).UTC()
+	end := start.Add(2 * time.Hour)
+
+	// Even with no data anywhere, buildHourlyTotals must still walk and
+	// emit real timestamped zero-buckets across the requested range - not
+	// an empty slice - since that's the entire point of the gap-filling
+	// fix: a quiet range looks like zero-valued buckets, not no buckets.
+	totals := buildHourlyTotals(bySourceHourly{}, start, end)
+
+	if len(totals) != 3 {
+		t.Fatalf("len(totals) = %d, want 3 (start, start+1h, start+2h)", len(totals))
+	}
+	for i, want := range []time.Time{start, start.Add(time.Hour), start.Add(2 * time.Hour)} {
+		if !totals[i].HourStart.Equal(want) {
+			t.Errorf("totals[%d].HourStart = %v, want %v", i, totals[i].HourStart, want)
+		}
+		if totals[i].Count != 0 {
+			t.Errorf("totals[%d].Count = %d, want 0", i, totals[i].Count)
+		}
+	}
+}
+
+func TestBuildHourlyTotals_FillsGapsForQuietHours(t *testing.T) {
+	hour0 := time.Unix(1700000000, 0).UTC()
+	hour1 := hour0.Add(time.Hour)
+	hour2 := hour0.Add(2 * time.Hour)
+
+	// Loki-realistic: no sample at all for the quiet middle hour, not a 0-valued one.
+	volume := bySourceHourly{
+		"udm-ultra": {hour0.Unix(): 5, hour2.Unix(): 3},
+	}
+
+	totals := buildHourlyTotals(volume, hour0, hour2)
+
+	if len(totals) != 3 {
+		t.Fatalf("len(totals) = %d, want 3 (hour0, hour1, hour2 - including the gap)", len(totals))
+	}
+	if totals[0].Count != 5 {
+		t.Errorf("totals[0].Count = %d, want 5", totals[0].Count)
+	}
+	if totals[1].Count != 0 {
+		t.Errorf("totals[1].Count = %d, want 0 (quiet hour, no Loki sample, must still appear as a zero bucket)", totals[1].Count)
+	}
+	if !totals[1].HourStart.Equal(hour1) {
+		t.Errorf("totals[1].HourStart = %v, want %v (the gap hour's own timestamp, not skipped)", totals[1].HourStart, hour1)
+	}
+	if totals[2].Count != 3 {
+		t.Errorf("totals[2].Count = %d, want 3", totals[2].Count)
 	}
 }
 
