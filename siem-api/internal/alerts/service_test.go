@@ -14,15 +14,15 @@ import (
 )
 
 type fakeAlertStore struct {
-	rules           map[int64]store.Rule
-	openAlerts      map[string]*store.Alert // key: ruleID:groupKey
-	nextID          int64
-	inserted        []store.Alert
-	touched         []int64
-	reopened        []int64
-	samplesAdded    int
-	minSeverity     string
-	minSeverityErr  error
+	rules          map[int64]store.Rule
+	openAlerts     map[string]*store.Alert // key: ruleID:groupKey
+	nextID         int64
+	inserted       []store.Alert
+	touched        []int64
+	reopened       []int64
+	samplesAdded   int
+	minSeverity    string
+	minSeverityErr error
 }
 
 func newFakeAlertStore() *fakeAlertStore {

@@ -15,7 +15,11 @@ func (s *Store) GetMinNotifySeverity(ctx context.Context) (string, error) {
 }
 
 func (s *Store) SetMinNotifySeverity(ctx context.Context, severity string) error {
-	if _, err := s.db.ExecContext(ctx, `UPDATE notification_settings SET min_severity = ? WHERE id = 1`, severity); err != nil {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO notification_settings (id, min_severity) VALUES (1, ?)
+		ON CONFLICT(id) DO UPDATE SET min_severity = excluded.min_severity
+	`, severity)
+	if err != nil {
 		return fmt.Errorf("store: set min notify severity: %w", err)
 	}
 	return nil

@@ -48,3 +48,24 @@ func TestSetMinNotifySeverity_RoundTrips(t *testing.T) {
 		t.Errorf("GetMinNotifySeverity() = %q, want critical", got)
 	}
 }
+
+func TestSetMinNotifySeverity_RecreatesRowIfMissing(t *testing.T) {
+	s := newTestStoreForNotifications(t)
+	ctx := context.Background()
+
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM notification_settings WHERE id = 1`); err != nil {
+		t.Fatalf("delete row: %v", err)
+	}
+
+	if err := s.SetMinNotifySeverity(ctx, "warning"); err != nil {
+		t.Fatalf("SetMinNotifySeverity() error = %v", err)
+	}
+
+	got, err := s.GetMinNotifySeverity(ctx)
+	if err != nil {
+		t.Fatalf("GetMinNotifySeverity() error = %v", err)
+	}
+	if got != "warning" {
+		t.Errorf("GetMinNotifySeverity() = %q, want warning (SetMinNotifySeverity must recreate the row if it's missing, not silently no-op)", got)
+	}
+}
