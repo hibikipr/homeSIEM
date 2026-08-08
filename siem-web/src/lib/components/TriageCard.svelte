@@ -52,21 +52,26 @@
 		background: var(--color-surface-2);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
+		box-shadow: inset 0 2px 0 var(--color-severity-info);
+	}
+	.card.severity-critical {
 		box-shadow: inset 0 2px 0 var(--color-severity-critical);
 	}
 	.card.severity-warning {
 		box-shadow: inset 0 2px 0 var(--color-severity-warning);
-	}
-	.card.severity-low,
-	.card.severity-medium {
-		box-shadow: inset 0 2px 0 var(--color-severity-info);
 	}
 	.header {
 		display: flex;
 		justify-content: space-between;
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
+		color: var(--color-severity-info);
+	}
+	.card.severity-critical .header {
 		color: var(--color-severity-critical);
+	}
+	.card.severity-warning .header {
+		color: var(--color-severity-warning);
 	}
 	.age {
 		color: var(--color-muted);

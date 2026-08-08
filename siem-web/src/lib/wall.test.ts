@@ -22,7 +22,7 @@ function alert(overrides: Partial<AlertResponse>): AlertResponse {
 		id: 1,
 		rule_id: 1,
 		group_key: 'a',
-		severity: 'low',
+		severity: 'info',
 		title: 't',
 		body: 'b',
 		event_count: 1,
@@ -36,15 +36,26 @@ function alert(overrides: Partial<AlertResponse>): AlertResponse {
 describe('topTriageAlerts', () => {
 	it('sorts by severity rank descending, then recency descending', () => {
 		const alerts = [
-			alert({ id: 1, severity: 'low', last_seen_at: '2026-08-02T03:00:00Z' }),
+			alert({ id: 1, severity: 'info', last_seen_at: '2026-08-02T03:00:00Z' }),
 			alert({ id: 2, severity: 'critical', last_seen_at: '2026-08-02T01:00:00Z' }),
 			alert({ id: 3, severity: 'critical', last_seen_at: '2026-08-02T02:00:00Z' }),
-			alert({ id: 4, severity: 'medium', last_seen_at: '2026-08-02T04:00:00Z' })
+			alert({ id: 4, severity: 'warning', last_seen_at: '2026-08-02T04:00:00Z' })
 		];
 
 		const top = topTriageAlerts(alerts, 3);
 
 		expect(top.map((a) => a.id)).toEqual([3, 2, 4]);
+	});
+
+	it('ranks warning above info even when info is more recent (regression: both used to rank 0)', () => {
+		const alerts = [
+			alert({ id: 1, severity: 'info', last_seen_at: '2026-08-02T05:00:00Z' }),
+			alert({ id: 2, severity: 'warning', last_seen_at: '2026-08-02T01:00:00Z' })
+		];
+
+		const top = topTriageAlerts(alerts, 2);
+
+		expect(top.map((a) => a.id)).toEqual([2, 1]);
 	});
 
 	it('defaults to the top 3', () => {

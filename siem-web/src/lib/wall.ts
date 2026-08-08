@@ -13,7 +13,7 @@ export function heatTierColor(tier: string): string {
 	return HEAT_TIER_COLORS[tier] ?? HEAT_TIER_COLORS.none;
 }
 
-const SEVERITY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+const SEVERITY_RANK: Record<string, number> = { critical: 3, warning: 2, info: 1 };
 
 export function topTriageAlerts(alerts: AlertResponse[], count = 3): AlertResponse[] {
 	return [...alerts]

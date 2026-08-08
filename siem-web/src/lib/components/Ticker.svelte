@@ -36,13 +36,17 @@
 
 <div class="ticker">
 	<div class="eyebrow">Ticker</div>
-	{#each entries as entry, i (i)}
-		<div class="row">
-			<span class="time">{entry.time}</span>
-			<span class="dot severity-{entry.severity}"></span>
-			<span class="line">{entry.host} {entry.program}: {entry.message}</span>
-		</div>
-	{/each}
+	{#if entries.length === 0}
+		<div class="empty">Waiting for live events…</div>
+	{:else}
+		{#each entries as entry, i (i)}
+			<div class="row">
+				<span class="time">{entry.time}</span>
+				<span class="dot severity-{entry.severity}"></span>
+				<span class="line">{entry.host} {entry.program}: {entry.message}</span>
+			</div>
+		{/each}
+	{/if}
 </div>
 
 <style>
@@ -86,5 +90,9 @@
 	}
 	.dot.severity-warning {
 		background: var(--color-severity-warning);
+	}
+	.empty {
+		font-size: var(--text-label);
+		color: var(--color-muted-2);
 	}
 </style>

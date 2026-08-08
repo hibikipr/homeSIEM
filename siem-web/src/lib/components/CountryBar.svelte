@@ -7,15 +7,19 @@
 
 <div class="country-bar">
 	<div class="eyebrow">Where it's coming from</div>
-	{#each countries as c (c.country)}
-		<div class="row">
-			<span class="name">{c.country}</span>
-			<div class="track">
-				<div class="fill" style="width: {(c.count / max) * 100}%"></div>
+	{#if countries.length === 0}
+		<div class="empty">No international traffic in this sample.</div>
+	{:else}
+		{#each countries as c (c.country)}
+			<div class="row">
+				<span class="name">{c.country}</span>
+				<div class="track">
+					<div class="fill" style="width: {(c.count / max) * 100}%"></div>
+				</div>
+				<span class="count">{c.count}</span>
 			</div>
-			<span class="count">{c.count}</span>
-		</div>
-	{/each}
+		{/each}
+	{/if}
 </div>
 
 <style>
@@ -54,5 +58,9 @@
 		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		color: var(--color-muted);
+	}
+	.empty {
+		font-size: var(--text-label);
+		color: var(--color-muted-2);
 	}
 </style>

@@ -12,11 +12,17 @@ import (
 type statsResponse struct {
 	EventCount24h int64           `json:"event_count_24h"`
 	HeatGrid      []sourceHeatRow `json:"heat_grid"`
+	HourlyTotals  []hourlyTotal   `json:"hourly_totals"`
 }
 
 type sourceHeatRow struct {
 	Source string   `json:"source"`
 	Hours  []string `json:"hours"`
+}
+
+type hourlyTotal struct {
+	HourStart time.Time `json:"hour_start"`
+	Count     int64     `json:"count"`
 }
 
 // Heat grid activity tiers for a (source, hour) cell that has neither a
@@ -62,6 +68,7 @@ func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(statsResponse{
 		EventCount24h: total,
 		HeatGrid:      buildHeatGrid(critical, warning, volume),
+		HourlyTotals:  buildHourlyTotals(volume, start, end),
 	})
 }
 
@@ -125,6 +132,32 @@ func buildHeatGrid(critical, warning, volume bySourceHourly) []sourceHeatRow {
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// buildHourlyTotals sums the same per-source hourly volume buildHeatGrid uses
+// across all sources, producing a flat total-events-per-hour series - no new
+// Loki query needed, this reuses data already fetched for the heat grid.
+// Walks every hourly bucket from start to end explicitly (not just the
+// buckets present in `volume`) because Loki's range-vector query omits a
+// sample entirely for an hour with zero matching log lines - it does not
+// return an explicit 0. Without this, a genuinely quiet hour would be
+// silently absent from the series instead of present-with-zero, which
+// would compress real time gaps in the chart (points spaced evenly by
+// array index) and mislabel its hour-axis (every-4th-point stops meaning
+// every 4 real hours once the series isn't dense).
+func buildHourlyTotals(volume bySourceHourly, start, end time.Time) []hourlyTotal {
+	sums := map[int64]float64{}
+	for _, hours := range volume {
+		for ts, count := range hours {
+			sums[ts] += count
+		}
+	}
+
+	var totals []hourlyTotal
+	for bucket := start; !bucket.After(end); bucket = bucket.Add(time.Hour) {
+		totals = append(totals, hourlyTotal{HourStart: bucket, Count: int64(sums[bucket.Unix()])})
+	}
+	return totals
 }
 
 func classifyHeatCell(criticalCount, warningCount, totalCount float64) string {
