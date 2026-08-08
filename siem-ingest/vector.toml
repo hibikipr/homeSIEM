@@ -109,7 +109,22 @@ source = '''
       cef_severity = to_int(fields[5]) ?? 0
       .severity = if cef_severity >= 9 { "crit" } else if cef_severity >= 7 { "err" } else if cef_severity >= 4 { "warning" } else { "info" }
       extension = join(slice!(fields, 6), "|") ?? ""
-      ext, err = parse_key_value(extension, key_value_delimiter: "=", field_delimiter: " ")
+      ## This vendor's CEF extension values aren't space-escaped per spec - observed on
+      ## real devices: UNIFIdeviceName=Townsville CGU, UNIFIvpnName=Townsville CGU,
+      ## suser=Victor Galloza's Mobile Phone. field_delimiter: " " alone truncates every
+      ## such value at its first space and leaves the rest ("CGU", "Mobile", "Phone", ...)
+      ## as bogus keyless tokens - which is why .host below came through as just
+      ## "Townsville" instead of "Townsville CGU". Re-delimit on a sentinel inserted only
+      ## right before a recognized "KEY=" boundary, not on every space, so multi-word
+      ## values stay intact; "msg=" is always the last field, so its free-text body never
+      ## needs to be split further.
+      ## "$$" (not "$"): Vector's config loader does its own env-interpolation pass over
+      ## the whole TOML file, including comments, before VRL ever sees any of it - so a
+      ## literal capture-group reference has to be double-escaped here or the loader
+      ## aborts looking for an env var named "kv" (same reason the file header escapes
+      ## the directory placeholder in its own comment above).
+      delimited_extension = replace(extension, r' (?P<kv>[A-Za-z][A-Za-z0-9]*=)', "|||$${kv}")
+      ext, err = parse_key_value(delimited_extension, key_value_delimiter: "=", field_delimiter: "|||")
       if err == null {
         .src_ip = ext.src
         .dst_ip = ext.dst
