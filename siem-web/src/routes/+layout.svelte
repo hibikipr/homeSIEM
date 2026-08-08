@@ -13,6 +13,7 @@
 	alertCount={0}
 	ingestRate={0}
 	userDisplayName={data.user?.displayName ?? ''}
+	userEmail={data.user?.email ?? ''}
 	userRole={data.user?.role ?? ''}
 	userPicture={data.user?.picture ?? ''}
 />
