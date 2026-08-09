@@ -41,5 +41,10 @@
 		"@phosphor-icons/web": "^2.1.2",
 		"jose": "^6.2.7",
 		"openid-client": "^6.8.4"
+	},
+	"pnpm": {
+		"overrides": {
+			"cookie": "^0.7.0"
+		}
 	}
 }
