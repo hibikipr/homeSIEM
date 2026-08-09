@@ -162,14 +162,13 @@
 	.eyebrow {
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
-		color: var(--color-severity-critical);
+		color: var(--color-severity-info);
 	}
 	.eyebrow.severity-warning {
 		color: var(--color-severity-warning);
 	}
-	.eyebrow.severity-low,
-	.eyebrow.severity-medium {
-		color: var(--color-severity-info);
+	.eyebrow.severity-critical {
+		color: var(--color-severity-critical);
 	}
 	.tag {
 		font-size: var(--text-eyebrow);

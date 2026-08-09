@@ -33,16 +33,15 @@
 		background: var(--color-surface-2);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
-		border-left: 3px solid var(--color-severity-critical);
+		border-left: 3px solid var(--color-severity-info);
 		text-decoration: none;
 		color: inherit;
 	}
 	.row.severity-warning {
 		border-left-color: var(--color-severity-warning);
 	}
-	.row.severity-low,
-	.row.severity-medium {
-		border-left-color: var(--color-severity-info);
+	.row.severity-critical {
+		border-left-color: var(--color-severity-critical);
 	}
 	.row.selected {
 		background: var(--color-accent-tint);
@@ -53,6 +52,12 @@
 		justify-content: space-between;
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
+		color: var(--color-severity-info);
+	}
+	.row.severity-warning .header {
+		color: var(--color-severity-warning);
+	}
+	.row.severity-critical .header {
 		color: var(--color-severity-critical);
 	}
 	.age {
