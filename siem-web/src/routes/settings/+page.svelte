@@ -6,18 +6,13 @@
 
 	let { data }: { data: PageData } = $props();
 
-	type SectionKey =
-		'authentication' | 'retention' | 'notifications' | 'parsers' | 'backups' | 'about';
+	type SectionKey = 'authentication' | 'notifications';
 
 	let selectedSection = $state<SectionKey>('authentication');
 
 	const sections: { key: SectionKey; label: string }[] = [
 		{ key: 'authentication', label: 'Authentication' },
-		{ key: 'retention', label: 'Retention & storage' },
-		{ key: 'notifications', label: 'Notifications' },
-		{ key: 'parsers', label: 'Parsers' },
-		{ key: 'backups', label: 'Backups' },
-		{ key: 'about', label: 'About' }
+		{ key: 'notifications', label: 'Notifications' }
 	];
 
 	function selectSection(key: SectionKey) {
@@ -163,11 +158,6 @@
 				{:else if severitySaveError}
 					<span class="status-line warn">{severitySaveError}</span>
 				{/if}
-			</div>
-		{:else}
-			<div class="hero">
-				<h1>{sections.find((section) => section.key === selectedSection)?.label}</h1>
-				<p>This section is ready for the next set of settings content.</p>
 			</div>
 		{/if}
 	</section>
