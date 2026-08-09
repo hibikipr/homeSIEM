@@ -21,6 +21,21 @@ describe('RULE_TEMPLATES', () => {
 	});
 });
 
+describe('RULE_TEMPLATES backend-semantics invariants', () => {
+	it.each(RULE_TEMPLATES)(
+		'$name ($shape): logql/threshold/windowSec match what its evaluator reads',
+		(template) => {
+			if (template.shape !== 'absence') {
+				expect(template.logql.length).toBeGreaterThan(0);
+			}
+			if (template.shape === 'threshold') {
+				expect(template.threshold).toBeGreaterThanOrEqual(1);
+			}
+			expect(template.windowSec).toBeGreaterThanOrEqual(1);
+		}
+	);
+});
+
 describe('parseGroupBy', () => {
 	it('splits a comma-separated list and trims whitespace', () => {
 		expect(parseGroupBy('a, b,c')).toEqual(['a', 'b', 'c']);
