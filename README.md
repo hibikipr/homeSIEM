@@ -15,7 +15,7 @@ events: alerts, acknowledgements, rules, a source registry.
 | Service | What it is |
 | --- | --- |
 | [`siem-ingest`](siem-ingest/) | Vector, configured: syslog sources for UniFi (UDP/514) and generic hosts (TCP/601, TLS/6514), parsing, geo/threat-intel enrichment, a fast path to siem-api, and the full stream to Loki. |
-| [`siem-api`](siem-api/) | Go service: rule scheduler (threshold / first-seen / absence rule shapes), alert lifecycle, Loki client, OIDC token verification + RBAC, SQLite state, ntfy delivery. |
+| [`siem-api`](siem-api/) | Go service: rule scheduler (threshold / first-seen / absence rule shapes), alert lifecycle, Loki client, OIDC token verification + RBAC, SQLite state, rich ntfy delivery (severity emoji tags, Markdown body, click-through link, action button, icon). |
 | [`siem-web`](siem-web/) | SvelteKit console + a thin BFF holding the session cookie: Wall, Search, Live tail, Alerts, Sources, Settings. |
 
 Two pieces of shared infra it depends on but doesn't own:

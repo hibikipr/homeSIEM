@@ -36,7 +36,7 @@ func TestRaise_AckThenReoccur_NoUniqueConstraintViolation(t *testing.T) {
 	}
 
 	hub := sse.NewHub()
-	svc := NewService(st, hub, nil, testLogger())
+	svc := NewService(st, hub, nil, "", testLogger())
 
 	// First occurrence.
 	if err := svc.Raise(ctx, Candidate{RuleID: rule.ID, GroupKey: "10.0.0.5", Severity: "critical", Title: "t", Body: "b"}); err != nil {

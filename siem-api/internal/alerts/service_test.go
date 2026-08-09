@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/hibikipr/homeSIEM/siem-api/internal/ntfy"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/sse"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
 )
@@ -83,11 +85,13 @@ func (f *fakeAlertStore) GetMinNotifySeverity(ctx context.Context) (string, erro
 }
 
 type fakeNotifier struct {
-	calls int
+	calls   int
+	lastMsg ntfy.Message
 }
 
-func (f *fakeNotifier) Publish(ctx context.Context, title, message, priority string) error {
+func (f *fakeNotifier) Publish(ctx context.Context, msg ntfy.Message) error {
 	f.calls++
+	f.lastMsg = msg
 	return nil
 }
 
@@ -103,7 +107,7 @@ func TestRaise_NewAlert_InsertsAndNotifies(t *testing.T) {
 	defer cancel()
 	notifier := &fakeNotifier{}
 
-	svc := NewService(fs, hub, notifier, testLogger())
+	svc := NewService(fs, hub, notifier, "https://siem.example.com", testLogger())
 	err := svc.Raise(context.Background(), Candidate{
 		RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical",
 		Title: "Port scan", Body: "40 drops", Samples: []Sample{{TS: time.Now(), Line: "line1"}},
@@ -129,6 +133,84 @@ func TestRaise_NewAlert_InsertsAndNotifies(t *testing.T) {
 	}
 }
 
+func TestRaise_NotifiesWithRichNtfyMessage(t *testing.T) {
+	fs := newFakeAlertStore()
+	fs.rules[1] = store.Rule{ID: 1, Name: "Port scan detector", CooldownSec: 3600}
+	hub := sse.NewHub()
+	notifier := &fakeNotifier{}
+
+	svc := NewService(fs, hub, notifier, "https://siem.example.com/", testLogger())
+	err := svc.Raise(context.Background(), Candidate{
+		RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical",
+		Title: "Port scan", Body: "40 drops", Samples: []Sample{{TS: time.Now(), Line: "drop src=10.0.0.5"}},
+	})
+	if err != nil {
+		t.Fatalf("Raise() error = %v", err)
+	}
+	if notifier.calls != 1 {
+		t.Fatalf("notifier.calls = %d, want 1", notifier.calls)
+	}
+
+	msg := notifier.lastMsg
+	if msg.Title != "Port scan" {
+		t.Errorf("Title = %q, want %q", msg.Title, "Port scan")
+	}
+	if msg.Priority != 5 {
+		t.Errorf("Priority = %d, want 5 (urgent) for critical", msg.Priority)
+	}
+	if len(msg.Tags) != 1 || msg.Tags[0] != "rotating_light" {
+		t.Errorf("Tags = %v, want [rotating_light]", msg.Tags)
+	}
+	if !msg.Markdown {
+		t.Error("Markdown = false, want true")
+	}
+	if !strings.Contains(msg.Body, "40 drops") {
+		t.Errorf("Body = %q, want it to still contain the original body text", msg.Body)
+	}
+	if !strings.Contains(msg.Body, "**Rule:** `Port scan detector`") {
+		t.Errorf("Body = %q, want it to name the rule", msg.Body)
+	}
+	if !strings.Contains(msg.Body, "**Group:** `10.0.0.5`") {
+		t.Errorf("Body = %q, want it to name the group", msg.Body)
+	}
+	if !strings.Contains(msg.Body, "```\ndrop src=10.0.0.5\n```") {
+		t.Errorf("Body = %q, want the sample line in a code fence", msg.Body)
+	}
+
+	wantClick := "https://siem.example.com/alerts?id=1"
+	if msg.Click != wantClick {
+		t.Errorf("Click = %q, want %q (trailing slash on appURL must not double up)", msg.Click, wantClick)
+	}
+	wantIcon := "https://siem.example.com/icons/homesiem-192.png"
+	if msg.Icon != wantIcon {
+		t.Errorf("Icon = %q, want %q", msg.Icon, wantIcon)
+	}
+	if len(msg.Actions) != 1 || msg.Actions[0].URL != wantClick || msg.Actions[0].Label == "" {
+		t.Errorf("Actions = %+v, want a single labeled action pointing at %q", msg.Actions, wantClick)
+	}
+}
+
+func TestRaise_NotifiesWithoutAppURL_OmitsClickIconActions(t *testing.T) {
+	fs := newFakeAlertStore()
+	fs.rules[1] = store.Rule{ID: 1, CooldownSec: 3600}
+	hub := sse.NewHub()
+	notifier := &fakeNotifier{}
+
+	svc := NewService(fs, hub, notifier, "", testLogger())
+	err := svc.Raise(context.Background(), Candidate{
+		RuleID: 1, GroupKey: "10.0.0.5", Severity: "info", Title: "t", Body: "b",
+	})
+	if err != nil {
+		t.Fatalf("Raise() error = %v", err)
+	}
+
+	msg := notifier.lastMsg
+	if msg.Click != "" || msg.Icon != "" || msg.Actions != nil {
+		t.Errorf("expected Click/Icon/Actions to be empty with no appURL configured, got Click=%q Icon=%q Actions=%+v",
+			msg.Click, msg.Icon, msg.Actions)
+	}
+}
+
 func TestRaise_BelowMinSeverity_NoNotify(t *testing.T) {
 	fs := newFakeAlertStore()
 	fs.rules[1] = store.Rule{ID: 1, CooldownSec: 3600}
@@ -138,7 +220,7 @@ func TestRaise_BelowMinSeverity_NoNotify(t *testing.T) {
 	defer cancel()
 	notifier := &fakeNotifier{}
 
-	svc := NewService(fs, hub, notifier, testLogger())
+	svc := NewService(fs, hub, notifier, "https://siem.example.com", testLogger())
 	err := svc.Raise(context.Background(), Candidate{
 		RuleID: 1, GroupKey: "10.0.0.5", Severity: "warning", Title: "t", Body: "b",
 	})
@@ -166,7 +248,7 @@ func TestRaise_MinSeverityReadFails_NotifiesAnyway(t *testing.T) {
 	hub := sse.NewHub()
 	notifier := &fakeNotifier{}
 
-	svc := NewService(fs, hub, notifier, testLogger())
+	svc := NewService(fs, hub, notifier, "https://siem.example.com", testLogger())
 	err := svc.Raise(context.Background(), Candidate{
 		RuleID: 1, GroupKey: "10.0.0.5", Severity: "info", Title: "t", Body: "b",
 	})
@@ -188,7 +270,7 @@ func TestRaise_WithinCooldown_TouchesOnlyNoNotify(t *testing.T) {
 	defer cancel()
 	notifier := &fakeNotifier{}
 
-	svc := NewService(fs, hub, notifier, testLogger())
+	svc := NewService(fs, hub, notifier, "https://siem.example.com", testLogger())
 	err := svc.Raise(context.Background(), Candidate{RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical", Title: "t", Body: "b"})
 	if err != nil {
 		t.Fatalf("Raise() error = %v", err)
@@ -214,16 +296,34 @@ func TestRaise_WithinCooldown_TouchesOnlyNoNotify(t *testing.T) {
 func TestSeverityToPriority(t *testing.T) {
 	cases := []struct {
 		severity string
-		want     string
+		want     int
 	}{
-		{"critical", "urgent"},
-		{"warning", "default"},
-		{"info", "low"},
-		{"unrecognized", "low"},
+		{"critical", 5},
+		{"warning", 3},
+		{"info", 2},
+		{"unrecognized", 2},
 	}
 	for _, c := range cases {
 		if got := severityToPriority(c.severity); got != c.want {
-			t.Errorf("severityToPriority(%q) = %q, want %q", c.severity, got, c.want)
+			t.Errorf("severityToPriority(%q) = %d, want %d", c.severity, got, c.want)
+		}
+	}
+}
+
+func TestSeverityToTags(t *testing.T) {
+	cases := []struct {
+		severity string
+		want     string
+	}{
+		{"critical", "rotating_light"},
+		{"warning", "warning"},
+		{"info", "information_source"},
+		{"unrecognized", "information_source"},
+	}
+	for _, c := range cases {
+		got := severityToTags(c.severity)
+		if len(got) != 1 || got[0] != c.want {
+			t.Errorf("severityToTags(%q) = %v, want [%s]", c.severity, got, c.want)
 		}
 	}
 }
@@ -253,7 +353,7 @@ func TestRaise_PastCooldown_ReopensAndNotifies(t *testing.T) {
 	hub := sse.NewHub()
 	notifier := &fakeNotifier{}
 
-	svc := NewService(fs, hub, notifier, testLogger())
+	svc := NewService(fs, hub, notifier, "https://siem.example.com", testLogger())
 	err := svc.Raise(context.Background(), Candidate{RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical", Title: "t", Body: "b"})
 	if err != nil {
 		t.Fatalf("Raise() error = %v", err)
@@ -281,7 +381,7 @@ func TestRaise_MutedAndUnexpired_TouchesOnlyNoNotify(t *testing.T) {
 	defer cancel()
 	notifier := &fakeNotifier{}
 
-	svc := NewService(fs, hub, notifier, testLogger())
+	svc := NewService(fs, hub, notifier, "https://siem.example.com", testLogger())
 	err := svc.Raise(context.Background(), Candidate{RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical", Title: "t", Body: "b"})
 	if err != nil {
 		t.Fatalf("Raise() error = %v", err)
@@ -316,7 +416,7 @@ func TestRaise_MutedAndExpired_ReopensAndNotifies(t *testing.T) {
 	hub := sse.NewHub()
 	notifier := &fakeNotifier{}
 
-	svc := NewService(fs, hub, notifier, testLogger())
+	svc := NewService(fs, hub, notifier, "https://siem.example.com", testLogger())
 	err := svc.Raise(context.Background(), Candidate{RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical", Title: "t", Body: "b"})
 	if err != nil {
 		t.Fatalf("Raise() error = %v", err)

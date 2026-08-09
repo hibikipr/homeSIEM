@@ -53,7 +53,7 @@ func main() {
 	vectorClient := vector.New(cfg.VectorGraphQLURL, &http.Client{Timeout: 10 * time.Second})
 	ntfyClient := ntfy.New(cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyToken, &http.Client{Timeout: 10 * time.Second})
 	hub := sse.NewHub()
-	alertsSvc := alerts.NewService(st, hub, ntfyClient, logger)
+	alertsSvc := alerts.NewService(st, hub, ntfyClient, cfg.AppURL, logger)
 
 	evaluators := map[string]rules.Evaluator{
 		"threshold":  &rules.ThresholdEvaluator{Querier: lokiClient},

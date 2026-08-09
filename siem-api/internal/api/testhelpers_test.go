@@ -37,7 +37,7 @@ func newTestServer(t *testing.T) (*Server, *store.Store) {
 	}
 	st := store.New(db)
 	hub := sse.NewHub()
-	alertsSvc := alerts.NewService(st, hub, nil, apiTestLogger())
+	alertsSvc := alerts.NewService(st, hub, nil, "", apiTestLogger())
 
 	deps := Deps{
 		Store:         st,

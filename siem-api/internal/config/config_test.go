@@ -45,6 +45,22 @@ func TestLoad_DefaultsApplied(t *testing.T) {
 	if len(cfg.SessionSecret) != 32 {
 		t.Errorf("SessionSecret len = %d, want 32", len(cfg.SessionSecret))
 	}
+	if cfg.AppURL != "" {
+		t.Errorf("AppURL = %q, want empty when APP_URL is unset", cfg.AppURL)
+	}
+}
+
+func TestLoad_AppURLReadFromEnv(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("APP_URL", "https://siem.example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.AppURL != "https://siem.example.com" {
+		t.Errorf("AppURL = %q, want https://siem.example.com", cfg.AppURL)
+	}
 }
 
 func TestLoad_MissingRequired(t *testing.T) {

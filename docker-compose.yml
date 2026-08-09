@@ -82,6 +82,7 @@ services:
       - OIDC_GROUPS_SCOPE=groups
       - SIEM_SESSION_SECRET=${SIEM_SESSION_SECRET}
       - SIEM_FASTPATH_TOKEN=${SIEM_FASTPATH_TOKEN}
+      - APP_URL=${SIEM_APP_URL:-http://localhost:8080}
     volumes:
       - siem_data:/data
     healthcheck:

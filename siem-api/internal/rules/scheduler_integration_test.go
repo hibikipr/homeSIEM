@@ -50,7 +50,7 @@ func TestSchedulerEndToEnd_ThresholdRuleRaisesRealAlert(t *testing.T) {
 	}
 
 	hub := sse.NewHub()
-	alertsSvc := alerts.NewService(st, hub, nil, schedulerTestLogger())
+	alertsSvc := alerts.NewService(st, hub, nil, "", schedulerTestLogger())
 	lokiClient := loki.New(fakeLoki.URL, fakeLoki.Client())
 	evaluators := map[string]Evaluator{"threshold": &ThresholdEvaluator{Querier: lokiClient}}
 	scheduler := NewScheduler(st, evaluators, alertsSvc, schedulerTestLogger())

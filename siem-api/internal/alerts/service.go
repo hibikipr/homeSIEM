@@ -3,9 +3,12 @@ package alerts
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/hibikipr/homeSIEM/siem-api/internal/ntfy"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/sse"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
 )
@@ -36,18 +39,23 @@ type AlertStore interface {
 }
 
 type Notifier interface {
-	Publish(ctx context.Context, title, message, priority string) error
+	Publish(ctx context.Context, msg ntfy.Message) error
 }
 
 type Service struct {
 	store    AlertStore
 	hub      *sse.Hub
 	notifier Notifier
+	appURL   string
 	logger   *slog.Logger
 }
 
-func NewService(s AlertStore, hub *sse.Hub, notifier Notifier, logger *slog.Logger) *Service {
-	return &Service{store: s, hub: hub, notifier: notifier, logger: logger}
+// appURL is the public URL siem-web is reachable at (e.g.
+// "https://siem.example.com"). It's used to build the ntfy notification's
+// click-through link, action button, and icon — all optional, so an empty
+// appURL still sends notifications, just without those three fields.
+func NewService(s AlertStore, hub *sse.Hub, notifier Notifier, appURL string, logger *slog.Logger) *Service {
+	return &Service{store: s, hub: hub, notifier: notifier, appURL: strings.TrimRight(appURL, "/"), logger: logger}
 }
 
 func (s *Service) Raise(ctx context.Context, c Candidate) error {
@@ -137,7 +145,7 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 			minSeverity = ""
 		}
 		if severityRank(c.Severity) >= severityRank(minSeverity) {
-			if err := s.notifier.Publish(ctx, c.Title, c.Body, severityToPriority(c.Severity)); err != nil {
+			if err := s.notifier.Publish(ctx, s.buildNotifyMessage(alertID, c, rule)); err != nil {
 				s.logger.Error("ntfy publish failed", "error", err, "alert_id", alertID)
 			}
 		}
@@ -145,14 +153,64 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 	return nil
 }
 
-func severityToPriority(severity string) string {
+// buildNotifyMessage turns a raised alert into a fully-dressed ntfy
+// notification: a severity emoji tag, a numeric priority, a Markdown body
+// with the rule/group and (if available) a sample log line in a code
+// fence, and — when appURL is configured — a click-through link, a matching
+// "view" action button, and the app icon.
+func (s *Service) buildNotifyMessage(alertID int64, c Candidate, rule store.Rule) ntfy.Message {
+	body := c.Body
+	if rule.Name != "" {
+		body += fmt.Sprintf("\n\n**Rule:** `%s`  **Group:** `%s`", rule.Name, c.GroupKey)
+	} else {
+		body += fmt.Sprintf("\n\n**Group:** `%s`", c.GroupKey)
+	}
+	if len(c.Samples) > 0 {
+		sample := c.Samples[len(c.Samples)-1].Line
+		const maxSampleLen = 300
+		if len(sample) > maxSampleLen {
+			sample = sample[:maxSampleLen] + "…"
+		}
+		body += fmt.Sprintf("\n\n**Sample:**\n```\n%s\n```", sample)
+	}
+
+	msg := ntfy.Message{
+		Title:    c.Title,
+		Body:     body,
+		Priority: severityToPriority(c.Severity),
+		Tags:     severityToTags(c.Severity),
+		Markdown: true,
+	}
+	if s.appURL != "" {
+		click := fmt.Sprintf("%s/alerts?id=%d", s.appURL, alertID)
+		msg.Click = click
+		msg.Icon = s.appURL + "/icons/homesiem-192.png"
+		msg.Actions = []ntfy.Action{{Label: "Open in homeSIEM", URL: click}}
+	}
+	return msg
+}
+
+// severityToPriority maps to ntfy's 1 (min) .. 5 (urgent) priority scale.
+func severityToPriority(severity string) int {
 	switch severity {
 	case "critical":
-		return "urgent"
+		return 5 // urgent
 	case "warning":
-		return "default"
+		return 3 // default
 	default: // "info", or anything unrecognized
-		return "low"
+		return 2 // low
+	}
+}
+
+// severityToTags maps to ntfy emoji short-codes (https://docs.ntfy.sh/emojis/).
+func severityToTags(severity string) []string {
+	switch severity {
+	case "critical":
+		return []string{"rotating_light"}
+	case "warning":
+		return []string{"warning"}
+	default: // "info", or anything unrecognized
+		return []string{"information_source"}
 	}
 }
 
