@@ -11,12 +11,22 @@
 		onFacetClick: (field: string, value: string) => void;
 	} = $props();
 
+	let sources = $derived(deriveFacetCounts(entries, 'source'));
 	let severities = $derived(deriveFacetCounts(entries, 'severity'));
 	let programs = $derived(deriveFacetCounts(entries, 'program'));
 	let countries = $derived(deriveCountryFacet(entries));
 </script>
 
 <aside class="facets">
+	<section>
+		<h2>Source</h2>
+		{#each sources as facet (facet.value)}
+			<button class="facet-row" onclick={() => onFacetClick('source', facet.value)}>
+				<span class="name">{facet.value}</span>
+				<span class="count mono">{facet.count}</span>
+			</button>
+		{/each}
+	</section>
 	<section>
 		<h2>Severity</h2>
 		{#each severities as facet (facet.value)}
