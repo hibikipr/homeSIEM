@@ -93,3 +93,75 @@ func (c *Client) QueryMatrix(ctx context.Context, logql string, start, end time.
 
 	return MatrixResult{Series: series}, nil
 }
+
+type instantQueryResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		Result []struct {
+			Metric map[string]string `json:"metric"`
+			Value  [2]any            `json:"value"`
+		} `json:"result"`
+	} `json:"data"`
+	Error string `json:"error"`
+}
+
+// QueryInstant runs a LogQL metric query (e.g. count_over_time) against
+// Loki's instant /query endpoint, evaluated at a single point in time, and
+// returns it in the same MatrixResult shape QueryMatrix uses (each series
+// carries exactly one sample, timestamped at - or very near - `at`).
+//
+// Added as a workaround, not a general-purpose alternative to QueryMatrix:
+// this Loki deployment's /query_range endpoint collapses metric (matrix)
+// queries to a single, incorrectly-timestamped sample regardless of the
+// requested start/end/step, confirmed directly against Loki itself (a
+// plain non-metric log query and this instant endpoint were both
+// unaffected) - not a bug in how QueryMatrix builds its request. Callers
+// that need a real per-bucket series (see stats.go's queryHourlyBySource)
+// call this once per bucket instead.
+func (c *Client) QueryInstant(ctx context.Context, logql string, at time.Time) (MatrixResult, error) {
+	q := url.Values{}
+	q.Set("query", logql)
+	q.Set("time", strconv.FormatInt(at.UnixNano(), 10))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.baseURL+"/loki/api/v1/query?"+q.Encode(), nil)
+	if err != nil {
+		return MatrixResult{}, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return MatrixResult{}, fmt.Errorf("loki: query (instant) request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var parsed instantQueryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return MatrixResult{}, fmt.Errorf("loki: decode instant response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK || parsed.Status != "success" {
+		return MatrixResult{}, fmt.Errorf("loki: query (instant) failed: status=%d error=%q", resp.StatusCode, parsed.Error)
+	}
+
+	var series []MatrixSeries
+	for _, s := range parsed.Data.Result {
+		tsSeconds, ok := s.Value[0].(float64)
+		if !ok {
+			return MatrixResult{}, fmt.Errorf("loki: unexpected instant timestamp type %T", s.Value[0])
+		}
+		valStr, ok := s.Value[1].(string)
+		if !ok {
+			return MatrixResult{}, fmt.Errorf("loki: unexpected instant value type %T", s.Value[1])
+		}
+		value, err := strconv.ParseFloat(valStr, 64)
+		if err != nil {
+			return MatrixResult{}, fmt.Errorf("loki: parse instant value %q: %w", valStr, err)
+		}
+		series = append(series, MatrixSeries{
+			Labels:  s.Metric,
+			Samples: []MatrixSample{{Timestamp: time.Unix(int64(tsSeconds), 0).UTC(), Value: value}},
+		})
+	}
+
+	return MatrixResult{Series: series}, nil
+}

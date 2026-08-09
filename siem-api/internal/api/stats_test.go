@@ -14,39 +14,66 @@ import (
 )
 
 func TestEventsStats_ReturnsTotalAndHeatGrid(t *testing.T) {
-	// The heat-grid/hourly-totals queries are keyed off the handler's own
-	// start/end (time.Now()-based), so the fixture timestamps below are
-	// derived from the request's actual "start" param rather than
-	// hardcoded, letting them land inside the dense bucket range that
-	// buildHourlyTotals now walks.
+	// queryTotal24h and queryHourlyBySource both evaluate via QueryInstant
+	// (Loki's /query endpoint, one call per hour bucket for the latter)
+	// rather than a single QueryMatrix/query_range call - see stats.go's
+	// doc comments for why. This fake server responds per-instant-call,
+	// keyed on each request's own "time" param rather than a shared
+	// "start" - the first "by (source)"-shaped request's time becomes
+	// hour0 (the handler's actual start, i.e. real time.Now()-24h, so it
+	// can't be hardcoded), hour1 = hour0+3600, and every other hour bucket
+	// gets an empty result, matching a real quiet-hour Loki response.
 	var hour0Sec, hour1Sec int64
 	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 
-		startNanos, _ := strconv.ParseInt(r.URL.Query().Get("start"), 10, 64)
-		hour0 := startNanos / int64(time.Second)
-		hour1 := hour0 + 3600
-		hour0Sec, hour1Sec = hour0, hour1
+		if r.URL.Path != "/loki/api/v1/query" {
+			t.Errorf("unexpected request path %q, want /loki/api/v1/query (instant) only", r.URL.Path)
+		}
+
+		timeNanos, _ := strconv.ParseInt(r.URL.Query().Get("time"), 10, 64)
+		at := timeNanos / int64(time.Second)
+
+		if !strings.Contains(query, "by (source)") {
+			// 24h grand total, no grouping - a single instant call at "end".
+			fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[
+				{"metric":{},"value":[1700003600,"1240000"]}
+			]}}`)
+			return
+		}
+
+		if hour0Sec == 0 {
+			hour0Sec = at
+			hour1Sec = hour0Sec + 3600
+		}
 
 		switch {
+		case at != hour0Sec && at != hour1Sec:
+			fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
 		case strings.Contains(query, `severity="critical"`):
-			fmt.Fprintf(w, `{"status":"success","data":{"resultType":"matrix","result":[
-				{"metric":{"source":"udm-ultra"},"values":[[%d,"1"],[%d,"0"]]}
-			]}}`, hour0, hour1)
+			if at == hour0Sec {
+				fmt.Fprintf(w, `{"status":"success","data":{"resultType":"vector","result":[
+					{"metric":{"source":"udm-ultra"},"value":[%d,"1"]}
+				]}}`, at)
+			} else {
+				fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
+			}
 		case strings.Contains(query, `severity="warning"`):
-			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
-		case strings.Contains(query, "by (source)"):
-			// total volume per source per hour (no severity filter)
-			fmt.Fprintf(w, `{"status":"success","data":{"resultType":"matrix","result":[
-				{"metric":{"source":"udm-ultra"},"values":[[%d,"1"],[%d,"0"]]},
-				{"metric":{"source":"host-1"},"values":[[%d,"60"],[%d,"3"]]}
-			]}}`, hour0, hour1, hour0, hour1)
+			fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
 		default:
-			// 24h grand total, no grouping
-			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[
-				{"metric":{},"values":[[1700003600,"1240000"]]}
-			]}}`))
+			// total volume per source, no severity filter
+			if at == hour0Sec {
+				fmt.Fprintf(w, `{"status":"success","data":{"resultType":"vector","result":[
+					{"metric":{"source":"udm-ultra"},"value":[%d,"1"]},
+					{"metric":{"source":"host-1"},"value":[%d,"60"]}
+				]}}`, at, at)
+			} else {
+				fmt.Fprintf(w, `{"status":"success","data":{"resultType":"vector","result":[
+					{"metric":{"source":"udm-ultra"},"value":[%d,"0"]},
+					{"metric":{"source":"host-1"},"value":[%d,"3"]}
+				]}}`, at, at)
+			}
 		}
 	}))
 	defer fakeLoki.Close()
@@ -90,8 +117,16 @@ func TestEventsStats_ReturnsTotalAndHeatGrid(t *testing.T) {
 		t.Fatalf("missing expected sources in HeatGrid: %+v", resp.HeatGrid)
 	}
 
-	if len(udm.Hours) != 2 {
-		t.Fatalf("len(udm.Hours) = %d, want 2", len(udm.Hours))
+	// buildHeatGrid now walks every hourly bucket across the handler's own
+	// 24h start/end window (dense, gap-filled - the same fix
+	// buildHourlyTotals already had), not just the buckets present in the
+	// volume map - so each row has ~25 cells (24h inclusive of both ends),
+	// and hour0Sec/hour1Sec (the fixture's only two non-empty hours) land
+	// at exactly indices 0/1 since hour0Sec is the loop's first bucket
+	// (queryHourlyBySource's very first request, for severity="critical",
+	// always starts at `start` itself).
+	if len(udm.Hours) != 25 {
+		t.Fatalf("len(udm.Hours) = %d, want 25 (dense 24h+1 series)", len(udm.Hours))
 	}
 	if udm.Hours[0] != "critical" {
 		t.Errorf("udm.Hours[0] = %q, want critical (1 critical event that hour)", udm.Hours[0])
@@ -105,6 +140,18 @@ func TestEventsStats_ReturnsTotalAndHeatGrid(t *testing.T) {
 	}
 	if host1.Hours[1] != "quiet" {
 		t.Errorf("host1.Hours[1] = %q, want quiet (3 events)", host1.Hours[1])
+	}
+
+	// A genuinely quiet hour (no data from any source, not just this one)
+	// must still produce a real "none" cell at its own index, not be
+	// omitted from the row entirely - this is the actual gap-filling fix:
+	// without it, both rows would only ever have 2 cells (hour0, hour1),
+	// never 25.
+	if udm.Hours[2] != "none" {
+		t.Errorf("udm.Hours[2] = %q, want none (a real gap-filled quiet hour, not omitted)", udm.Hours[2])
+	}
+	if host1.Hours[2] != "none" {
+		t.Errorf("host1.Hours[2] = %q, want none (a real gap-filled quiet hour, not omitted)", host1.Hours[2])
 	}
 
 	// buildHourlyTotals now walks every hourly bucket across the handler's
