@@ -25,8 +25,12 @@
 
 	const RANGES: SearchFilters['range'][] = ['15m', '24h', '7d'];
 
-	function submit(event: SubmitEvent) {
-		event.preventDefault();
+	// Shared by the form's own submit (Search button / Enter) and each
+	// ClearableField's onClear below - clicking a field's clear button
+	// must re-run a real search with that filter now empty, not just
+	// empty the box and leave the stale results on screen until the user
+	// separately hits Enter.
+	function applyFilters() {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
 		const params = new URLSearchParams();
 		if (source) params.set('source', source);
@@ -39,6 +43,11 @@
 		goto(resolve(`/search?${params.toString()}`));
 	}
 
+	function submit(event: SubmitEvent) {
+		event.preventDefault();
+		applyFilters();
+	}
+
 	function setRange(range: SearchFilters['range']) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
 		const params = new URLSearchParams(window.location.search);
@@ -49,12 +58,12 @@
 </script>
 
 <form class="query-bar" onsubmit={submit}>
-	<ClearableField placeholder="source" bind:value={source} />
-	<ClearableField placeholder="host" bind:value={host} />
-	<ClearableField placeholder="program" bind:value={program} />
-	<ClearableField placeholder="severity" bind:value={severity} />
-	<ClearableField placeholder="facility" bind:value={facility} />
-	<ClearableField placeholder="free text" bind:value={q} wide />
+	<ClearableField placeholder="source" bind:value={source} onClear={applyFilters} />
+	<ClearableField placeholder="host" bind:value={host} onClear={applyFilters} />
+	<ClearableField placeholder="program" bind:value={program} onClear={applyFilters} />
+	<ClearableField placeholder="severity" bind:value={severity} onClear={applyFilters} />
+	<ClearableField placeholder="facility" bind:value={facility} onClear={applyFilters} />
+	<ClearableField placeholder="free text" bind:value={q} onClear={applyFilters} wide />
 	<button type="submit" class="go">Search</button>
 
 	<div class="range">
