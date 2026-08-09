@@ -96,7 +96,9 @@
 						<span class="dot" style:background={severityColor(entry.Labels.severity ?? 'info')}
 						></span>
 					</span>
-					<span class="col-host mono">{entry.Labels.host ?? ''}</span>
+					<span class="col-host mono" title={entry.Labels.host ?? ''}
+						>{entry.Labels.host ?? ''}</span
+					>
 					<span class="col-program mono">{entry.Labels.program ?? ''}</span>
 					<span class="col-message">{entry.Line}</span>
 				</button>
