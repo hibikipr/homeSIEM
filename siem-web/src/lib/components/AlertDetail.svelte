@@ -162,7 +162,7 @@
 	.eyebrow {
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
-		color: var(--color-severity-notice);
+		color: var(--color-severity-info-text);
 	}
 	.eyebrow.severity-warning {
 		color: var(--color-severity-warning);

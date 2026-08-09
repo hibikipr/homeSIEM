@@ -32,17 +32,26 @@ function loadApiUrl(): string {
 }
 
 async function deleteRuleByName(apiUrl: string, token: string, name: string): Promise<void> {
-	const listResponse = await fetch(`${apiUrl}/rules`, {
-		headers: { Authorization: `Bearer ${token}` }
-	});
-	if (!listResponse.ok) return;
-	const rules = (await listResponse.json()) as { id: number; name: string }[];
-	const created = rules.find((r) => r.name === name);
-	if (!created) return;
-	await fetch(`${apiUrl}/rules/${created.id}`, {
-		method: 'DELETE',
-		headers: { Authorization: `Bearer ${token}` }
-	});
+	try {
+		const listResponse = await fetch(`${apiUrl}/rules`, {
+			headers: { Authorization: `Bearer ${token}` }
+		});
+		if (!listResponse.ok) return;
+		const rules = (await listResponse.json()) as { id: number; name: string }[];
+		const created = rules.find((r) => r.name === name);
+		if (!created) return;
+		const deleteResponse = await fetch(`${apiUrl}/rules/${created.id}`, {
+			method: 'DELETE',
+			headers: { Authorization: `Bearer ${token}` }
+		});
+		if (!deleteResponse.ok) {
+			console.warn(
+				`alerts-new-rule e2e: cleanup DELETE failed for rule "${name}" (status ${deleteResponse.status})`
+			);
+		}
+	} catch (err) {
+		console.warn(`alerts-new-rule e2e: cleanup failed for rule "${name}":`, err);
+	}
 }
 
 // This test exercises the real create-rule flow end to end (no mocking), so it
