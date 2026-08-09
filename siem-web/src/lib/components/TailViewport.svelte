@@ -124,6 +124,10 @@
 						<td class="col-facility mono">{entry.Labels.facility ?? ''}</td>
 						<td class="mono message">{entry.Line}</td>
 					</tr>
+				{:else}
+					<tr class="empty-row">
+						<td colspan="6">Waiting for events…</td>
+					</tr>
 				{/each}
 			</tbody>
 		</table>
@@ -195,6 +199,12 @@
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
+	}
+	.empty-row td {
+		text-align: center;
+		white-space: normal;
+		color: var(--color-muted-2);
+		padding: var(--space-6);
 	}
 	.new-pill {
 		position: absolute;
