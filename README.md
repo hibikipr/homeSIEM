@@ -185,9 +185,10 @@ rely on this:
 - **GeoIP/threat-intel data is never embedded in this repo** — you provision
   your own MaxMind account and threat-intel feed; see
   `siem-ingest/docs/geoip-setup.md`.
-- **Multi-arch images are built by CI, not verified on real arm64
-  hardware** by this project — build locally on a Pi and compare if you hit
-  anything odd.
+- **Multi-arch images** are built by CI for `linux/amd64,linux/arm64` and are
+  verified in practice on real arm64 hardware — `siem-api`, `siem-web`, and
+  `siem-threatlist-updater` all run as the published `ghcr.io` images on a
+  Raspberry Pi in the reference deployment.
 
 ## Development
 

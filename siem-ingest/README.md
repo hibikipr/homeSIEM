@@ -55,12 +55,14 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
   with a real syslog daemon (rsyslog/syslog-ng) configured for TLS forwarding
   — confirm your sender's certificate-trust configuration when you deploy.
 - `heartbeat_sec` (how long before a source is considered "silent") is
-  hardcoded to the schema default on every heartbeat call — there's no UI
-  yet to customize it per source (that belongs to the not-yet-built Sources
-  screen).
-- This pass verifies the pipeline against synthetic traffic in a local
-  Docker harness, not against the real UDM-Ultra or real hosts — that's the
-  next real-world verification step once deployed.
+  hardcoded to the schema default on every heartbeat call — `siem-web`'s
+  Sources screen displays it per source but has no control to change it yet.
+- Beyond the local Docker test harness, the pipeline has also been verified
+  against real traffic: a real UniFi gateway (UDP/514, both classic
+  RFC3164-ish "Remote Logging" and the CEF-formatted "SIEM Server"
+  integration) and real hosts forwarding over TCP/601 via a host-level
+  rsyslog bridge (journald → `omfwd`). Port 6514 remains verified only via
+  `openssl s_client`, per the bullet above.
 - **UniFi OS's "SIEM Server" integration** (Settings → System Logging / SIEM — a
   distinct feature from the classic "Remote Logging" toggle this pipeline was originally
   built against) sends **CEF-formatted** messages wrapped in a syslog envelope with no
