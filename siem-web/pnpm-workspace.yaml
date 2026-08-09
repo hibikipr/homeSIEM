@@ -2,3 +2,9 @@ packages:
   - '.'
 allowBuilds:
   esbuild: true
+overrides:
+  # cookie <0.7.0 accepts out-of-bounds characters in cookie name/path/domain
+  # (GHSA-pxg6-pf52-xh8x). @sveltejs/kit@2.70.2 pins "^0.6.0", which won't
+  # naturally resolve to the patch — force it here until upstream bumps its
+  # own declared range.
+  cookie: ^0.7.0
