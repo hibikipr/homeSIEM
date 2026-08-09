@@ -23,7 +23,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			...filtersToSearchParams(filters),
 			start: start.toISOString(),
 			end: end.toISOString(),
-			limit: '10000'
+			// siem-api's own default (when no limit is given) is 1000 — match it
+			// explicitly rather than requesting more. An unfiltered, 24h-range
+			// search asking for 10000 rows was intermittently exceeding Loki's
+			// query timeout on real deployments (Loki returning that many raw
+			// log lines is measurably more expensive than a filtered/narrower
+			// query), turning the default Search view into a 502.
+			limit: '1000'
 		});
 	} catch (err) {
 		if (err instanceof SiemApiError) {
