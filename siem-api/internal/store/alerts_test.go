@@ -194,11 +194,11 @@ func TestListAlerts_FilterByState(t *testing.T) {
 	rule := createTestRule(t, s)
 	now := time.Now().UTC()
 
-	if _, err := s.InsertAlert(ctx, Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low", Title: "t", Body: "b",
+	if _, err := s.InsertAlert(ctx, Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning", Title: "t", Body: "b",
 		EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now}); err != nil {
 		t.Fatalf("InsertAlert() error = %v", err)
 	}
-	if _, err := s.InsertAlert(ctx, Alert{RuleID: rule.ID, GroupKey: "b", Severity: "low", Title: "t", Body: "b",
+	if _, err := s.InsertAlert(ctx, Alert{RuleID: rule.ID, GroupKey: "b", Severity: "warning", Title: "t", Body: "b",
 		EventCount: 1, Context: "{}", State: "acked", FirstSeenAt: now, LastSeenAt: now}); err != nil {
 		t.Fatalf("InsertAlert() error = %v", err)
 	}

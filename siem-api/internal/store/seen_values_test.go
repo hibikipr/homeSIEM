@@ -49,7 +49,7 @@ func TestHasSeenValue_ScopedPerRule(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	rule1 := createTestRule(t, s)
-	rule2, err := s.CreateRule(ctx, Rule{Name: "other-rule", Shape: "first_seen", Severity: "low",
+	rule2, err := s.CreateRule(ctx, Rule{Name: "other-rule", Shape: "first_seen", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
