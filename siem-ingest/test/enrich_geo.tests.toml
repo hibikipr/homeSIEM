@@ -80,6 +80,56 @@ name = "CEF event with a valid public src still gets geoip enrichment (regressio
     '''
 
 [[tests]]
+name = "syslog event's self-reported level= overrides a mismatched RFC5424 PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = 'level=info ts=2026-08-09T13:42:30.626767313Z caller=table_manager.go:195 index-store=tsdb-2020-10-24 msg="get or create table" found=true table=index_20674 wait_for_lock=12.686µs'
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Found in production: a real Loki container's own logs, forwarded via
+      ## syslog, arrived with severity="err" (from the RFC5424 PRI header
+      ## Vector's syslog source decodes) even though the message itself is a
+      ## self-reported "level=info" line. Some forwarders tag every line with
+      ## a fixed PRI severity regardless of the emitting service's real level
+      ## - the message's own self-reported level is more trustworthy.
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "syslog event's severity is untouched when the message has no level= key"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "authentication failure for user admin from 10.0.0.5"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
 name = "netfilter event with a valid public src still gets geoip enrichment (pre-existing path, unaffected)"
 
   [tests.input]
