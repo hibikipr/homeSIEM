@@ -37,6 +37,8 @@
 		{#if tab === 'rules'}
 			{#each rules as rule (rule.id)}
 				<RuleRow {rule} selected={selectedId === rule.id} />
+			{:else}
+				<div class="empty-list">No rules configured yet.</div>
 			{/each}
 		{:else}
 			{#each alerts as alert (alert.id)}
@@ -45,6 +47,10 @@
 					ruleName={ruleNames.get(alert.rule_id) ?? `rule #${alert.rule_id}`}
 					selected={selectedId === alert.id}
 				/>
+			{:else}
+				<div class="empty-list">
+					{tab === 'acked' ? 'No acknowledged alerts.' : 'No open alerts.'}
+				</div>
 			{/each}
 		{/if}
 	</div>
@@ -86,5 +92,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+	}
+	.empty-list {
+		color: var(--color-muted-2);
+		font-size: var(--text-table);
+		padding: var(--space-4);
+		text-align: center;
 	}
 </style>

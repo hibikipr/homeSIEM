@@ -34,7 +34,9 @@
 	{:else if data.selectedRule}
 		<RuleDetail rule={data.selectedRule} />
 	{:else}
-		<div class="empty">Select an alert to see details.</div>
+		<div class="empty">
+			{data.tab === 'rules' ? 'Select a rule to see details.' : 'Select an alert to see details.'}
+		</div>
 	{/if}
 </div>
 
