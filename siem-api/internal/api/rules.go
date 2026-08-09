@@ -60,6 +60,8 @@ type ruleRequest struct {
 	Enabled      bool     `json:"enabled"`
 }
 
+var validSeverities = map[string]bool{"info": true, "warning": true, "critical": true}
+
 func (rq ruleRequest) toStoreRule() store.Rule {
 	return store.Rule{
 		Name: rq.Name, Shape: rq.Shape, LogQL: rq.LogQL, WindowSec: rq.WindowSec,
@@ -87,6 +89,11 @@ func (s *Server) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 	var req ruleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+
+	if !validSeverities[req.Severity] {
+		http.Error(w, "severity must be one of: info, warning, critical", http.StatusBadRequest)
 		return
 	}
 
@@ -124,6 +131,12 @@ func (s *Server) handleUpdateRule(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid json body", http.StatusBadRequest)
 		return
 	}
+
+	if !validSeverities[req.Severity] {
+		http.Error(w, "severity must be one of: info, warning, critical", http.StatusBadRequest)
+		return
+	}
+
 	ruleToUpdate := req.toStoreRule()
 	ruleToUpdate.ID = id
 

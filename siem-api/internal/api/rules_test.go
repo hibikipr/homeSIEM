@@ -40,6 +40,60 @@ func TestCreateRule_RequiresAnalyst(t *testing.T) {
 	}
 }
 
+func TestCreateRule_AcceptsInfoSeverity(t *testing.T) {
+	s := newSchedulerTestServer(t)
+	token := authToken(t, s.deps.Store, "analyst", 50)
+
+	body := `{"name":"r","shape":"absence","logql":"{job=\"siem\"}","severity":"info","destinations":["inapp"],"cooldown_sec":60,"interval_sec":60,"enabled":true}`
+	req := httptest.NewRequest(http.MethodPost, "/rules", bytes.NewReader([]byte(body)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateRule_RejectsInvalidSeverity(t *testing.T) {
+	s := newSchedulerTestServer(t)
+	token := authToken(t, s.deps.Store, "analyst", 50)
+
+	body := `{"name":"r","shape":"absence","severity":"low","destinations":["inapp"],"cooldown_sec":60,"interval_sec":60,"enabled":true}`
+	req := httptest.NewRequest(http.MethodPost, "/rules", bytes.NewReader([]byte(body)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUpdateRule_RejectsInvalidSeverity(t *testing.T) {
+	s := newSchedulerTestServer(t)
+	ctx := context.Background()
+	token := authToken(t, s.deps.Store, "analyst", 50)
+
+	created, err := s.deps.Store.CreateRule(ctx, store.Rule{
+		Name: "r", Shape: "absence", Severity: "warning", Destinations: []string{"inapp"},
+		CooldownSec: 60, IntervalSec: 60, Enabled: true,
+	}, nil)
+	if err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+
+	body := `{"name":"r","shape":"absence","severity":"urgent","destinations":["inapp"],"cooldown_sec":60,"interval_sec":60,"enabled":true}`
+	req := httptest.NewRequest(http.MethodPut, "/rules/"+itoa(created.ID), bytes.NewReader([]byte(body)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCreateAndListRules(t *testing.T) {
 	s := newSchedulerTestServer(t)
 	token := authToken(t, s.deps.Store, "analyst", 50)
@@ -98,14 +152,14 @@ func TestUpdateRule_DisablesStopsScheduler(t *testing.T) {
 	token := authToken(t, s.deps.Store, "analyst", 50)
 
 	created, err := s.deps.Store.CreateRule(ctx, store.Rule{
-		Name: "r", Shape: "absence", Severity: "low", Destinations: []string{"inapp"},
+		Name: "r", Shape: "absence", Severity: "warning", Destinations: []string{"inapp"},
 		CooldownSec: 60, IntervalSec: 60, Enabled: true,
 	}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}
 
-	body := `{"name":"r","shape":"absence","severity":"low","destinations":["inapp"],"cooldown_sec":60,"interval_sec":60,"enabled":false}`
+	body := `{"name":"r","shape":"absence","severity":"warning","destinations":["inapp"],"cooldown_sec":60,"interval_sec":60,"enabled":false}`
 	req := httptest.NewRequest(http.MethodPut, "/rules/"+itoa(created.ID), bytes.NewReader([]byte(body)))
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
@@ -147,7 +201,7 @@ func TestDeleteRule(t *testing.T) {
 	token := authToken(t, s.deps.Store, "analyst", 50)
 
 	created, err := s.deps.Store.CreateRule(ctx, store.Rule{
-		Name: "r", Shape: "absence", Severity: "low", Destinations: []string{"inapp"},
+		Name: "r", Shape: "absence", Severity: "warning", Destinations: []string{"inapp"},
 		CooldownSec: 60, IntervalSec: 60, Enabled: true,
 	}, nil)
 	if err != nil {
@@ -192,7 +246,7 @@ func TestListRules_OmittedArrayFieldsSerializeAsEmptyArrays(t *testing.T) {
 	s := newSchedulerTestServer(t)
 	token := authToken(t, s.deps.Store, "analyst", 50)
 
-	body := `{"name":"source-heartbeat","shape":"absence","logql":"{job=\"siem\"}","window_sec":60,"severity":"low","cooldown_sec":3600,"interval_sec":60,"enabled":true}`
+	body := `{"name":"source-heartbeat","shape":"absence","logql":"{job=\"siem\"}","window_sec":60,"severity":"warning","cooldown_sec":3600,"interval_sec":60,"enabled":true}`
 	req := httptest.NewRequest(http.MethodPost, "/rules", bytes.NewReader([]byte(body)))
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
