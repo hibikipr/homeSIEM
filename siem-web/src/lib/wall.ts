@@ -1,3 +1,4 @@
+import type { AlertSeverity } from './severity';
 import type { AlertResponse, LogEntry } from './server/siemApiClient';
 
 const HEAT_TIER_COLORS: Record<string, string> = {
@@ -13,7 +14,7 @@ export function heatTierColor(tier: string): string {
 	return HEAT_TIER_COLORS[tier] ?? HEAT_TIER_COLORS.none;
 }
 
-const SEVERITY_RANK: Record<string, number> = { critical: 3, warning: 2, info: 1 };
+const SEVERITY_RANK: Record<AlertSeverity, number> = { critical: 3, warning: 2, info: 1 };
 
 export function topTriageAlerts(alerts: AlertResponse[], count = 3): AlertResponse[] {
 	return [...alerts]

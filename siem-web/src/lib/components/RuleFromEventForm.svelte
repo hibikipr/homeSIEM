@@ -1,10 +1,6 @@
 <script lang="ts">
-	import {
-		RULE_TEMPLATES,
-		parseGroupBy,
-		type RuleShape,
-		type RuleSeverity
-	} from '$lib/ruleTemplates';
+	import { RULE_TEMPLATES, parseGroupBy, type RuleShape } from '$lib/ruleTemplates';
+	import type { AlertSeverity } from '$lib/severity';
 
 	let {
 		defaultName,
@@ -20,7 +16,7 @@
 	const BLANK_WINDOW_SEC = 60;
 	const BLANK_THRESHOLD = 5;
 	const BLANK_GROUP_BY = '';
-	const BLANK_SEVERITY: RuleSeverity = 'warning';
+	const BLANK_SEVERITY: AlertSeverity = 'warning';
 
 	let name = $state(defaultName);
 	let logql = $state(defaultLogql);
@@ -28,7 +24,7 @@
 	let windowSec = $state(BLANK_WINDOW_SEC);
 	let threshold = $state(BLANK_THRESHOLD);
 	let groupBy = $state(BLANK_GROUP_BY);
-	let severity = $state<RuleSeverity>(BLANK_SEVERITY);
+	let severity = $state<AlertSeverity>(BLANK_SEVERITY);
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 

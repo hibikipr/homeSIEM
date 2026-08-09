@@ -1,5 +1,6 @@
+import type { AlertSeverity } from './severity';
+
 export type RuleShape = 'threshold' | 'absence' | 'first_seen';
-export type RuleSeverity = 'info' | 'warning' | 'critical';
 
 export type RuleTemplate = {
 	label: string;
@@ -9,7 +10,7 @@ export type RuleTemplate = {
 	windowSec: number;
 	threshold: number;
 	groupBy: string;
-	severity: RuleSeverity;
+	severity: AlertSeverity;
 };
 
 export const RULE_TEMPLATES: RuleTemplate[] = [
