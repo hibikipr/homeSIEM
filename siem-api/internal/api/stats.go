@@ -67,27 +67,40 @@ func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(statsResponse{
 		EventCount24h: total,
-		HeatGrid:      buildHeatGrid(critical, warning, volume),
+		HeatGrid:      buildHeatGrid(critical, warning, volume, start, end),
 		HourlyTotals:  buildHourlyTotals(volume, start, end),
 	})
 }
 
+// queryTotal24h and queryHourlyBySource both evaluate via QueryInstant
+// (Loki's /query endpoint) rather than QueryMatrix (/query_range): this
+// Loki deployment's /query_range collapses metric queries to a single,
+// incorrectly-timestamped sample regardless of the requested
+// start/end/step - confirmed directly against Loki itself, unrelated to
+// how this client builds its request. See QueryInstant's own doc comment
+// in internal/loki/matrix.go for the full story.
 func (s *Server) queryTotal24h(ctx context.Context, start, end time.Time) (int64, error) {
 	logql := fmt.Sprintf(`sum(count_over_time({job=%q}[24h]))`, s.deps.JobLabel)
-	result, err := s.deps.Loki.QueryMatrix(ctx, logql, start, end, 24*time.Hour)
+	result, err := s.deps.Loki.QueryInstant(ctx, logql, end)
 	if err != nil {
 		return 0, err
 	}
 	if len(result.Series) == 0 || len(result.Series[0].Samples) == 0 {
 		return 0, nil
 	}
-	samples := result.Series[0].Samples
-	return int64(samples[len(samples)-1].Value), nil
+	return int64(result.Series[0].Samples[0].Value), nil
 }
 
 // bySourceHourly maps source -> hour-bucket unix timestamp -> value.
 type bySourceHourly map[string]map[int64]float64
 
+// queryHourlyBySource issues one instant query per hour bucket from start
+// to end (inclusive) instead of a single QueryMatrix call - more requests
+// (25 for a 24h window instead of 1), but each is a cheap single-point
+// aggregation and this only runs once per Wall page load, not a hot path.
+// Bucket map keys are the loop's own bucket timestamps, not whatever Loki
+// echoes back in the response, so they line up exactly with
+// buildHourlyTotals' identical start-to-end hourly walk.
 func (s *Server) queryHourlyBySource(ctx context.Context, labelFilter string, start, end time.Time) (bySourceHourly, error) {
 	selector := fmt.Sprintf(`{job=%q}`, s.deps.JobLabel)
 	if labelFilter != "" {
@@ -95,42 +108,63 @@ func (s *Server) queryHourlyBySource(ctx context.Context, labelFilter string, st
 	}
 	logql := fmt.Sprintf(`sum by (source) (count_over_time(%s[1h]))`, selector)
 
-	result, err := s.deps.Loki.QueryMatrix(ctx, logql, start, end, time.Hour)
-	if err != nil {
-		return nil, err
-	}
-
 	out := bySourceHourly{}
-	for _, series := range result.Series {
-		source := series.Labels["source"]
-		bucket := out[source]
-		if bucket == nil {
-			bucket = map[int64]float64{}
-			out[source] = bucket
+	for bucket := start; !bucket.After(end); bucket = bucket.Add(time.Hour) {
+		result, err := s.deps.Loki.QueryInstant(ctx, logql, bucket)
+		if err != nil {
+			return nil, err
 		}
-		for _, sample := range series.Samples {
-			bucket[sample.Timestamp.Unix()] = sample.Value
+		for _, series := range result.Series {
+			source := series.Labels["source"]
+			hours := out[source]
+			if hours == nil {
+				hours = map[int64]float64{}
+				out[source] = hours
+			}
+			for _, sample := range series.Samples {
+				hours[bucket.Unix()] = sample.Value
+			}
 		}
 	}
 	return out, nil
 }
 
-func buildHeatGrid(critical, warning, volume bySourceHourly) []sourceHeatRow {
-	var rows []sourceHeatRow
-	for source, hours := range volume {
-		var hourTimestamps []int64
-		for ts := range hours {
-			hourTimestamps = append(hourTimestamps, ts)
-		}
-		sort.Slice(hourTimestamps, func(i, j int) bool { return hourTimestamps[i] < hourTimestamps[j] })
+// buildHeatGrid walks every hourly bucket from start to end explicitly for
+// each source, the same gap-filling buildHourlyTotals already does (see its
+// own comment) - not just the buckets present in `volume`. A source with
+// any genuinely quiet hour (zero of ITS OWN traffic, even while other
+// sources are busy) would otherwise silently lose that hour's cell instead
+// of getting a real "none"-tier one: found via a source that had only
+// existed for a couple of hours within the 24h window, whose row was
+// missing 20+ hours of cells entirely rather than showing them as quiet.
+// Indexing a nil map (a source with no critical/warning events at all)
+// with [ts] is safe in Go and returns the zero value, so no existence
+// checks are needed here.
+func buildHeatGrid(critical, warning, volume bySourceHourly, start, end time.Time) []sourceHeatRow {
+	sources := map[string]struct{}{}
+	for source := range volume {
+		sources[source] = struct{}{}
+	}
+	for source := range critical {
+		sources[source] = struct{}{}
+	}
+	for source := range warning {
+		sources[source] = struct{}{}
+	}
 
+	var rows []sourceHeatRow
+	for source := range sources {
 		row := sourceHeatRow{Source: source}
-		for _, ts := range hourTimestamps {
+		for bucket := start; !bucket.After(end); bucket = bucket.Add(time.Hour) {
+			ts := bucket.Unix()
 			row.Hours = append(row.Hours, classifyHeatCell(
-				critical[source][ts], warning[source][ts], hours[ts]))
+				critical[source][ts], warning[source][ts], volume[source][ts]))
 		}
 		rows = append(rows, row)
 	}
+	// Map iteration order is randomized in Go - sort so the UI's row order
+	// is stable across page loads instead of shuffling on every request.
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Source < rows[j].Source })
 	return rows
 }
 
