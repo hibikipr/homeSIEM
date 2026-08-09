@@ -4,9 +4,11 @@
 	import AlertInbox from '$lib/components/AlertInbox.svelte';
 	import AlertDetail from '$lib/components/AlertDetail.svelte';
 	import RuleDetail from '$lib/components/RuleDetail.svelte';
+	import RuleFromEventForm from '$lib/components/RuleFromEventForm.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+	let showRuleForm = $state(false);
 
 	$effect(() => {
 		const source = new EventSource(resolve('/api/alerts-proxy'));
@@ -23,6 +25,8 @@
 		alerts={data.alerts}
 		rules={data.rules}
 		selectedId={data.selectedAlert?.id ?? data.selectedRule?.id ?? null}
+		onNewRule={() => (showRuleForm = true)}
+		canCreateRule={data.userRole === 'admin' || data.userRole === 'analyst'}
 	/>
 	{#if data.selectedAlert && data.stats}
 		<AlertDetail
@@ -34,9 +38,22 @@
 	{:else if data.selectedRule}
 		<RuleDetail rule={data.selectedRule} />
 	{:else}
-		<div class="empty">Select an alert to see details.</div>
+		<div class="empty">
+			{data.tab === 'rules' ? 'Select a rule to see details.' : 'Select an alert to see details.'}
+		</div>
 	{/if}
 </div>
+
+{#if showRuleForm}
+	<RuleFromEventForm
+		defaultName=""
+		defaultLogql=""
+		onClose={() => {
+			showRuleForm = false;
+			invalidateAll();
+		}}
+	/>
+{/if}
 
 <style>
 	.alerts {

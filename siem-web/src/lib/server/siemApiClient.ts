@@ -1,3 +1,5 @@
+import type { AlertSeverity } from '../severity';
+
 export interface LogEntry {
 	Timestamp: string;
 	Labels: Record<string, string>;
@@ -14,7 +16,7 @@ export interface AlertResponse {
 	id: number;
 	rule_id: number;
 	group_key: string;
-	severity: string;
+	severity: AlertSeverity;
 	title: string;
 	body: string;
 	event_count: number;
@@ -39,7 +41,7 @@ export interface RuleResponse {
 	window_sec: number;
 	threshold?: number;
 	group_by: string[];
-	severity: string;
+	severity: AlertSeverity;
 	destinations: string[];
 	cooldown_sec: number;
 	interval_sec: number;
@@ -54,7 +56,7 @@ export interface CreateRuleRequest {
 	window_sec: number;
 	threshold?: number;
 	group_by: string[];
-	severity: string;
+	severity: AlertSeverity;
 	destinations: string[];
 	cooldown_sec: number;
 	interval_sec: number;

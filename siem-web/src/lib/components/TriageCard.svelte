@@ -65,7 +65,7 @@
 		justify-content: space-between;
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
-		color: var(--color-severity-info);
+		color: var(--color-severity-info-text);
 	}
 	.card.severity-critical .header {
 		color: var(--color-severity-critical);

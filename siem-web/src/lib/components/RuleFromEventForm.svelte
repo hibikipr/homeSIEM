@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { RULE_TEMPLATES, parseGroupBy, type RuleShape } from '$lib/ruleTemplates';
+	import type { AlertSeverity } from '$lib/severity';
+
 	let {
 		defaultName,
 		defaultLogql,
@@ -9,13 +12,43 @@
 		onClose: () => void;
 	} = $props();
 
+	const BLANK_SHAPE: RuleShape = 'threshold';
+	const BLANK_WINDOW_SEC = 60;
+	const BLANK_THRESHOLD = 5;
+	const BLANK_GROUP_BY = '';
+	const BLANK_SEVERITY: AlertSeverity = 'warning';
+
 	let name = $state(defaultName);
 	let logql = $state(defaultLogql);
-	let windowSec = $state(60);
-	let threshold = $state(5);
-	let severity = $state('warning');
+	let shape = $state<RuleShape>(BLANK_SHAPE);
+	let windowSec = $state(BLANK_WINDOW_SEC);
+	let threshold = $state(BLANK_THRESHOLD);
+	let groupBy = $state(BLANK_GROUP_BY);
+	let severity = $state<AlertSeverity>(BLANK_SEVERITY);
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
+
+	function applyTemplate(event: Event) {
+		const index = Number((event.target as HTMLSelectElement).value);
+		if (index < 0) {
+			name = defaultName;
+			logql = defaultLogql;
+			shape = BLANK_SHAPE;
+			windowSec = BLANK_WINDOW_SEC;
+			threshold = BLANK_THRESHOLD;
+			groupBy = BLANK_GROUP_BY;
+			severity = BLANK_SEVERITY;
+			return;
+		}
+		const template = RULE_TEMPLATES[index];
+		name = template.name;
+		logql = template.logql;
+		shape = template.shape;
+		windowSec = template.windowSec;
+		threshold = template.threshold;
+		groupBy = template.groupBy;
+		severity = template.severity;
+	}
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -27,11 +60,11 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					name,
-					shape: 'threshold',
+					shape,
 					logql,
 					window_sec: windowSec,
 					threshold,
-					group_by: [],
+					group_by: parseGroupBy(groupBy),
 					severity,
 					destinations: ['inapp'],
 					cooldown_sec: 3600,
@@ -40,10 +73,15 @@
 				})
 			});
 			if (!response.ok) {
-				error = 'Failed to create rule.';
+				error =
+					response.status === 403
+						? "You don't have permission to create rules."
+						: 'Failed to create rule.';
 				return;
 			}
 			onClose();
+		} catch {
+			error = 'Network error — check your connection and try again.';
 		} finally {
 			submitting = false;
 		}
@@ -54,21 +92,50 @@
 	<form class="rule-form" onsubmit={submit}>
 		<h2>Create rule</h2>
 		<label>
+			Template
+			<select onchange={applyTemplate}>
+				<option value="-1">Blank / custom</option>
+				{#each RULE_TEMPLATES as template, index (template.name)}
+					<option value={index}>{template.label}</option>
+				{/each}
+			</select>
+		</label>
+		<label>
 			Name
 			<input bind:value={name} required />
 		</label>
 		<label>
-			LogQL
-			<textarea bind:value={logql} required></textarea>
+			Rule type
+			<select bind:value={shape}>
+				<option value="threshold">threshold</option>
+				<option value="absence">absence</option>
+				<option value="first_seen">first_seen</option>
+			</select>
 		</label>
-		<label>
-			Window (seconds)
-			<input type="number" bind:value={windowSec} min="1" />
-		</label>
-		<label>
-			Threshold
-			<input type="number" bind:value={threshold} min="1" />
-		</label>
+		{#if shape !== 'absence'}
+			<label>
+				LogQL
+				<textarea bind:value={logql} required></textarea>
+			</label>
+		{/if}
+		{#if shape !== 'absence'}
+			<label>
+				Window (seconds)
+				<input type="number" bind:value={windowSec} min="1" />
+			</label>
+		{/if}
+		{#if shape === 'threshold'}
+			<label>
+				Threshold
+				<input type="number" bind:value={threshold} min="1" />
+			</label>
+		{/if}
+		{#if shape !== 'absence'}
+			<label>
+				Group by (comma-separated)
+				<input bind:value={groupBy} placeholder="source, host" />
+			</label>
+		{/if}
 		<label>
 			Severity
 			<select bind:value={severity}>
@@ -105,6 +172,8 @@
 		box-shadow: var(--shadow-raised);
 		padding: var(--space-6);
 		width: 360px;
+		max-height: 90vh;
+		overflow-y: auto;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);

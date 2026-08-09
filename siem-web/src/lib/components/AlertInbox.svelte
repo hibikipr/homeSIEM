@@ -8,12 +8,16 @@
 		tab,
 		alerts,
 		rules,
-		selectedId
+		selectedId,
+		onNewRule,
+		canCreateRule
 	}: {
 		tab: 'open' | 'acked' | 'rules';
 		alerts: AlertResponse[];
 		rules: RuleResponse[];
 		selectedId: number | null;
+		onNewRule: () => void;
+		canCreateRule: boolean;
 	} = $props();
 
 	const ruleNames = $derived(new Map(rules.map((r) => [r.id, r.name])));
@@ -27,6 +31,9 @@
 <div class="inbox">
 	<div class="header">
 		<span class="title">Alerts</span>
+		{#if tab === 'rules' && canCreateRule}
+			<button class="new-rule" onclick={onNewRule}>+ New rule</button>
+		{/if}
 		<div class="tabs">
 			{#each tabs as t (t.value)}
 				<a href={resolve(`/alerts?state=${t.value}`)} class:active={tab === t.value}>{t.label}</a>
@@ -37,6 +44,8 @@
 		{#if tab === 'rules'}
 			{#each rules as rule (rule.id)}
 				<RuleRow {rule} selected={selectedId === rule.id} />
+			{:else}
+				<div class="empty-list">No rules configured yet.</div>
 			{/each}
 		{:else}
 			{#each alerts as alert (alert.id)}
@@ -45,6 +54,10 @@
 					ruleName={ruleNames.get(alert.rule_id) ?? `rule #${alert.rule_id}`}
 					selected={selectedId === alert.id}
 				/>
+			{:else}
+				<div class="empty-list">
+					{tab === 'acked' ? 'No acknowledged alerts.' : 'No open alerts.'}
+				</div>
 			{/each}
 		{/if}
 	</div>
@@ -82,9 +95,24 @@
 		background: var(--color-accent-tint);
 		color: var(--color-accent-lighter);
 	}
+	.new-rule {
+		background: none;
+		border: 1px solid var(--color-line-2);
+		color: var(--color-accent-light);
+		border-radius: var(--radius-sm);
+		padding: var(--space-1) var(--space-3);
+		font-size: var(--text-table);
+		cursor: pointer;
+	}
 	.rows {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+	}
+	.empty-list {
+		color: var(--color-muted-2);
+		font-size: var(--text-table);
+		padding: var(--space-4);
+		text-align: center;
 	}
 </style>

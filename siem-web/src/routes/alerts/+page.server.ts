@@ -56,6 +56,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		selectedAlert,
 		selectedSamples,
 		stats: selectedAlert ? deriveAlertStats(selectedSamples) : null,
-		selectedRule
+		selectedRule,
+		userRole: locals.user?.role
 	};
 };
