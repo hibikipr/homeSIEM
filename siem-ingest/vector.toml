@@ -224,6 +224,25 @@ source = '''
   ## than aborting this remap.
   if .parser == "rfc5424" && is_string(.message) {
     reported_level = parse_regex(.message, r'(?:^| )level=(?P<val>\w+)').val ?? null
+
+    ## Found in production: ntfy writes ALL of its output - including routine
+    ## per-minute "Server stats" heartbeats, not just real errors - to
+    ## stderr, so Docker's journald driver tags every line PRIORITY=3/err
+    ## regardless of the message's own level. Same PRI-vs-self-reported
+    ## mismatch as the level= case above, just in a different log format:
+    ## ntfy (and anything else using Go's standard library logger with a
+    ## level prefix) emits "<log.LstdFlags date/time> <LEVEL> <message>"
+    ## instead of logfmt. Only tried when level= above found nothing, and
+    ## anchored to Go's exact stdlib "YYYY/MM/DD HH:MM:SS" prefix rather
+    ## than searching for a level word anywhere in the message - a message
+    ## that merely mentions "error" in free text elsewhere must not match.
+    if is_null(reported_level) {
+      reported_level = parse_regex(.message, r'^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} (?P<val>[A-Z]+)\b').val ?? null
+      if is_string(reported_level) {
+        reported_level = downcase!(reported_level)
+      }
+    }
+
     if is_string(reported_level) {
       mapped_severity = if reported_level == "debug" { "debug" } else if reported_level == "info" { "info" } else if reported_level == "warn" || reported_level == "warning" { "warning" } else if reported_level == "error" || reported_level == "err" { "err" } else if reported_level == "fatal" || reported_level == "crit" || reported_level == "critical" { "crit" } else { null }
       if is_string(mapped_severity) {

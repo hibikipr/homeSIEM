@@ -130,6 +130,60 @@ name = "syslog event's severity is untouched when the message has no level= key"
     '''
 
 [[tests]]
+name = "Go stdlib-logged INFO line overrides a stderr-derived RFC5424 PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026/08/09 14:08:42 INFO Server stats (messages_cached=143, messages_published=17796, subscribers=1, topics_active=7)"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Found in production: ntfy writes ALL of its output - including
+      ## routine per-minute "Server stats" heartbeats, not just real errors
+      ## - to stderr, so Docker's journald driver tags every line with
+      ## PRIORITY=3/err regardless of the message's own level. Same
+      ## PRI-vs-self-reported mismatch as the level= case above, just in
+      ## Go's standard library logger format instead of logfmt.
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "a Go stdlib-timestamped message without an immediate level word is left untouched"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026/08/09 14:08:42 backup completed with 0 errors"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Proves the Go-stdlib match is anchored immediately after the
+      ## date/time prefix, not a bare word search anywhere in the message -
+      ## "errors" here (lowercase, and not in level-word position) must not
+      ## flip a PRI-derived severity that happens to already be "err".
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
 name = "netfilter event with a valid public src still gets geoip enrichment (pre-existing path, unaffected)"
 
   [tests.input]
