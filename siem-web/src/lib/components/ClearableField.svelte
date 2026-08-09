@@ -2,11 +2,17 @@
 	let {
 		value = $bindable(),
 		placeholder,
-		wide = false
+		wide = false,
+		onClear
 	}: {
 		value: string;
 		placeholder: string;
 		wide?: boolean;
+		// Called after clearing, so a parent using this as a live filter
+		// (not just a plain form field) can re-run its search immediately -
+		// found via feedback that clicking clear emptied the box but left
+		// the previous results on screen until Enter was pressed separately.
+		onClear?: () => void;
 	} = $props();
 
 	let inputEl: HTMLInputElement | undefined = $state();
@@ -14,6 +20,7 @@
 	function clear() {
 		value = '';
 		inputEl?.focus();
+		onClear?.();
 	}
 </script>
 
