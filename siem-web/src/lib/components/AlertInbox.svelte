@@ -8,12 +8,14 @@
 		tab,
 		alerts,
 		rules,
-		selectedId
+		selectedId,
+		onNewRule
 	}: {
 		tab: 'open' | 'acked' | 'rules';
 		alerts: AlertResponse[];
 		rules: RuleResponse[];
 		selectedId: number | null;
+		onNewRule: () => void;
 	} = $props();
 
 	const ruleNames = $derived(new Map(rules.map((r) => [r.id, r.name])));
@@ -32,6 +34,9 @@
 				<a href={resolve(`/alerts?state=${t.value}`)} class:active={tab === t.value}>{t.label}</a>
 			{/each}
 		</div>
+		{#if tab === 'rules'}
+			<button class="new-rule" onclick={onNewRule}>+ New rule</button>
+		{/if}
 	</div>
 	<div class="rows">
 		{#if tab === 'rules'}
@@ -87,6 +92,15 @@
 	.tabs a.active {
 		background: var(--color-accent-tint);
 		color: var(--color-accent-lighter);
+	}
+	.new-rule {
+		background: none;
+		border: 1px solid var(--color-line-2);
+		color: var(--color-accent-light);
+		border-radius: var(--radius-sm);
+		padding: var(--space-1) var(--space-3);
+		font-size: var(--text-table);
+		cursor: pointer;
 	}
 	.rows {
 		display: flex;
