@@ -21,7 +21,7 @@ function fakeSearchResult(overrides: Record<string, unknown> = {}) {
 }
 
 describe('Search load', () => {
-	it('fetches with limit=10000 and returns the search result', async () => {
+	it("fetches with limit=1000 (matching siem-api's own default) and returns the search result", async () => {
 		const searchMock = vi.fn().mockResolvedValue(fakeSearchResult());
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return { search: searchMock };
@@ -35,7 +35,7 @@ describe('Search load', () => {
 		expect(result.count).toBe(1);
 		expect(searchMock).toHaveBeenCalledWith(
 			'token-123',
-			expect.objectContaining({ limit: '10000' })
+			expect.objectContaining({ limit: '1000' })
 		);
 	});
 
