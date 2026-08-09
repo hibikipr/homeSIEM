@@ -208,6 +208,30 @@ source = '''
     .severity = "info"
   }
 
+  ## Found in production: a real Loki container's own logs, forwarded to this
+  ## SIEM via syslog, arrived with severity="err" — taken from the RFC5424
+  ## PRI header, which is all Vector's syslog source ever populates .severity
+  ## from — even though the message itself is a self-reported "level=info"
+  ## logfmt line. Whatever forwards these logs tags every line with a fixed
+  ## PRI severity regardless of the emitting service's real level, and this
+  ## isn't Loki-specific: any logfmt-emitting service forwarded the same way
+  ## could hit it. A message's own self-reported level is more trustworthy
+  ## than an externally-imposed, possibly-static PRI, so prefer it when
+  ## present and recognized. Scoped to .parser == "rfc5424" (set by
+  ## parse_hosts) so CEF-derived severity, computed differently, is
+  ## untouched; non-bang parse_regex + is_string guard so an unparseable or
+  ## missing level= leaves the PRI-derived severity as the fallback rather
+  ## than aborting this remap.
+  if .parser == "rfc5424" && is_string(.message) {
+    reported_level = parse_regex(.message, r'(?:^| )level=(?P<val>\w+)').val ?? null
+    if is_string(reported_level) {
+      mapped_severity = if reported_level == "debug" { "debug" } else if reported_level == "info" { "info" } else if reported_level == "warn" || reported_level == "warning" { "warning" } else if reported_level == "error" || reported_level == "err" { "err" } else if reported_level == "fatal" || reported_level == "crit" || reported_level == "critical" { "crit" } else { null }
+      if is_string(mapped_severity) {
+        .severity = mapped_severity
+      }
+    }
+  }
+
   ## Defensive clamp: found against a real UniFi device whose "SIEM
   ## Server" test event (a malformed, CEF-wrapped, non-PRI message - see
   ## the README's known-gaps entry on this integration) confused Vector's
