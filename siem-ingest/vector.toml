@@ -223,7 +223,20 @@ source = '''
   ## missing level= leaves the PRI-derived severity as the fallback rather
   ## than aborting this remap.
   if .parser == "rfc5424" && is_string(.message) {
-    reported_level = parse_regex(.message, r'(?:^| )level=(?P<val>\w+)').val ?? null
+    message_for_level = string!(.message)
+    reported_level = null
+
+    ## logfmt: level=VALUE. Case-insensitive on purpose - found in production
+    ## that Prometheus/Alertmanager emit "level=INFO" (uppercase) while Loki
+    ## emits "level=info" (lowercase); the original version of this fix only
+    ## compared lowercase and silently left Prometheus/Alertmanager's PRI
+    ## severity uncorrected. downcase!() right after capture, not deferred to
+    ## the shared ladder below, so every other branch doesn't have to repeat
+    ## the same fix.
+    logfmt_level = parse_regex(message_for_level, r'(?:^| )level=(?P<val>\w+)').val ?? null
+    if is_string(logfmt_level) {
+      reported_level = downcase!(logfmt_level)
+    }
 
     ## Found in production: ntfy writes ALL of its output - including routine
     ## per-minute "Server stats" heartbeats, not just real errors - to
@@ -232,14 +245,128 @@ source = '''
     ## mismatch as the level= case above, just in a different log format:
     ## ntfy (and anything else using Go's standard library logger with a
     ## level prefix) emits "<log.LstdFlags date/time> <LEVEL> <message>"
-    ## instead of logfmt. Only tried when level= above found nothing, and
-    ## anchored to Go's exact stdlib "YYYY/MM/DD HH:MM:SS" prefix rather
-    ## than searching for a level word anywhere in the message - a message
-    ## that merely mentions "error" in free text elsewhere must not match.
+    ## instead of logfmt. Anchored to Go's exact stdlib "YYYY/MM/DD HH:MM:SS"
+    ## prefix rather than searching for a level word anywhere in the
+    ## message - a message that merely mentions "error" in free text
+    ## elsewhere must not match.
     if is_null(reported_level) {
-      reported_level = parse_regex(.message, r'^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} (?P<val>[A-Z]+)\b').val ?? null
-      if is_string(reported_level) {
-        reported_level = downcase!(reported_level)
+      m = parse_regex(message_for_level, r'^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} (?P<val>[A-Z]+)\b').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
+    ## klog (cadvisor, and anything else from the Kubernetes/Go ecosystem
+    ## using it): a single-letter level immediately followed by an MMDD
+    ## timestamp, e.g. "I0809 14:40:45...", "W0809 ...", "E0809 ...". Found
+    ## in production: cAdvisor logs info/warning/error lines this way and
+    ## ALL of them were landing as severity=err - klog's own "E" (real
+    ## error) is correct, but "I"/"W" lines were being misclassified
+    ## identically. F (fatal) included for completeness though not observed.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^(?P<val>[IWEF])\d{4} ').val ?? null
+      if is_string(m) {
+        reported_level = if m == "I" { "info" } else if m == "W" { "warning" } else if m == "E" { "err" } else { "fatal" }
+      }
+    }
+
+    ## Python's logging module, uvicorn's formatter (spoolman): a
+    ## whitespace-padded "<logger name>   LEVEL   message" - e.g.
+    ## "uvicorn.access             INFO     127.0.0.1:...". Anchored to
+    ## message start with 2+ spaces on each side of the level word (matching
+    ## the padded column layout) to avoid matching an incidental level word
+    ## appearing elsewhere in a log line that isn't actually this format.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\S+\s{2,}(?P<val>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL)\s').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
+    ## Python's logging module, dash-delimited formatter (iSponsorBlockTV):
+    ## "timestamp - logger name - LEVEL - message".
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r' - (?P<val>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL) - ').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
+    ## gunicorn (filament-to-bambuddy, bambuddy-to-manyfold):
+    ## "[timestamp tz] [pid] [LEVEL] message".
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\[[^\]]+\] \[\d+\] \[(?P<val>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL)\]').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
+    ## nginx error log (network-optimizer-speedtest's embedded nginx):
+    ## "date time [level] pid#tid: message". nginx's own level vocabulary
+    ## doesn't match the shared ladder below 1:1 - "notice" isn't an error
+    ## condition (maps to info), "alert"/"emerg" are both more severe than
+    ## plain "error" (mapped to crit alongside it, same as fatal/critical).
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[(?P<val>debug|info|notice|warn|error|crit|alert|emerg)\]').val ?? null
+      if is_string(m) {
+        reported_level = if m == "notice" { "info" } else if m == "alert" || m == "emerg" { "crit" } else { m }
+      }
+    }
+
+    ## Vector's own tracing-crate log format (siem-ingest logging about
+    ## itself): "<RFC3339Nano timestamp>Z  LEVEL module::path: message" -
+    ## found in production that this SIEM's own ingest component was
+    ## subject to the exact same PRI-vs-self-reported-level mismatch as
+    ## everything else it forwards.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\S+Z\s+(?P<val>TRACE|DEBUG|INFO|WARN|ERROR)\s').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
+    ## rsyslog's own escaping of a real ANSI color-code control byte
+    ## (zerolog's console writer - tinyauth; a similarly-styled logger -
+    ## uptime-kuma): confirmed by inspecting a captured tinyauth message
+    ## directly (Python repr(), not just how it printed to a terminal) that
+    ## the raw ESC byte these apps actually emit arrives at Vector as the
+    ## literal 4-character text "#033" followed by the SGR params and "m" -
+    ## rsyslog's RFC5424 sanitization of non-printable input received over
+    ## imjournal, not a real control byte by the time it reaches Vector.
+    ## Covers both zerolog's short 3-letter codes and longer colon-suffixed
+    ## words (uptime-kuma's "WARN:").
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'#033\[[0-9;]+m(?P<val>TRC|DBG|INF|WRN|ERR|FTL|DEBUG|INFO|WARN|WARNING|ERROR|FATAL):?#033\[0m').val ?? null
+      if is_string(m) {
+        reported_level = if m == "INF" { "info" } else if m == "WRN" { "warning" } else if m == "ERR" { "err" } else if m == "DBG" { "debug" } else if m == "TRC" { "debug" } else if m == "FTL" { "fatal" } else { downcase!(m) }
+      }
+    }
+
+    ## A literal, never-interpreted "\033[...]" shell escape sequence
+    ## (grafana's own entrypoint script): confirmed by inspecting a captured
+    ## message directly that this is genuinely the 4-character text
+    ## "\033[" - not a real control byte even inside the grafana container
+    ## itself - an `echo` without `-e` bug in the upstream script, unrelated
+    ## to the rsyslog escaping case above (different literal prefix, so
+    ## matched separately rather than folded into that pattern).
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'\\033\[[0-9;]+m(?P<val>DEBUG|INFO|WARN|WARNING|ERROR|FATAL):?\\033\[0m').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
+    ## Python's warnings module (octoeverywhere-bambu-connect-2): no
+    ## structured level at all, just a warning class name conventionally
+    ## ending in "Warning" followed by a colon, e.g.
+    ## "InsecureRequestWarning: Unverified HTTPS request...". Narrower
+    ## signal than the others above (content-based, not a log-level field),
+    ## so scoped to exactly that naming convention rather than a bare word
+    ## search.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'\b(?P<val>\w+Warning): ').val ?? null
+      if is_string(m) {
+        reported_level = "warning"
       }
     }
 

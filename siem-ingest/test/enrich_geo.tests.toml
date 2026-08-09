@@ -184,6 +184,360 @@ name = "a Go stdlib-timestamped message without an immediate level word is left 
     '''
 
 [[tests]]
+name = "logfmt level=INFO (uppercase) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = 'time=2026-08-09T09:00:03.038-04:00 level=INFO source=head.go:1483 msg="WAL checkpoint complete" component=tsdb'
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Found in production: Prometheus/Alertmanager emit "level=INFO"
+      ## (uppercase) while Loki emits "level=info" (lowercase) - the
+      ## original level= fix only compared lowercase and silently left
+      ## Prometheus/Alertmanager's PRI severity uncorrected.
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "klog INFO line (cadvisor) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "I0809 14:40:45.944852       1 gce.go:45] Error while reading product_name: open /sys/class/dmi/id/product_name: no such file or directory"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "klog WARNING line (cadvisor) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "W0809 14:40:45.944611       1 sysinfo.go:227] Found node without any CPU, nodeDir: /sys/devices/system/node/node7, number of cpuDirs 0"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
+name = "klog ERROR line (cadvisor) stays err - a real error is not flipped"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "E0809 14:40:45.944705       1 info.go:120] Failed to get system UUID: open /etc/machine-id: no such file or directory"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## klog's own "E" prefix IS a genuine error - confirms this branch
+      ## doesn't just default everything klog-shaped to non-err.
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
+name = "Python logging (uvicorn-style, spoolman) INFO line overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = 'uvicorn.access             INFO     127.0.0.1:56920 - "GET / HTTP/1.1" 200'
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "Python logging (dash-delimited, iSponsorBlockTV) INFO line overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026-08-09 10:40:18,402 - iSponsorBlockTV-e30eba8086c92e515d61eaa88c1b4df8bf0d70c8811ea14371e39ca79f2dcf00 - INFO - Subscribing to lounge id AGdO5p-7GKd0aS2A16kctt3-h6DiBZh4WC-PTE7"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "a hyphen-delimited message that isn't actually Python's dash-logging format is left untouched"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "curl - retrying - connection - refused - giving up after 3 attempts"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Proves the dash-delimited match requires one of the specific
+      ## Python level keywords between the dashes, not any hyphen-separated
+      ## text.
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
+name = "gunicorn INFO line (filament-to-bambuddy / bambuddy-to-manyfold) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "[2026-08-09 10:25:59 -0400] [1] [INFO] Control socket listening at /root/.gunicorn/gunicorn.ctl"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "nginx [notice] line (network-optimizer-speedtest) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026/08/09 07:00:41 [notice] 1#1: start worker process 19"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## nginx's "notice" level isn't an error condition - mapped to info.
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "nginx [error] line stays err - a real error is not flipped"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026/08/09 07:00:41 [error] 1#1: connect() failed (111: Connection refused) while connecting to upstream"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
+name = "Vector's own tracing-crate INFO line (siem-ingest logging about itself) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026-08-09T14:13:57.728118Z  INFO vector::internal_events::api: API server running. address=0.0.0.0:8686"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "rsyslog-escaped ANSI zerolog short code WRN (tinyauth) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "#033[90m2026-08-09T14:41:01Z#033[0m #033[33mWRN#033[0m #033[1mClient Error#033[0m #033[36maddress=#033[0m172.18.0.21:46464"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Confirmed by inspecting a captured tinyauth message directly
+      ## (Python repr(), not just how it printed to a terminal) that the
+      ## raw ESC byte tinyauth's zerolog console writer emits arrives at
+      ## Vector as the literal text "#033[<params>m" - rsyslog's RFC5424
+      ## sanitization of the non-printable byte it received over imjournal.
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
+name = "rsyslog-escaped ANSI colon-suffixed WARN: (uptime-kuma) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "#033[36m2026-08-09T10:26:06-04:00#033[0m [#033[38;5;119mMONITOR#033[0m] #033[33mWARN:#033[0m Monitor #21 'Duplicati RPi5': Pending: starting | Max retries: 0"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
+name = "literal backslash ANSI escape (grafana's entrypoint script) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = '\033[0;33mWARN\033[0m: GF_INSTALL_PLUGINS is deprecated. Use GF_PLUGINS_PREINSTALL or GF_PLUGINS_PREINSTALL_SYNC instead.'
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Confirmed by inspecting a captured message directly that this is
+      ## genuinely the 4-character text "\033[" - not a real control byte
+      ## even inside the grafana container itself (an `echo` without `-e`
+      ## bug in the upstream entrypoint script), unrelated to the rsyslog
+      ## escaping case above even though the visible symptom looks similar.
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
+name = "Python warnings.warn() output (octoeverywhere-bambu-connect) is classified as warning"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "/app/octoeverywhere-env/lib/python3.12/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'nodered.townsville.cc'."
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## No structured level field here at all - just a Python warning
+      ## class name conventionally ending in "Warning" followed by a
+      ## colon. Narrower/content-based signal compared to the log-level
+      ## patterns above, scoped exactly to that naming convention.
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
 name = "netfilter event with a valid public src still gets geoip enrichment (pre-existing path, unaffected)"
 
   [tests.input]
