@@ -46,7 +46,7 @@
 			{#if srcIp}
 				<button onclick={() => onFilterToSrc(srcIp)}>Filter to SRC</button>
 			{/if}
-			<button onclick={() => onRuleFromThis(entry)}>Rule from this</button>
+			<button onclick={() => onRuleFromThis(entry)}>New rule</button>
 		</div>
 		{#if contextSummary}
 			{@const displayCount =

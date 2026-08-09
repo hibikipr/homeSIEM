@@ -69,10 +69,7 @@
 		{/each}
 	</div>
 
-	<button type="button" class="action" disabled title="Saved searches aren't built yet">
-		Save
-	</button>
-	<button type="button" class="action" onclick={onAlertOnThis}>Alert on this</button>
+	<button type="button" class="action" onclick={onAlertOnThis}>New rule</button>
 </form>
 
 <div class="meta">
@@ -142,10 +139,6 @@
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--text-label);
 		cursor: pointer;
-	}
-	.action:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 	.meta {
 		display: flex;
