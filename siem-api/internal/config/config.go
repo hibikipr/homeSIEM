@@ -23,6 +23,11 @@ type Config struct {
 	FastpathToken          string
 	LocalAdminUsername     string
 	LocalAdminPasswordHash string
+	// AppURL is siem-web's public URL (e.g. "https://siem.example.com").
+	// Optional: when set, ntfy notifications get a click-through link, a
+	// matching action button, and the app icon; when unset, notifications
+	// are still sent, just without those three fields.
+	AppURL string
 }
 
 func Load() (Config, error) {
@@ -40,6 +45,7 @@ func Load() (Config, error) {
 		OIDCGroupsScope:  getenv("OIDC_GROUPS_SCOPE", "groups"),
 		GeoIPDB:          os.Getenv("GEOIP_DB"),
 		FastpathToken:    os.Getenv("SIEM_FASTPATH_TOKEN"),
+		AppURL:           os.Getenv("APP_URL"),
 
 		LocalAdminUsername:     os.Getenv("SIEM_LOCAL_ADMIN_USERNAME"),
 		LocalAdminPasswordHash: os.Getenv("SIEM_LOCAL_ADMIN_PASSWORD_HASH"),

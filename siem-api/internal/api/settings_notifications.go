@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/hibikipr/homeSIEM/siem-api/internal/ntfy"
 )
 
 type notificationSettingsResponse struct {
@@ -57,10 +59,16 @@ func (s *Server) handleTestNotification(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	title := "homeSIEM test notification"
-	body := "Sent from Settings at " + time.Now().UTC().Format(time.RFC3339) + " to confirm ntfy is reachable."
+	msg := ntfy.Message{
+		Title: "homeSIEM test notification",
+		Body: "Sent from Settings at " + time.Now().UTC().Format(time.RFC3339) +
+			" to confirm ntfy is reachable.",
+		Priority: 3, // default
+		Tags:     []string{"test_tube"},
+		Markdown: true,
+	}
 
-	if err := s.deps.Ntfy.Publish(r.Context(), title, body, "default"); err != nil {
+	if err := s.deps.Ntfy.Publish(r.Context(), msg); err != nil {
 		s.deps.Logger.Error("test notification publish failed", "error", err)
 		http.Error(w, "test notification failed", http.StatusBadGateway)
 		return
