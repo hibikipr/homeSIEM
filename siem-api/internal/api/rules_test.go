@@ -40,6 +40,21 @@ func TestCreateRule_RequiresAnalyst(t *testing.T) {
 	}
 }
 
+func TestCreateRule_AcceptsInfoSeverity(t *testing.T) {
+	s := newSchedulerTestServer(t)
+	token := authToken(t, s.deps.Store, "analyst", 50)
+
+	body := `{"name":"r","shape":"absence","logql":"{job=\"siem\"}","severity":"info","destinations":["inapp"],"cooldown_sec":60,"interval_sec":60,"enabled":true}`
+	req := httptest.NewRequest(http.MethodPost, "/rules", bytes.NewReader([]byte(body)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCreateRule_RejectsInvalidSeverity(t *testing.T) {
 	s := newSchedulerTestServer(t)
 	token := authToken(t, s.deps.Store, "analyst", 50)
