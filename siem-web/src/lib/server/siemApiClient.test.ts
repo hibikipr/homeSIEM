@@ -242,6 +242,42 @@ describe('SiemApiClient', () => {
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
 	});
 
+	it('updateRule PUTs to /rules/{id} with Authorization and parses the response', async () => {
+		const fetchFn = fakeFetch({
+			id: 9,
+			name: 'search-alert',
+			shape: 'threshold',
+			logql: '{job="siem"}',
+			window_sec: 60,
+			group_by: [],
+			severity: 'warning',
+			destinations: ['inapp'],
+			cooldown_sec: 3600,
+			interval_sec: 60,
+			enabled: false
+		});
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.updateRule('token-123', 9, {
+			name: 'search-alert',
+			shape: 'threshold',
+			logql: '{job="siem"}',
+			window_sec: 60,
+			group_by: [],
+			severity: 'warning',
+			destinations: ['inapp'],
+			cooldown_sec: 3600,
+			interval_sec: 60,
+			enabled: false
+		});
+
+		expect(result.enabled).toBe(false);
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/rules/9');
+		expect(init?.method).toBe('PUT');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
 	it('getAuthSettings attaches Authorization and parses the response', async () => {
 		const fetchFn = fakeFetch({
 			oidc_issuer: 'https://pocketid.townsville.cc',

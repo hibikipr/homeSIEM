@@ -5,11 +5,19 @@
 	let {
 		defaultName,
 		defaultLogql,
-		onClose
+		onClose,
+		onCreated
 	}: {
 		defaultName: string;
 		defaultLogql: string;
+		// Cancel button only - abandons the form without creating anything.
 		onClose: () => void;
+		// Called with the new rule's id after a successful create, instead
+		// of onClose - found via feedback that creating a rule here gave no
+		// indication of where it went (Rules only live in Alerts -> Rules,
+		// not on this page), so callers use this to navigate there / select
+		// the new rule rather than just closing the form silently.
+		onCreated: (ruleId: number) => void;
 	} = $props();
 
 	const BLANK_SHAPE: RuleShape = 'threshold';
@@ -79,7 +87,8 @@
 						: 'Failed to create rule.';
 				return;
 			}
-			onClose();
+			const created = (await response.json()) as { id: number };
+			onCreated(created.id);
 		} catch {
 			error = 'Network error — check your connection and try again.';
 		} finally {
