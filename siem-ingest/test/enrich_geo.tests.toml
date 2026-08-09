@@ -538,6 +538,76 @@ name = "Python warnings.warn() output (octoeverywhere-bambu-connect) is classifi
     '''
 
 [[tests]]
+name = "rsyslog-escaped ANSI HTTP 404 status (siem-web) overrides a mismatched PRI severity to warning"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = '#033[1;31m[404] GET /favicon.ico#033[0m'
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## A browser auto-requesting a missing favicon/apple-touch-icon is
+      ## not a real problem - 4xx here is a client-side condition, not a
+      ## server error, so it's downgraded from the PRI-derived err rather
+      ## than left alone the way a genuine 5xx (tested below) is.
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
+name = "rsyslog-escaped ANSI HTTP 500 status (siem-web) stays err - a real server error is not downgraded"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = '#033[1;31m[500] GET /api/nav/summary#033[0m'
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
+name = "rsyslog-escaped ANSI HTTP 200 status (siem-web) overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = '#033[1;32m[200] GET /search#033[0m'
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
 name = "netfilter event with a valid public src still gets geoip enrichment (pre-existing path, unaffected)"
 
   [tests.input]

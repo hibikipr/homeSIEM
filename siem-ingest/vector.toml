@@ -370,6 +370,26 @@ source = '''
       }
     }
 
+    ## rsyslog's escaping of an HTTP request logger's ANSI-colored status
+    ## code (siem-web's own request log: "[STATUS] METHOD path", e.g.
+    ## "#033[1;31m[404] GET /favicon.ico#033[0m" for a browser's routine
+    ## favicon lookup). Same rsyslog control-character escaping as the
+    ## zerolog case above, but no level word at all here - just an HTTP
+    ## status code - so severity comes from standard HTTP semantics
+    ## instead of a level-word table: 4xx is a client-side condition (a
+    ## browser auto-requesting a missing icon isn't a real problem), not
+    ## a real error, so it maps to warning; 5xx is a genuine server-side
+    ## failure and stays err. Anchored to message start plus the exact
+    ## "#033[<params>m[" prefix so a message that merely mentions a
+    ## 3-digit number elsewhere can't match.
+    if is_null(reported_level) {
+      status = parse_regex(message_for_level, r'^#033\[[0-9;]+m\[(?P<val>[1-5]\d{2})\] ').val ?? null
+      if is_string(status) {
+        status = string!(status)
+        reported_level = if starts_with(status, "5") { "err" } else if starts_with(status, "4") { "warning" } else { "info" }
+      }
+    }
+
     if is_string(reported_level) {
       mapped_severity = if reported_level == "debug" { "debug" } else if reported_level == "info" { "info" } else if reported_level == "warn" || reported_level == "warning" { "warning" } else if reported_level == "error" || reported_level == "err" { "err" } else if reported_level == "fatal" || reported_level == "crit" || reported_level == "critical" { "crit" } else { null }
       if is_string(mapped_severity) {
