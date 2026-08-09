@@ -69,7 +69,14 @@
 		{/each}
 	</div>
 
-	<button type="button" class="action" onclick={onAlertOnThis}>New rule</button>
+	<button
+		type="button"
+		class="action"
+		onclick={onAlertOnThis}
+		aria-label="New rule from this query"
+	>
+		New rule
+	</button>
 </form>
 
 <div class="meta">

@@ -16,17 +16,17 @@ func TestListAlerts_FiltersByState(t *testing.T) {
 	s, st := newTestServer(t)
 	ctx := context.Background()
 
-	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "low",
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}
 	now := time.Now().UTC()
-	if _, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low",
+	if _, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning",
 		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now}); err != nil {
 		t.Fatalf("InsertAlert() error = %v", err)
 	}
-	if _, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "b", Severity: "low",
+	if _, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "b", Severity: "warning",
 		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "acked", FirstSeenAt: now, LastSeenAt: now}); err != nil {
 		t.Fatalf("InsertAlert() error = %v", err)
 	}
@@ -52,13 +52,13 @@ func TestListAlerts_FiltersByState(t *testing.T) {
 func TestAckAlert_ViewerForbidden(t *testing.T) {
 	s, st := newTestServer(t)
 	ctx := context.Background()
-	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "low",
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}
 	now := time.Now().UTC()
-	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low",
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning",
 		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
 	if err != nil {
 		t.Fatalf("InsertAlert() error = %v", err)
@@ -78,13 +78,13 @@ func TestAckAlert_ViewerForbidden(t *testing.T) {
 func TestAckAlert_AnalystSucceedsAndAudits(t *testing.T) {
 	s, st := newTestServer(t)
 	ctx := context.Background()
-	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "low",
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}
 	now := time.Now().UTC()
-	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low",
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning",
 		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
 	if err != nil {
 		t.Fatalf("InsertAlert() error = %v", err)
@@ -173,13 +173,13 @@ func TestAlertsStream_PublishesFromHub(t *testing.T) {
 func TestMuteAlert_ViewerForbidden(t *testing.T) {
 	s, st := newTestServer(t)
 	ctx := context.Background()
-	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "low",
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}
 	now := time.Now().UTC()
-	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low",
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning",
 		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
 	if err != nil {
 		t.Fatalf("InsertAlert() error = %v", err)
@@ -199,13 +199,13 @@ func TestMuteAlert_ViewerForbidden(t *testing.T) {
 func TestMuteAlert_AnalystSucceedsAndAudits(t *testing.T) {
 	s, st := newTestServer(t)
 	ctx := context.Background()
-	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "low",
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}
 	now := time.Now().UTC()
-	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low",
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning",
 		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
 	if err != nil {
 		t.Fatalf("InsertAlert() error = %v", err)
@@ -249,13 +249,13 @@ func TestMuteAlert_NotFound(t *testing.T) {
 func TestListAlertSamples_ReturnsStoredSamples(t *testing.T) {
 	s, st := newTestServer(t)
 	ctx := context.Background()
-	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "low",
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}
 	now := time.Now().UTC()
-	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "low",
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning",
 		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
 	if err != nil {
 		t.Fatalf("InsertAlert() error = %v", err)

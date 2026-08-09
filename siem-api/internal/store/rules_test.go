@@ -43,11 +43,11 @@ func TestListEnabledRules(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	if _, err := s.CreateRule(ctx, Rule{Name: "on", Shape: "absence", Severity: "low",
+	if _, err := s.CreateRule(ctx, Rule{Name: "on", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil); err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}
-	if _, err := s.CreateRule(ctx, Rule{Name: "off", Shape: "absence", Severity: "low",
+	if _, err := s.CreateRule(ctx, Rule{Name: "off", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: false}, nil); err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
 	}
@@ -65,7 +65,7 @@ func TestUpdateAndDeleteRule(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	created, err := s.CreateRule(ctx, Rule{Name: "r1", Shape: "absence", Severity: "low",
+	created, err := s.CreateRule(ctx, Rule{Name: "r1", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)
@@ -113,7 +113,7 @@ func TestTouchRuleLastRun(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	created, err := s.CreateRule(ctx, Rule{Name: "r1", Shape: "absence", Severity: "low",
+	created, err := s.CreateRule(ctx, Rule{Name: "r1", Shape: "absence", Severity: "warning",
 		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
 	if err != nil {
 		t.Fatalf("CreateRule() error = %v", err)

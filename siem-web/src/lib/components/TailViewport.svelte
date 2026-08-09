@@ -126,7 +126,9 @@
 					</tr>
 				{:else}
 					<tr class="empty-row">
-						<td colspan="6">Waiting for events…</td>
+						<td colspan="6">
+							{buffer.length === 0 ? 'Waiting for events…' : 'No events match the current filter.'}
+						</td>
 					</tr>
 				{/each}
 			</tbody>

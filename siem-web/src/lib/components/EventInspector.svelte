@@ -46,7 +46,9 @@
 			{#if srcIp}
 				<button onclick={() => onFilterToSrc(srcIp)}>Filter to SRC</button>
 			{/if}
-			<button onclick={() => onRuleFromThis(entry)}>New rule</button>
+			<button onclick={() => onRuleFromThis(entry)} aria-label="New rule from this event">
+				New rule
+			</button>
 		</div>
 		{#if contextSummary}
 			{@const displayCount =
