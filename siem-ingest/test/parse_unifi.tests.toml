@@ -97,12 +97,12 @@ name = "cef detected even when Vector's own syslog decoder already consumed the 
       assert_eq!(.cef_product, "UniFi Network")
       assert_eq!(.severity, "info")
       assert_eq!(.program, "WiFi Client Roamed")
-      ## UNIFIhost=Townsville CGU: parse_key_value's space field-delimiter
-      ## truncates at the first space, same pre-existing limitation the other
-      ## CEF tests already avoid by using space-free values - not something
-      ## this fix changes or is responsible for.
-      assert_eq!(.host, "Townsville")
-      assert_eq!(.hostname, "Townsville")
+      ## UNIFIhost=Townsville CGU: the delimited_extension re-delimiting step
+      ## in parse_unifi (see vector.toml) re-inserts a sentinel only right
+      ## before a recognized "KEY=" boundary, so this multi-word value stays
+      ## intact instead of truncating at its first space.
+      assert_eq!(.host, "Townsville CGU")
+      assert_eq!(.hostname, "Townsville CGU")
     '''
 
 [[tests]]
@@ -124,8 +124,11 @@ name = "real captured Admin Accessed UniFi OS event is parsed correctly (regress
       assert_eq!(.parser, "unifi-cef")
       assert_eq!(.severity, "info")
       assert_eq!(.program, "Admin Accessed UniFi OS")
-      assert_eq!(.host, "Townsville")
-      assert_eq!(.hostname, "Townsville")
+      ## UNIFIdeviceName=Townsville CGU (preferred over UNIFIhost=Host per the
+      ## fallback logic): the delimited_extension re-delimiting step keeps
+      ## this multi-word value intact instead of truncating at its first space.
+      assert_eq!(.host, "Townsville CGU")
+      assert_eq!(.hostname, "Townsville CGU")
       assert_eq!(.unifi_device_mac, "9C:05:D6:6F:3F:0D")
       assert_eq!(.unifi_device_ip, "97.106.158.37")
     '''
