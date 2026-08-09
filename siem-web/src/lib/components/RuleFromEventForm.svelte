@@ -73,10 +73,15 @@
 				})
 			});
 			if (!response.ok) {
-				error = 'Failed to create rule.';
+				error =
+					response.status === 403
+						? "You don't have permission to create rules."
+						: 'Failed to create rule.';
 				return;
 			}
 			onClose();
+		} catch {
+			error = 'Network error — check your connection and try again.';
 		} finally {
 			submitting = false;
 		}

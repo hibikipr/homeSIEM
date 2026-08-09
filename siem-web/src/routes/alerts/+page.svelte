@@ -26,6 +26,7 @@
 		rules={data.rules}
 		selectedId={data.selectedAlert?.id ?? data.selectedRule?.id ?? null}
 		onNewRule={() => (showRuleForm = true)}
+		canCreateRule={data.userRole === 'admin' || data.userRole === 'analyst'}
 	/>
 	{#if data.selectedAlert && data.stats}
 		<AlertDetail

@@ -9,13 +9,15 @@
 		alerts,
 		rules,
 		selectedId,
-		onNewRule
+		onNewRule,
+		canCreateRule
 	}: {
 		tab: 'open' | 'acked' | 'rules';
 		alerts: AlertResponse[];
 		rules: RuleResponse[];
 		selectedId: number | null;
 		onNewRule: () => void;
+		canCreateRule: boolean;
 	} = $props();
 
 	const ruleNames = $derived(new Map(rules.map((r) => [r.id, r.name])));
@@ -29,7 +31,7 @@
 <div class="inbox">
 	<div class="header">
 		<span class="title">Alerts</span>
-		{#if tab === 'rules'}
+		{#if tab === 'rules' && canCreateRule}
 			<button class="new-rule" onclick={onNewRule}>+ New rule</button>
 		{/if}
 		<div class="tabs">
