@@ -76,6 +76,13 @@
 		defaultName={ruleFormSeed.name}
 		defaultLogql={ruleFormSeed.logql}
 		onClose={() => (ruleFormSeed = null)}
+		onCreated={(id) => {
+			ruleFormSeed = null;
+			// Rules only live in Alerts -> Rules, not on this page - land the
+			// user there with the new rule selected instead of leaving them
+			// on Search with no indication of where it went.
+			goto(resolve(`/alerts?state=rules&id=${id}`));
+		}}
 	/>
 {/if}
 

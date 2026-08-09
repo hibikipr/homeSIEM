@@ -204,6 +204,21 @@ export class SiemApiClient {
 		});
 	}
 
+	// siem-api's PUT /rules/{id} replaces the whole rule (not a partial
+	// patch) - same request shape as createRule, so callers toggling just
+	// `enabled` still send every other field back unchanged.
+	async updateRule(
+		sessionToken: string,
+		id: number,
+		req: CreateRuleRequest
+	): Promise<RuleResponse> {
+		return this.request<RuleResponse>(`/rules/${id}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json', ...this.authInit(sessionToken).headers },
+			body: JSON.stringify(req)
+		});
+	}
+
 	async getSources(sessionToken: string): Promise<SourceResponse[]> {
 		return this.request<SourceResponse[]>('/sources', this.authInit(sessionToken));
 	}
