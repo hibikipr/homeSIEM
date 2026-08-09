@@ -127,7 +127,13 @@
 				{:else}
 					<tr class="empty-row">
 						<td colspan="6">
-							{buffer.length === 0 ? 'Waiting for events…' : 'No events match the current filter.'}
+							{#if buffer.length === 0}
+								Waiting for events…
+							{:else if paused && filterBySeverity(buffer, activeSeverities).length > 0}
+								Paused — resume to see buffered events.
+							{:else}
+								No events match the current filter.
+							{/if}
 						</td>
 					</tr>
 				{/each}
