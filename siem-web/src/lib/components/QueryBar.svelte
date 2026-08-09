@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import ClearableField from '$lib/components/ClearableField.svelte';
 	import type { SearchFilters } from '$lib/search';
 
 	let {
@@ -48,12 +49,12 @@
 </script>
 
 <form class="query-bar" onsubmit={submit}>
-	<input class="field" placeholder="source" bind:value={source} />
-	<input class="field" placeholder="host" bind:value={host} />
-	<input class="field" placeholder="program" bind:value={program} />
-	<input class="field" placeholder="severity" bind:value={severity} />
-	<input class="field" placeholder="facility" bind:value={facility} />
-	<input class="field wide" placeholder="free text" bind:value={q} />
+	<ClearableField placeholder="source" bind:value={source} />
+	<ClearableField placeholder="host" bind:value={host} />
+	<ClearableField placeholder="program" bind:value={program} />
+	<ClearableField placeholder="severity" bind:value={severity} />
+	<ClearableField placeholder="facility" bind:value={facility} />
+	<ClearableField placeholder="free text" bind:value={q} wide />
 	<button type="submit" class="go">Search</button>
 
 	<div class="range">
@@ -94,19 +95,6 @@
 		box-shadow: inset 0 0 0 1px var(--color-accent-tint-2);
 		border-radius: var(--radius-default);
 		padding: var(--space-3);
-	}
-	.field {
-		background: var(--color-surface-2);
-		border: none;
-		border-radius: var(--radius-sm);
-		color: var(--color-text);
-		padding: var(--space-1) var(--space-2);
-		font-size: var(--text-table);
-		width: 110px;
-	}
-	.field.wide {
-		flex: 1 1 200px;
-		width: auto;
 	}
 	.go {
 		background: var(--color-accent-tint-2);
