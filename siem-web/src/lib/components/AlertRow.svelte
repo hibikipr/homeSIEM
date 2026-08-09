@@ -52,7 +52,7 @@
 		justify-content: space-between;
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
-		color: var(--color-severity-info);
+		color: var(--color-severity-notice);
 	}
 	.row.severity-warning .header {
 		color: var(--color-severity-warning);
