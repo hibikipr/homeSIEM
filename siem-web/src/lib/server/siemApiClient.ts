@@ -12,6 +12,11 @@ export interface EventsStatsResponse {
 	hourly_totals: { hour_start: string; count: number }[];
 }
 
+export interface NavSummaryResponse {
+	events_per_min: number;
+	open_alert_count: number;
+}
+
 export interface AlertResponse {
 	id: number;
 	rule_id: number;
@@ -158,6 +163,10 @@ export class SiemApiClient {
 
 	async getEventsStats(sessionToken: string): Promise<EventsStatsResponse> {
 		return this.request<EventsStatsResponse>('/events/stats', this.authInit(sessionToken));
+	}
+
+	async getNavSummary(sessionToken: string): Promise<NavSummaryResponse> {
+		return this.request<NavSummaryResponse>('/nav/summary', this.authInit(sessionToken));
 	}
 
 	async getAlerts(sessionToken: string, state?: string): Promise<AlertResponse[]> {

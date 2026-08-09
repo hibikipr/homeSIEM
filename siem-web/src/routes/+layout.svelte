@@ -10,8 +10,8 @@
 
 <Nav
 	activeRoute={data.activeRoute}
-	alertCount={0}
-	ingestRate={0}
+	alertCount={data.alertCount}
+	ingestRate={data.ingestRate}
 	userDisplayName={data.user?.displayName ?? ''}
 	userEmail={data.user?.email ?? ''}
 	userRole={data.user?.role ?? ''}
