@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { extractMessage } from '$lib/logline';
 
 	interface TickerEntry {
 		time: string;
@@ -22,7 +23,7 @@
 						severity: raw.Labels?.severity ?? 'info',
 						host: raw.Labels?.host ?? '',
 						program: raw.Labels?.program ?? '',
-						message: raw.Line ?? ''
+						message: extractMessage(raw.Line ?? '')
 					},
 					...entries
 				].slice(0, 50);
