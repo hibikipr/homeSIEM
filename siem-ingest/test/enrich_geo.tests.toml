@@ -652,6 +652,248 @@ name = "rsyslog-escaped ANSI HTTP 200 status (siem-web) overrides a mismatched P
     '''
 
 [[tests]]
+name = "Python logging bracketed-timestamp formatter (paperless-ngx / Celery) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "[2026-08-10 08:30:00,000] [INFO] [celery.beat] Scheduler: Sending due task Check all e-mail accounts (paperless_mail.tasks.process_mail_accounts)"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "PostgreSQL LOG line (PostgreSQL_Immich) overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026-08-10 07:32:53.120 EDT [32] LOG:  checkpoint starting: time"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "PostgreSQL ERROR line stays err - a real error is not flipped"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026-08-10 07:32:53.120 EDT [32] ERROR:  duplicate key value violates unique constraint"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
+name = "uvicorn's own plain formatter (Bambuddy / Paperless-AI / FileManagerAPI) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "Java console log layout (Apache-Tika-Server) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "INFO  [main] 05:21:43,204 org.apache.tika.server.core.TikaServerProcess Started Apache Tika server at http://0.0.0.0:9998/"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "HAProxy NOTICE line (dockersocket) overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "[NOTICE]   (1) : Loading success."
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "HAProxy WARNING line (dockersocket) overrides a mismatched PRI severity to warning"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "[WARNING]  (12) : [haproxy.main()] HAProxy was started as the root user."
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
+name = "Ruby runtime warning (manyfold) overrides a mismatched PRI severity to warning"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "/usr/src/app/config/initializers/zaru.rb:4: warning: already initialized constant Zaru::UNICODE_WHITESPACE"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
+name = "s6-rc supervisor line (manyfold's init system) overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "s6-rc: info: service manyfold successfully started"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "cloudflared's plain (non-ANSI) INF line (scrypted) overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026-08-10T09:15:41Z INF precheck complete hard_fail=false run_id=0a37a6d1-0b5d-40ea-b92e-0533fa077e9b"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "generic nc-style healthcheck success line (immich / duplicati) overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "Connection to 0.0.0.0 8080 port [tcp/http-alt] succeeded!"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
 name = "netfilter event with a valid public src still gets geoip enrichment (pre-existing path, unaffected)"
 
   [tests.input]
