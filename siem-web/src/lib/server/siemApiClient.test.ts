@@ -349,4 +349,51 @@ describe('SiemApiClient', () => {
 		expect(init?.method).toBe('POST');
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
 	});
+
+	it('getInsights fetches /insights with Authorization and parses the response', async () => {
+		const fetchFn = fakeFetch([{ id: 1, title: 't', dismissed: false }]);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.getInsights('token-123');
+
+		expect(result).toHaveLength(1);
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/insights');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('getInsights appends ?all=true when includeDismissed is true', async () => {
+		const fetchFn = fakeFetch([]);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.getInsights('token-123', true);
+
+		const [url] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/insights?all=true');
+	});
+
+	it('generateInsightsNow POSTs to /insights/generate and parses the response', async () => {
+		const fetchFn = fakeFetch([{ id: 2, title: 'new insight', dismissed: false }]);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.generateInsightsNow('token-123');
+
+		expect(result).toHaveLength(1);
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/insights/generate');
+		expect(init?.method).toBe('POST');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('dismissInsight PUTs to /insights/{id}/dismiss with Authorization', async () => {
+		const fetchFn = fakeFetch(null, 204);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.dismissInsight('token-123', 7);
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/insights/7/dismiss');
+		expect(init?.method).toBe('PUT');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
 });

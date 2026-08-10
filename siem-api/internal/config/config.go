@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -28,6 +29,14 @@ type Config struct {
 	// matching action button, and the app icon; when unset, notifications
 	// are still sent, just without those three fields.
 	AppURL string
+	// OllamaURL/OllamaModel configure the optional LLM-powered insights
+	// feature (siem-insights). Both optional: when OllamaURL is unset, the
+	// insights scheduler never starts and POST /insights/generate 400s,
+	// same degrade-gracefully posture as ntfy being unconfigured.
+	OllamaURL           string
+	OllamaModel         string
+	InsightsIntervalSec int
+	InsightsLookbackMin int
 }
 
 func Load() (Config, error) {
@@ -46,6 +55,11 @@ func Load() (Config, error) {
 		GeoIPDB:          os.Getenv("GEOIP_DB"),
 		FastpathToken:    os.Getenv("SIEM_FASTPATH_TOKEN"),
 		AppURL:           os.Getenv("APP_URL"),
+
+		OllamaURL:           os.Getenv("OLLAMA_URL"),
+		OllamaModel:         os.Getenv("OLLAMA_MODEL"),
+		InsightsIntervalSec: getenvInt("INSIGHTS_INTERVAL_SEC", 1800),
+		InsightsLookbackMin: getenvInt("INSIGHTS_LOOKBACK_MIN", 60),
 
 		LocalAdminUsername:     os.Getenv("SIEM_LOCAL_ADMIN_USERNAME"),
 		LocalAdminPasswordHash: os.Getenv("SIEM_LOCAL_ADMIN_PASSWORD_HASH"),
@@ -84,4 +98,16 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getenvInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
 }

@@ -9,3 +9,14 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   min_severity TEXT NOT NULL DEFAULT 'info'
 );
 INSERT OR IGNORE INTO notification_settings (id, min_severity) VALUES (1, 'info');
+
+CREATE TABLE IF NOT EXISTS insights (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at    TEXT NOT NULL,
+  title         TEXT NOT NULL,
+  detail        TEXT NOT NULL,
+  severity      TEXT NOT NULL,
+  category      TEXT NOT NULL,
+  evidence_json TEXT NOT NULL,
+  dismissed     INTEGER NOT NULL DEFAULT 0
+);

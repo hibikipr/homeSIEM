@@ -17,6 +17,23 @@ export interface NavSummaryResponse {
 	open_alert_count: number;
 }
 
+export interface InsightEvidence {
+	program: string;
+	sample_message: string;
+	count: number;
+}
+
+export interface Insight {
+	id: number;
+	created_at: string;
+	title: string;
+	detail: string;
+	severity: AlertSeverity;
+	category: string;
+	evidence: InsightEvidence[];
+	dismissed: boolean;
+}
+
 export interface AlertResponse {
 	id: number;
 	rule_id: number;
@@ -273,6 +290,25 @@ export class SiemApiClient {
 	async testNotification(sessionToken: string): Promise<void> {
 		await this.request('/settings/notifications/test', {
 			method: 'POST',
+			...this.authInit(sessionToken)
+		});
+	}
+
+	async getInsights(sessionToken: string, includeDismissed = false): Promise<Insight[]> {
+		const path = includeDismissed ? '/insights?all=true' : '/insights';
+		return this.request<Insight[]>(path, this.authInit(sessionToken));
+	}
+
+	async generateInsightsNow(sessionToken: string): Promise<Insight[]> {
+		return this.request<Insight[]>('/insights/generate', {
+			method: 'POST',
+			...this.authInit(sessionToken)
+		});
+	}
+
+	async dismissInsight(sessionToken: string, id: number): Promise<void> {
+		return this.requestNoContent(`/insights/${id}/dismiss`, {
+			method: 'PUT',
 			...this.authInit(sessionToken)
 		});
 	}

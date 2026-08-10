@@ -13,8 +13,10 @@ import (
 	"github.com/hibikipr/homeSIEM/siem-api/internal/api"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/auth"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/config"
+	"github.com/hibikipr/homeSIEM/siem-api/internal/insights"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/ntfy"
+	"github.com/hibikipr/homeSIEM/siem-api/internal/ollama"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/rules"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/sse"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
@@ -62,6 +64,18 @@ func main() {
 	}
 	scheduler := rules.NewScheduler(st, evaluators, alertsSvc, logger)
 
+	// insightsSvc stays nil when OLLAMA_URL is unset - Deps.Insights being
+	// nil is exactly what handleGenerateInsights checks to 400 rather than
+	// attempt a Chat() call against an empty base URL. Matches ntfy's own
+	// degrade-gracefully-when-unconfigured posture.
+	var insightsSvc *insights.Service
+	if cfg.OllamaURL != "" {
+		ollamaClient := ollama.New(cfg.OllamaURL, cfg.OllamaModel, &http.Client{Timeout: 120 * time.Second})
+		promptBuilder := &insights.PromptBuilder{Loki: lokiClient, Alerts: st, JobLabel: cfg.LokiJobLabel}
+		insightsSvc = insights.NewService(promptBuilder, ollamaClient, st,
+			time.Duration(cfg.InsightsLookbackMin)*time.Minute, logger)
+	}
+
 	verifier := auth.NewTokenVerifier(cfg.SessionSecret)
 	sessionEst := auth.NewSessionEstablisher(st, st)
 	localAuth := auth.NewLocalAuthenticator(st)
@@ -77,6 +91,11 @@ func main() {
 
 	go api.RunTailPoller(appCtx, lokiClient, cfg.LokiJobLabel, hub, time.Second, logger)
 
+	if insightsSvc != nil {
+		insightsScheduler := insights.NewScheduler(insightsSvc, cfg.InsightsIntervalSec, logger)
+		go insightsScheduler.Start(appCtx)
+	}
+
 	server := api.NewServer(api.Deps{
 		Store: st, Loki: lokiClient, Vector: vectorClient, JobLabel: cfg.LokiJobLabel, Hub: hub,
 		Alerts: alertsSvc, Scheduler: scheduler, SchedulerCtx: appCtx,
@@ -84,7 +103,8 @@ func main() {
 		FastpathToken: cfg.FastpathToken,
 		OIDCIssuer:    cfg.OIDCIssuer, OIDCClientID: cfg.OIDCClientID, OIDCGroupsScope: cfg.OIDCGroupsScope,
 		NtfyURL: cfg.NtfyURL, NtfyTopic: cfg.NtfyTopic, Ntfy: ntfyClient,
-		Logger: logger,
+		Insights: insightsSvc,
+		Logger:   logger,
 	})
 
 	httpServer := &http.Server{Addr: cfg.Addr, Handler: server.Handler()}

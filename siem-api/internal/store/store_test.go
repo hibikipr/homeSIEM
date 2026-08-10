@@ -97,3 +97,29 @@ func TestMigrate_NotificationSettingsIdempotent(t *testing.T) {
 		t.Errorf("notification_settings row count = %d, want 1 (INSERT OR IGNORE must not duplicate)", count)
 	}
 }
+
+func TestMigrate_AddsInsightsToExistingDatabase(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "siem.db")
+	db, err := Open("sqlite://" + dbPath)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	// Same scenario as TestMigrate_AddsNotificationSettingsToExistingDatabase:
+	// `sources` already exists, so the one-time schema.sql bootstrap no-ops,
+	// but `insights` (added after that table) does not exist yet.
+	if _, err := db.Exec(`CREATE TABLE sources (id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatalf("create sources: %v", err)
+	}
+
+	if err := Migrate(db); err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+
+	var name string
+	err = db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='insights'`).Scan(&name)
+	if err != nil {
+		t.Fatalf("insights table not found after Migrate(): %v", err)
+	}
+}

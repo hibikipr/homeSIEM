@@ -48,6 +48,56 @@ func TestLoad_DefaultsApplied(t *testing.T) {
 	if cfg.AppURL != "" {
 		t.Errorf("AppURL = %q, want empty when APP_URL is unset", cfg.AppURL)
 	}
+	if cfg.OllamaURL != "" {
+		t.Errorf("OllamaURL = %q, want empty when OLLAMA_URL is unset", cfg.OllamaURL)
+	}
+	if cfg.OllamaModel != "" {
+		t.Errorf("OllamaModel = %q, want empty when OLLAMA_MODEL is unset", cfg.OllamaModel)
+	}
+	if cfg.InsightsIntervalSec != 1800 {
+		t.Errorf("InsightsIntervalSec = %d, want 1800 (the default)", cfg.InsightsIntervalSec)
+	}
+	if cfg.InsightsLookbackMin != 60 {
+		t.Errorf("InsightsLookbackMin = %d, want 60 (the default)", cfg.InsightsLookbackMin)
+	}
+}
+
+func TestLoad_InsightsEnvOverrides(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("OLLAMA_URL", "http://192.168.3.50:11434")
+	t.Setenv("OLLAMA_MODEL", "qwen3:27b")
+	t.Setenv("INSIGHTS_INTERVAL_SEC", "900")
+	t.Setenv("INSIGHTS_LOOKBACK_MIN", "30")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.OllamaURL != "http://192.168.3.50:11434" {
+		t.Errorf("OllamaURL = %q, want http://192.168.3.50:11434", cfg.OllamaURL)
+	}
+	if cfg.OllamaModel != "qwen3:27b" {
+		t.Errorf("OllamaModel = %q, want qwen3:27b", cfg.OllamaModel)
+	}
+	if cfg.InsightsIntervalSec != 900 {
+		t.Errorf("InsightsIntervalSec = %d, want 900", cfg.InsightsIntervalSec)
+	}
+	if cfg.InsightsLookbackMin != 30 {
+		t.Errorf("InsightsLookbackMin = %d, want 30", cfg.InsightsLookbackMin)
+	}
+}
+
+func TestLoad_InvalidInsightsIntervalFallsBackToDefault(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("INSIGHTS_INTERVAL_SEC", "not-a-number")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.InsightsIntervalSec != 1800 {
+		t.Errorf("InsightsIntervalSec = %d, want 1800 (fallback for an unparseable value)", cfg.InsightsIntervalSec)
+	}
 }
 
 func TestLoad_AppURLReadFromEnv(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/hibikipr/homeSIEM/siem-api/internal/alerts"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/auth"
+	"github.com/hibikipr/homeSIEM/siem-api/internal/insights"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/ntfy"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/rules"
@@ -35,6 +36,11 @@ type Deps struct {
 	NtfyURL         string
 	NtfyTopic       string
 	Ntfy            *ntfy.Client
+	// Insights is nil when OLLAMA_URL is unset - handleGenerateInsights
+	// checks for that and 400s, matching handleTestNotification's existing
+	// not-configured shape. GET/dismiss still work with Insights nil, since
+	// those only touch Store.
+	Insights *insights.Service
 }
 
 type Server struct {
@@ -77,6 +83,9 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /settings/notifications", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleGetNotificationSettings)))
 	s.mux.Handle("PUT /settings/notifications", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleUpdateNotificationSettings)))
 	s.mux.Handle("POST /settings/notifications/test", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleTestNotification)))
+	s.mux.Handle("GET /insights", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListInsights)))
+	s.mux.Handle("POST /insights/generate", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleGenerateInsights)))
+	s.mux.Handle("PUT /insights/{id}/dismiss", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleDismissInsight)))
 	s.mux.HandleFunc("POST /auth/session", s.handleAuthSession)
 	s.mux.HandleFunc("POST /auth/local", s.handleAuthLocal)
 }

@@ -54,6 +54,12 @@ all six screens:
   break-glass local-admin note) and Notifications. Retention/Parsers/Backups/About
   are intentionally hidden from the sidebar — no backend support exists for
   them, so they aren't shipped as visible stubs.
+- **Insights** — a compact panel on the Wall plus a full `/insights` history
+  screen for siem-api's optional LLM-powered log review (severity-coded
+  suggestions, dismiss, per-suggestion evidence, a "Generate now" button).
+  Empty and entirely hidden-feeling when `OLLAMA_URL` isn't configured —
+  the panel just shows "No insights yet," same as any other quiet-by-default
+  screen in this app.
 
 Also: a real favicon/PWA icon set and manifest (`static/icons/`,
 `static/manifest.webmanifest`), a `<title>`, and a `theme-color` meta tag —

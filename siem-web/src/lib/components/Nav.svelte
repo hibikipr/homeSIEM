@@ -1,6 +1,14 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Pathname } from '$app/types';
+
+	// Deliberately narrower than the full generated Pathname union (which
+	// now also includes dynamic proxy routes like `/api/insights/${string}`)
+	// - resolve()'s overloaded signature can't cleanly discriminate a widened
+	// union that mixes static and templated route types when called from a
+	// generic loop variable like navItems.map here, even though every actual
+	// value below is a plain static route. Narrowing to just the static
+	// routes this list ever uses keeps resolve() unambiguous.
+	type NavPathname = '/' | '/search' | '/tail' | '/alerts' | '/sources' | '/insights' | '/settings';
 
 	let {
 		activeRoute,
@@ -53,12 +61,13 @@
 		}
 	}
 
-	const navItems: { label: string; href: Pathname }[] = [
+	const navItems: { label: string; href: NavPathname }[] = [
 		{ label: 'Wall', href: '/' },
 		{ label: 'Search', href: '/search' },
 		{ label: 'Live tail', href: '/tail' },
 		{ label: 'Alerts', href: '/alerts' },
 		{ label: 'Sources', href: '/sources' },
+		{ label: 'Insights', href: '/insights' },
 		{ label: 'Settings', href: '/settings' }
 	];
 
