@@ -371,14 +371,17 @@ source = '''
     }
 
     ## Python's warnings module (octoeverywhere-bambu-connect-2): no
-    ## structured level at all, just a warning class name conventionally
-    ## ending in "Warning" followed by a colon, e.g.
-    ## "InsecureRequestWarning: Unverified HTTPS request...". Narrower
-    ## signal than the others above (content-based, not a log-level field),
-    ## so scoped to exactly that naming convention rather than a bare word
-    ## search.
+    ## structured level at all, just Python's own default warnings.warn()
+    ## format, "<file>.py:<line>: <WarningClassName>: message", e.g.
+    ## "…/urllib3/connectionpool.py:1110: InsecureRequestWarning:
+    ## Unverified HTTPS request...". Anchored to that exact file:line
+    ## prefix, not a bare "\w+Warning: " search anywhere in the message -
+    ## found in production that the bare search false-positived on scrypted
+    ## logging a config object whose key happened to be named
+    ## "verticalFlipWarning" ("verticalFlipWarning: false,"), which is
+    ## structurally nothing like a Python warning.
     if is_null(reported_level) {
-      m = parse_regex(message_for_level, r'\b(?P<val>\w+Warning): ').val ?? null
+      m = parse_regex(message_for_level, r'^\S+\.py:\d+: (?P<val>\w+Warning): ').val ?? null
       if is_string(m) {
         reported_level = "warning"
       }

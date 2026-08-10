@@ -582,6 +582,37 @@ name = "Python warnings.warn() output (octoeverywhere-bambu-connect) is classifi
     '''
 
 [[tests]]
+name = "a config key that happens to end in 'Warning:' (scrypted) is not mistaken for a Python warning"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "warning"
+    parser = "rfc5424"
+    message = "verticalFlipWarning: false,"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Found in production: scrypted logging a pretty-printed config
+      ## object with a "verticalFlipWarning: false," line matched the
+      ## Python-warnings branch's old un-anchored "\w+Warning: " search,
+      ## flipping this JS object dump to severity=warning even though it
+      ## has nothing to do with Python or an actual warning. The branch is
+      ## now anchored to Python's real "<file>.py:<line>: " prefix, which
+      ## this doesn't have, so severity is left exactly as the input had
+      ## it (warning here, chosen arbitrarily as "not err" to prove this
+      ## branch truly leaves it untouched either way).
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
 name = "rsyslog-escaped ANSI HTTP 404 status (siem-web) overrides a mismatched PRI severity to warning"
 
   [tests.input]
