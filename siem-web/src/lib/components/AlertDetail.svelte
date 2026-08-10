@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import type { AlertResponse, AlertSample, RuleResponse } from '$lib/server/siemApiClient';
 	import type { AlertStats } from '$lib/alerts';
+	import { extractMessage } from '$lib/logline';
 
 	let {
 		alert,
@@ -114,7 +115,7 @@
 		<span class="label">Matched events</span>
 		<div class="log-block">
 			{#each samples as sample (sample.id)}
-				<div class="log-line">{sample.line}</div>
+				<div class="log-line">{extractMessage(sample.line)}</div>
 			{:else}
 				<div class="log-line empty">No samples recorded yet.</div>
 			{/each}
