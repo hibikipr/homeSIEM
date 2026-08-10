@@ -8,27 +8,37 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hibikipr/homeSIEM/siem-api/internal/ollama"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
 )
 
 type Chatter interface {
-	Chat(ctx context.Context, systemPrompt, userPrompt string) (string, error)
+	Chat(ctx context.Context, systemPrompt, userPrompt string, opts ollama.ChatOptions) (string, error)
 }
 
 type InsightStore interface {
 	InsertInsight(ctx context.Context, in store.Insight) (store.Insight, error)
 }
 
+// SettingsStore is the admin-editable half of a GenerateNow pass (system
+// prompt override, generation options) - kept separate from InsightStore
+// since it's read every pass rather than written, and comes from
+// Settings → Ollama in siem-web rather than anything a pass itself produces.
+type SettingsStore interface {
+	GetOllamaSettings(ctx context.Context) (store.OllamaSettings, error)
+}
+
 type Service struct {
 	Prompt   *PromptBuilder
 	Chat     Chatter
 	Store    InsightStore
+	Settings SettingsStore
 	Lookback time.Duration
 	Logger   *slog.Logger
 }
 
-func NewService(prompt *PromptBuilder, chat Chatter, st InsightStore, lookback time.Duration, logger *slog.Logger) *Service {
-	return &Service{Prompt: prompt, Chat: chat, Store: st, Lookback: lookback, Logger: logger}
+func NewService(prompt *PromptBuilder, chat Chatter, st InsightStore, settings SettingsStore, lookback time.Duration, logger *slog.Logger) *Service {
+	return &Service{Prompt: prompt, Chat: chat, Store: st, Settings: settings, Lookback: lookback, Logger: logger}
 }
 
 type modelEvidence struct {
@@ -60,12 +70,27 @@ var validSeverities = map[string]bool{"info": true, "warning": true, "critical":
 // indicate the pass genuinely couldn't run at all, unlike a response that
 // ran but didn't parse.
 func (s *Service) GenerateNow(ctx context.Context) error {
-	systemPrompt, userPrompt, err := s.Prompt.Build(ctx, s.Lookback)
+	settings, err := s.Settings.GetOllamaSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("insights: get ollama settings: %w", err)
+	}
+	systemPrompt := settings.SystemPrompt
+	if systemPrompt == "" {
+		systemPrompt = DefaultSystemPrompt
+	}
+
+	userPrompt, err := s.Prompt.Build(ctx, s.Lookback)
 	if err != nil {
 		return fmt.Errorf("insights: build prompt: %w", err)
 	}
 
-	response, err := s.Chat.Chat(ctx, systemPrompt, userPrompt)
+	opts := ollama.ChatOptions{
+		Temperature: settings.Temperature,
+		TopP:        settings.TopP,
+		NumPredict:  settings.NumPredict,
+		NumCtx:      settings.NumCtx,
+	}
+	response, err := s.Chat.Chat(ctx, systemPrompt, userPrompt, opts)
 	if err != nil {
 		return fmt.Errorf("insights: chat: %w", err)
 	}

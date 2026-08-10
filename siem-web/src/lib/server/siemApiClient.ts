@@ -152,6 +152,28 @@ export interface NotificationSettingsResponse {
 	min_severity: string;
 }
 
+export interface OllamaSettingsResponse {
+	configured: boolean;
+	model: string;
+	timeout_sec: number;
+	interval_sec: number;
+	lookback_min: number;
+	system_prompt: string;
+	default_system_prompt: string;
+	temperature: number;
+	top_p: number;
+	num_predict: number;
+	num_ctx: number;
+}
+
+export interface UpdateOllamaSettingsRequest {
+	system_prompt: string;
+	temperature: number;
+	top_p: number;
+	num_predict: number;
+	num_ctx: number;
+}
+
 export class SiemApiError extends Error {
 	status: number;
 	constructor(status: number, message: string) {
@@ -291,6 +313,21 @@ export class SiemApiClient {
 		await this.request('/settings/notifications/test', {
 			method: 'POST',
 			...this.authInit(sessionToken)
+		});
+	}
+
+	async getOllamaSettings(sessionToken: string): Promise<OllamaSettingsResponse> {
+		return this.request<OllamaSettingsResponse>('/settings/ollama', this.authInit(sessionToken));
+	}
+
+	async updateOllamaSettings(
+		sessionToken: string,
+		req: UpdateOllamaSettingsRequest
+	): Promise<void> {
+		return this.requestNoContent('/settings/ollama', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json', ...this.authInit(sessionToken).headers },
+			body: JSON.stringify(req)
 		});
 	}
 

@@ -9,9 +9,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	let settings;
 	let notificationSettings;
+	let ollamaSettings;
 	try {
 		settings = await client.getAuthSettings(token);
 		notificationSettings = await client.getNotificationSettings(token);
+		ollamaSettings = await client.getOllamaSettings(token);
 	} catch (err) {
 		if (err instanceof SiemApiError) {
 			if (err.status === 401) {
@@ -25,5 +27,5 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw err;
 	}
 
-	return { roleMappings: settings.role_mappings ?? [], notificationSettings };
+	return { roleMappings: settings.role_mappings ?? [], notificationSettings, ollamaSettings };
 };

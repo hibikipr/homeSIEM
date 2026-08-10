@@ -10,6 +10,12 @@ import (
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
 )
 
+func TestDefaultSystemPrompt_MentionsJSONOutputFormat(t *testing.T) {
+	if !strings.Contains(DefaultSystemPrompt, "JSON") {
+		t.Error("DefaultSystemPrompt doesn't mention JSON output format")
+	}
+}
+
 func TestExtractMessage(t *testing.T) {
 	if got := extractMessage(`{"message":"hello world","other":"x"}`); got != "hello world" {
 		t.Errorf("extractMessage() = %q, want %q", got, "hello world")
@@ -146,14 +152,11 @@ func TestBuild_IncludesAllThreeSections(t *testing.T) {
 	}}
 
 	b := &PromptBuilder{Loki: lokiFake, Alerts: alertsFake, JobLabel: "siem"}
-	system, user, err := b.Build(context.Background(), time.Hour)
+	user, err := b.Build(context.Background(), time.Hour)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	if !strings.Contains(system, "JSON") {
-		t.Error("system prompt doesn't mention JSON output format")
-	}
 	if !strings.Contains(user, "Open alerts") || !strings.Contains(user, "Port scan detected") {
 		t.Errorf("user prompt missing the open alerts section: %q", user)
 	}
@@ -170,7 +173,7 @@ func TestBuild_NoOpenAlerts_SaysSoRatherThanOmittingTheSection(t *testing.T) {
 	alertsFake := &fakeAlertLister{}
 
 	b := &PromptBuilder{Loki: lokiFake, Alerts: alertsFake, JobLabel: "siem"}
-	_, user, err := b.Build(context.Background(), time.Hour)
+	user, err := b.Build(context.Background(), time.Hour)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}

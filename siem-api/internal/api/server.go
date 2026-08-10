@@ -41,6 +41,15 @@ type Deps struct {
 	// not-configured shape. GET/dismiss still work with Insights nil, since
 	// those only touch Store.
 	Insights *insights.Service
+	// OllamaURL/OllamaModel/OllamaTimeoutSec/InsightsIntervalSec/
+	// InsightsLookbackMin are read-only in Settings → Ollama (handleGetOllamaSettings) -
+	// deployment topology, set via env vars only, same non-editable-here
+	// posture as NtfyURL/NtfyTopic above.
+	OllamaURL           string
+	OllamaModel         string
+	OllamaTimeoutSec    int
+	InsightsIntervalSec int
+	InsightsLookbackMin int
 }
 
 type Server struct {
@@ -83,6 +92,8 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /settings/notifications", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleGetNotificationSettings)))
 	s.mux.Handle("PUT /settings/notifications", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleUpdateNotificationSettings)))
 	s.mux.Handle("POST /settings/notifications/test", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleTestNotification)))
+	s.mux.Handle("GET /settings/ollama", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleGetOllamaSettings)))
+	s.mux.Handle("PUT /settings/ollama", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleUpdateOllamaSettings)))
 	s.mux.Handle("GET /insights", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListInsights)))
 	s.mux.Handle("POST /insights/generate", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleGenerateInsights)))
 	s.mux.Handle("PUT /insights/{id}/dismiss", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleDismissInsight)))

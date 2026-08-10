@@ -6,13 +6,14 @@
 
 	let { data }: { data: PageData } = $props();
 
-	type SectionKey = 'authentication' | 'notifications';
+	type SectionKey = 'authentication' | 'notifications' | 'ollama';
 
 	let selectedSection = $state<SectionKey>('authentication');
 
 	const sections: { key: SectionKey; label: string }[] = [
 		{ key: 'authentication', label: 'Authentication' },
-		{ key: 'notifications', label: 'Notifications' }
+		{ key: 'notifications', label: 'Notifications' },
+		{ key: 'ollama', label: 'Ollama' }
 	];
 
 	function selectSection(key: SectionKey) {
@@ -72,6 +73,45 @@
 			testResult = 'error';
 		} finally {
 			testSending = false;
+		}
+	}
+
+	let systemPrompt = $state(data.ollamaSettings.system_prompt);
+	let temperature = $state(data.ollamaSettings.temperature);
+	let topP = $state(data.ollamaSettings.top_p);
+	let numPredict = $state(data.ollamaSettings.num_predict);
+	let numCtx = $state(data.ollamaSettings.num_ctx);
+	let showDefaultPrompt = $state(false);
+	let savingOllama = $state(false);
+	let ollamaSaveError = $state<string | null>(null);
+	let ollamaSaved = $state(false);
+
+	function resetPromptToDefault() {
+		systemPrompt = '';
+	}
+
+	async function saveOllamaSettings() {
+		savingOllama = true;
+		ollamaSaveError = null;
+		ollamaSaved = false;
+		try {
+			const res = await fetch('/api/settings/ollama', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					system_prompt: systemPrompt,
+					temperature,
+					top_p: topP,
+					num_predict: numPredict,
+					num_ctx: numCtx
+				})
+			});
+			if (!res.ok) throw new Error('save failed');
+			ollamaSaved = true;
+		} catch {
+			ollamaSaveError = 'Could not save — try again.';
+		} finally {
+			savingOllama = false;
 		}
 	}
 </script>
@@ -157,6 +197,116 @@
 					<span class="muted">Saving…</span>
 				{:else if severitySaveError}
 					<span class="status-line warn">{severitySaveError}</span>
+				{/if}
+			</div>
+		{:else if selectedSection === 'ollama'}
+			<div class="hero">
+				<h1>Ollama</h1>
+				<p>
+					siem-insights reviews recent activity with a locally-hosted LLM and surfaces suggestions
+					on the Wall and at Insights. The connection itself (URL, model, timeout, schedule) is set
+					at deploy time; this page controls how it prompts the model.
+				</p>
+			</div>
+
+			<div class="panel">
+				<div class="panel-head">
+					<span class="panel-title">Status</span>
+				</div>
+				<p class="status-line">
+					{#if data.ollamaSettings.configured}
+						<span class="ok">Configured</span> — model <code>{data.ollamaSettings.model}</code>,
+						{data.ollamaSettings.timeout_sec}s timeout, runs every
+						{Math.round(data.ollamaSettings.interval_sec / 60)}min over the last
+						{data.ollamaSettings.lookback_min}min.
+					{:else}
+						<span class="warn">Not configured</span> — set OLLAMA_URL to enable insights.
+					{/if}
+				</p>
+			</div>
+
+			<div class="panel">
+				<div class="panel-head">
+					<span class="panel-title">System prompt</span>
+					<span class="muted">what the model is told before each pass</span>
+					<button class="btn ghost" type="button" onclick={resetPromptToDefault}>
+						Reset to default
+					</button>
+				</div>
+				<textarea
+					bind:value={systemPrompt}
+					rows="10"
+					placeholder={data.ollamaSettings.default_system_prompt}></textarea>
+				<p class="muted">
+					Empty uses the built-in default shown below. Whatever prompt runs must still ask for the
+					same JSON array shape - siem-api can't parse suggestions back out of anything else.
+				</p>
+				<button
+					class="btn ghost"
+					type="button"
+					onclick={() => (showDefaultPrompt = !showDefaultPrompt)}
+				>
+					{showDefaultPrompt ? 'Hide' : 'Show'} built-in default
+				</button>
+				{#if showDefaultPrompt}
+					<pre class="default-prompt">{data.ollamaSettings.default_system_prompt}</pre>
+				{/if}
+			</div>
+
+			<div class="panel">
+				<div class="panel-head">
+					<span class="panel-title">Generation parameters</span>
+				</div>
+				<div class="param-grid">
+					<label>
+						Temperature
+						<input type="number" min="0" max="2" step="0.05" bind:value={temperature} />
+						<span class="muted"
+							>Lower is more consistent/grounded, higher is more creative. Recommended: 0.1-0.3 for
+							this analytical task - it shouldn't be inventing anything.</span
+						>
+					</label>
+					<label>
+						Top-p
+						<input type="number" min="0.01" max="1" step="0.05" bind:value={topP} />
+						<span class="muted"
+							>Nucleus sampling cutoff. 0.9 pairs well with a low temperature; rarely worth changing
+							on its own.</span
+						>
+					</label>
+					<label>
+						Max response tokens (num_predict)
+						<input type="number" min="1" max="8192" step="1" bind:value={numPredict} />
+						<span class="muted"
+							>Caps how long a response can run, independent of the HTTP timeout. 1024 comfortably
+							fits a handful of suggestions in the expected JSON shape.</span
+						>
+					</label>
+					<label>
+						Context window (num_ctx)
+						<input type="number" min="256" max="262144" step="256" bind:value={numCtx} />
+						<span class="muted"
+							>Ollama's own per-model default is often only 2048-4096, which can silently truncate
+							the alerts/rollup/samples data in the prompt. 8192 is a safer floor; raise it if your
+							model supports more and lookback/sample volume is large.</span
+						>
+					</label>
+				</div>
+			</div>
+
+			<div class="panel">
+				<button
+					class="btn primary"
+					type="button"
+					disabled={savingOllama}
+					onclick={saveOllamaSettings}
+				>
+					{savingOllama ? 'Saving…' : 'Save'}
+				</button>
+				{#if ollamaSaved}
+					<span class="status-line ok">Saved.</span>
+				{:else if ollamaSaveError}
+					<span class="status-line warn">{ollamaSaveError}</span>
 				{/if}
 			</div>
 		{/if}
@@ -268,6 +418,71 @@
 		border-color: transparent;
 		margin-left: auto;
 		padding: 2px 7px;
+	}
+
+	.btn.primary {
+		background: var(--color-accent);
+		color: var(--color-on-accent, #fff);
+		align-self: flex-start;
+	}
+
+	.btn.primary:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	textarea {
+		background: var(--color-surface-3);
+		color: var(--color-text);
+		border: 1px solid var(--color-line-2);
+		border-radius: var(--radius-sm);
+		padding: 8px 10px;
+		font-size: var(--text-table);
+		font-family: inherit;
+		resize: vertical;
+	}
+
+	.default-prompt {
+		background: var(--color-surface-3);
+		border: 1px solid var(--color-line-2);
+		border-radius: var(--radius-sm);
+		padding: 8px 10px;
+		font-size: var(--text-label);
+		color: var(--color-text-3);
+		white-space: pre-wrap;
+		margin: 0;
+		max-height: 240px;
+		overflow-y: auto;
+	}
+
+	.param-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		gap: var(--space-4);
+	}
+
+	.param-grid label {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: var(--text-table);
+	}
+
+	.param-grid input[type='number'] {
+		background: var(--color-surface-3);
+		color: var(--color-text);
+		border: 1px solid var(--color-line-2);
+		border-radius: var(--radius-sm);
+		padding: 4px 8px;
+		font-size: var(--text-table);
+		width: 100%;
+		max-width: 160px;
+	}
+
+	.status-line code {
+		background: var(--color-surface-3);
+		border-radius: var(--radius-sm);
+		padding: 1px 5px;
 	}
 
 	.status-line {

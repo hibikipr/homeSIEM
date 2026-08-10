@@ -27,7 +27,8 @@ func TestChat_SendsExpectedRequest(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "qwen3:27b", srv.Client())
-	got, err := c.Chat(context.Background(), "system prompt", "user prompt")
+	opts := ChatOptions{Temperature: 0.2, TopP: 0.9, NumPredict: 1024, NumCtx: 8192}
+	got, err := c.Chat(context.Background(), "system prompt", "user prompt", opts)
 	if err != nil {
 		t.Fatalf("Chat() error = %v", err)
 	}
@@ -56,6 +57,9 @@ func TestChat_SendsExpectedRequest(t *testing.T) {
 	if got != "the response" {
 		t.Errorf("Chat() = %q, want %q", got, "the response")
 	}
+	if gotBody.Options != opts {
+		t.Errorf("options = %+v, want %+v", gotBody.Options, opts)
+	}
 }
 
 func TestChat_NonOKStatus_ReturnsError(t *testing.T) {
@@ -65,7 +69,7 @@ func TestChat_NonOKStatus_ReturnsError(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "qwen3:27b", srv.Client())
-	if _, err := c.Chat(context.Background(), "s", "u"); err == nil {
+	if _, err := c.Chat(context.Background(), "s", "u", ChatOptions{}); err == nil {
 		t.Fatal("Chat() error = nil, want error for 500 response")
 	}
 }
@@ -78,7 +82,7 @@ func TestChat_MalformedResponseBody_ReturnsError(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "qwen3:27b", srv.Client())
-	if _, err := c.Chat(context.Background(), "s", "u"); err == nil {
+	if _, err := c.Chat(context.Background(), "s", "u", ChatOptions{}); err == nil {
 		t.Fatal("Chat() error = nil, want error for malformed response body")
 	}
 }
@@ -91,7 +95,7 @@ func TestChat_RequestTimesOut_ReturnsError(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "qwen3:27b", &http.Client{Timeout: 20 * time.Millisecond})
-	if _, err := c.Chat(context.Background(), "s", "u"); err == nil {
+	if _, err := c.Chat(context.Background(), "s", "u", ChatOptions{}); err == nil {
 		t.Fatal("Chat() error = nil, want a timeout error")
 	}
 }

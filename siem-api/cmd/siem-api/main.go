@@ -72,7 +72,7 @@ func main() {
 	if cfg.OllamaURL != "" {
 		ollamaClient := ollama.New(cfg.OllamaURL, cfg.OllamaModel, &http.Client{Timeout: time.Duration(cfg.OllamaTimeoutSec) * time.Second})
 		promptBuilder := &insights.PromptBuilder{Loki: lokiClient, Alerts: st, JobLabel: cfg.LokiJobLabel}
-		insightsSvc = insights.NewService(promptBuilder, ollamaClient, st,
+		insightsSvc = insights.NewService(promptBuilder, ollamaClient, st, st,
 			time.Duration(cfg.InsightsLookbackMin)*time.Minute, logger)
 	}
 
@@ -103,8 +103,10 @@ func main() {
 		FastpathToken: cfg.FastpathToken,
 		OIDCIssuer:    cfg.OIDCIssuer, OIDCClientID: cfg.OIDCClientID, OIDCGroupsScope: cfg.OIDCGroupsScope,
 		NtfyURL: cfg.NtfyURL, NtfyTopic: cfg.NtfyTopic, Ntfy: ntfyClient,
-		Insights: insightsSvc,
-		Logger:   logger,
+		Insights:  insightsSvc,
+		OllamaURL: cfg.OllamaURL, OllamaModel: cfg.OllamaModel, OllamaTimeoutSec: cfg.OllamaTimeoutSec,
+		InsightsIntervalSec: cfg.InsightsIntervalSec, InsightsLookbackMin: cfg.InsightsLookbackMin,
+		Logger: logger,
 	})
 
 	httpServer := &http.Server{Addr: cfg.Addr, Handler: server.Handler()}

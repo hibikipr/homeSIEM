@@ -182,7 +182,11 @@ func formatSamples(groups []sampleGroup) string {
 	return b.String()
 }
 
-const systemPromptText = `You are reviewing recent activity in a homelab SIEM (security/log
+// DefaultSystemPrompt is the built-in system prompt, used whenever no
+// override is set in store.OllamaSettings (Settings → Ollama in siem-web).
+// Exported so the API can surface it as-is (both the current effective
+// value, when no override is stored, and the "reset to default" target).
+const DefaultSystemPrompt = `You are reviewing recent activity in a homelab SIEM (security/log
 monitoring) system. You will be given: a list of open alerts, a rollup of
 error/warning counts by program, and a deduplicated sample of recent
 error/warning log lines.
@@ -210,28 +214,30 @@ Rules:
 ]`
 
 // Build gathers the three data sources (open alerts, severity×program
-// rollup, deduplicated err/warning samples) and assembles the fixed system
-// prompt plus a user prompt from them. See the design doc's Data flow
-// section for why this is aggregated/deduplicated data, never raw log
-// lines.
-func (b *PromptBuilder) Build(ctx context.Context, lookback time.Duration) (systemPrompt, userPrompt string, err error) {
+// rollup, deduplicated err/warning samples) and assembles a user prompt from
+// them. See the design doc's Data flow section for why this is
+// aggregated/deduplicated data, never raw log lines. The system prompt is
+// not this type's concern - Service picks it (the stored override, or
+// DefaultSystemPrompt) since it comes from store.OllamaSettings, not from
+// anything Loki/alerts-derived.
+func (b *PromptBuilder) Build(ctx context.Context, lookback time.Duration) (userPrompt string, err error) {
 	end := time.Now().UTC()
 	start := end.Add(-lookback)
 
 	openAlerts, err := b.Alerts.ListAlerts(ctx, "open")
 	if err != nil {
-		return "", "", fmt.Errorf("insights: list open alerts: %w", err)
+		return "", fmt.Errorf("insights: list open alerts: %w", err)
 	}
 
 	rollup, err := b.buildRollup(ctx, lookback, end)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	logql := fmt.Sprintf(`{job=%q, severity=~"err|warning"}`, b.JobLabel)
 	result, err := b.Loki.QueryRange(ctx, logql, start, end, 5000)
 	if err != nil {
-		return "", "", fmt.Errorf("insights: query err/warning samples: %w", err)
+		return "", fmt.Errorf("insights: query err/warning samples: %w", err)
 	}
 	samples := dedupeSamples(result.Entries, sampleCap)
 
@@ -242,5 +248,5 @@ func (b *PromptBuilder) Build(ctx context.Context, lookback time.Duration) (syst
 	user.WriteString("\n")
 	user.WriteString(formatSamples(samples))
 
-	return systemPromptText, user.String(), nil
+	return user.String(), nil
 }
