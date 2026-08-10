@@ -495,6 +495,21 @@ source = '''
       }
     }
 
+    ## s6-overlay's own preinit stage (manyfold, and any other
+    ## linuxserver.io-style image using s6-overlay - this runs before
+    ## s6-rc itself starts, so it's a separate format from the branch
+    ## above): "<script path>: LEVEL: message", e.g.
+    ## "/package/admin/s6-overlay/libexec/preinit: info: read-only root".
+    ## Anchored on "s6-overlay" appearing in the leading path, not just a
+    ## bare "info:"/"warning:" search, since those are common enough words
+    ## to risk matching something unrelated.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\S*s6-overlay\S*: (?P<val>info|warning|error|fatal): ').val ?? null
+      if is_string(m) {
+        reported_level = m
+      }
+    }
+
     ## cloudflared's own plain (non-ANSI) log format (scrypted, which
     ## bundles cloudflared for its Cloudflare Tunnel integration): ISO8601
     ## Z timestamp, space, 3-letter level code, space. Same short-code
