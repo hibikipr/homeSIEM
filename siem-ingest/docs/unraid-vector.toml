@@ -1,0 +1,39 @@
+# Reference Vector config for forwarding an Unraid box's Community App
+# container logs to homeSIEM. See unraid-docker-logs.md in this directory
+# for the full setup walkthrough. Replace SIEM_INGEST_HOST and HOSTNAME
+# below before use.
+
+[sources.docker]
+type = "docker_logs"
+
+[transforms.to_syslog]
+type = "remap"
+inputs = ["docker"]
+source = '''
+  facility = 1 # "user"
+  ## No severity signal exists at this layer beyond stdout vs stderr - just
+  ## like every other source in this pipeline, the real severity comes from
+  ## siem-ingest's own self-reported-level detection downstream (see
+  ## enrich_geo in vector.toml). This is only the PRI default.
+  severity = if .stream == "stderr" { 3 } else { 6 } # err vs info
+  pri = facility * 8 + severity
+
+  hostname = "HOSTNAME" # <-- replace with this Unraid box's name, e.g. "tower"
+  appname = replace(string!(.container_name), r'^/', "")
+  ts = format_timestamp!(.timestamp, "%Y-%m-%dT%H:%M:%S%.3fZ")
+
+  ## Hand-build an RFC5424 syslog line: <PRI>VERSION TIMESTAMP HOSTNAME
+  ## APP-NAME PROCID MSGID STRUCTURED-DATA MSG. siem-ingest's hosts_tcp
+  ## source (Vector's own syslog decoder) re-parses this on arrival and
+  ## derives host/program/severity/etc. from it - nothing else about this
+  ## event is transmitted, only this one formatted string.
+  .message = "<" + to_string(pri) + ">1 " + ts + " " + hostname + " " + appname + " - - - " + string!(.message)
+'''
+
+[sinks.siem]
+type = "socket"
+inputs = ["to_syslog"]
+address = "SIEM_INGEST_HOST:601" # <-- replace with siem-ingest's LAN IP
+mode = "tcp"
+encoding.codec = "text"
+framing.method = "newline_delimited"
