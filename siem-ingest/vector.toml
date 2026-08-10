@@ -292,6 +292,20 @@ source = '''
       }
     }
 
+    ## Python's logging module, asctime-with-millis formatter (Bambuddy, an
+    ## Unraid Community App forwarded via a Vector docker_logs sidecar):
+    ## "YYYY-MM-DD HH:MM:SS,mmm LEVEL [logger name] [request id] message".
+    ## Python's default asctime format uses a comma before milliseconds -
+    ## distinct from the ISO8601 "T"-separated timestamps this cascade
+    ## already handles elsewhere - immediately followed by the level word,
+    ## so anchoring here doesn't collide with any other branch.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} (?P<val>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL) ').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
     ## gunicorn (filament-to-bambuddy, bambuddy-to-manyfold):
     ## "[timestamp tz] [pid] [LEVEL] message".
     if is_null(reported_level) {

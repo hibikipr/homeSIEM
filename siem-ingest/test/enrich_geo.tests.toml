@@ -322,6 +322,50 @@ name = "Python logging (dash-delimited, iSponsorBlockTV) INFO line overrides a m
     '''
 
 [[tests]]
+name = "Python logging (asctime-with-millis, Bambuddy) INFO line overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026-08-09 20:14:04,845 INFO [backend.app.services.virtual_printer.ssdp_server] [-] Sent SSDP response"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "Python logging (asctime-with-millis, Bambuddy) WARNING line overrides a mismatched PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "2026-08-09 20:14:04,360 WARNING [backend.app.services.obico_detection] [-] ML API call failed for print job"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
 name = "a hyphen-delimited message that isn't actually Python's dash-logging format is left untouched"
 
   [tests.input]
