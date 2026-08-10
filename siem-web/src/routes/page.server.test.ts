@@ -37,7 +37,19 @@ describe('Wall load', () => {
 						last_seen_at: '2026-08-02T00:00:00Z'
 					}
 				]),
-				search: searchMock
+				search: searchMock,
+				getInsights: vi.fn().mockResolvedValue([
+					{
+						id: 1,
+						created_at: '2026-08-10T00:00:00Z',
+						title: 'Bambuddy errors look mistagged',
+						detail: 'd',
+						severity: 'warning',
+						category: 'severity-misclassification',
+						evidence: [],
+						dismissed: false
+					}
+				])
 			};
 		});
 
@@ -52,6 +64,26 @@ describe('Wall load', () => {
 		expect(result.triageAlerts).toHaveLength(1);
 		expect(result.countryBreakdown).toEqual([{ country: 'US', count: 1 }]);
 		expect(searchMock).toHaveBeenCalledWith('token-123', { limit: '1000' });
+		expect(result.insights).toHaveLength(1);
+		expect(result.insights[0].title).toBe('Bambuddy errors look mistagged');
+	});
+
+	it('degrades to an empty insights array without throwing when the insights lookup fails', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getEventsStats: vi.fn().mockResolvedValue({ event_count_24h: 0, heat_grid: [] }),
+				getAlerts: vi.fn().mockResolvedValue([]),
+				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+				getInsights: vi.fn().mockRejectedValue(new SiemApiError(400, 'insights is not configured'))
+			};
+		});
+
+		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as Exclude<
+			Awaited<ReturnType<typeof load>>,
+			void
+		>;
+
+		expect(result.insights).toEqual([]);
 	});
 
 	it('redirects to /auth/logout when siem-api rejects the session with 401', async () => {

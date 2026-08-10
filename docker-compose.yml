@@ -83,6 +83,14 @@ services:
       - SIEM_SESSION_SECRET=${SIEM_SESSION_SECRET}
       - SIEM_FASTPATH_TOKEN=${SIEM_FASTPATH_TOKEN}
       - APP_URL=${SIEM_APP_URL:-http://localhost:8080}
+      # Optional LLM-powered insights (siem-insights) - unset OLLAMA_URL
+      # (the default) leaves the feature entirely off. No ":-" default
+      # value here on purpose: unlike TZ, an unset value is the valid
+      # "feature off" state, not a placeholder to fall back from.
+      - OLLAMA_URL=${OLLAMA_URL}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:27b}
+      - INSIGHTS_INTERVAL_SEC=${INSIGHTS_INTERVAL_SEC:-1800}
+      - INSIGHTS_LOOKBACK_MIN=${INSIGHTS_LOOKBACK_MIN:-60}
     volumes:
       - siem_data:/data
     healthcheck:
