@@ -1,11 +1,33 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import TailViewport from '$lib/components/TailViewport.svelte';
+	import ColumnToggle from '$lib/components/ColumnToggle.svelte';
 	import type { LogEntry } from '$lib/server/siemApiClient';
-	import { SYSLOG_SEVERITIES, filterBySeverity, serializeNdjson } from '$lib/tail';
+	import {
+		SYSLOG_SEVERITIES,
+		TAIL_COLUMNS,
+		TAIL_DEFAULT_HIDDEN_COLUMNS,
+		filterBySeverity,
+		serializeNdjson
+	} from '$lib/tail';
+	import { loadHiddenColumns, saveHiddenColumns } from '$lib/columnPrefs';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	const COLUMN_STORAGE_KEY = 'homesiem.tail.hiddenColumns';
+	const hiddenColumns = new SvelteSet(
+		loadHiddenColumns(COLUMN_STORAGE_KEY, TAIL_DEFAULT_HIDDEN_COLUMNS)
+	);
+
+	function toggleColumn(key: string) {
+		if (hiddenColumns.has(key)) {
+			hiddenColumns.delete(key);
+		} else {
+			hiddenColumns.add(key);
+		}
+		saveHiddenColumns(COLUMN_STORAGE_KEY, hiddenColumns);
+	}
 
 	// Bound via bind:activeSeverities to TailViewport's $bindable prop; svelte-check's
 	// non_reactive_update check requires $state here even though SvelteSet is
@@ -63,10 +85,18 @@
 			</button>
 			<button class="action" onclick={exportBuffer}>Export</button>
 			<button class="action" disabled title="Search screen isn't built yet">Search this</button>
+			<ColumnToggle columns={TAIL_COLUMNS} hidden={hiddenColumns} onToggle={toggleColumn} />
 		</div>
 	</header>
 
-	<TailViewport bind:activeSeverities bind:paused bind:buffer bind:connected />
+	<TailViewport
+		bind:activeSeverities
+		bind:paused
+		bind:buffer
+		bind:connected
+		displayTimezone={data.displayTimezone}
+		{hiddenColumns}
+	/>
 
 	<footer class="tail-footer">
 		<span>Buffer 5,000 lines · Wrap off · Sources: all ({data.sourceCount})</span>
