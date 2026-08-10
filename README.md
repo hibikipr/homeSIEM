@@ -237,3 +237,10 @@ Each service has its own local dev instructions:
 - [`siem-ingest/README.md`](siem-ingest/README.md)
 - `siem-api`: `cd siem-api && go test ./... && go run ./cmd/siem-api`
   (needs the same env vars as the compose file's `siem-api` service).
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for PR conventions and what to check
+before opening one.
+
+## License
+
+[MIT](LICENSE).
