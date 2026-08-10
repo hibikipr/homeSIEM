@@ -242,7 +242,7 @@ name = "klog WARNING line (cadvisor) overrides a mismatched PRI severity"
     host = "raspberrypi"
     severity = "err"
     parser = "rfc5424"
-    message = "W0809 14:40:45.944611       1 sysinfo.go:227] Found node without any CPU, nodeDir: /sys/devices/system/node/node7, number of cpuDirs 0"
+    message = "W0809 14:40:45.944611       1 machine.go:66] Cannot read vendor id correctly, set empty."
 
   [[tests.outputs]]
   extract_from = "enrich_geo"
@@ -251,6 +251,31 @@ name = "klog WARNING line (cadvisor) overrides a mismatched PRI severity"
     type = "vrl"
     source = '''
       assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
+name = "cAdvisor's benign NUMA 'Found node without any CPU' warning is downgraded to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "W0809 14:40:45.944611       1 sysinfo.go:227] Found node without any CPU, nodeDir: /sys/devices/system/node/node7, number of cpuDirs 0"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Despite cAdvisor's own klog "W" prefix (a genuine cAdvisor
+      ## warning would land here as "warning", per the test above) - this
+      ## exact well-known-benign message is deliberately downgraded.
+      assert_eq!(.severity, "info")
     '''
 
 [[tests]]

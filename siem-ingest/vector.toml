@@ -256,6 +256,22 @@ source = '''
       }
     }
 
+    ## cAdvisor's own sysinfo.go NUMA probe: "Found node without any CPU,
+    ## nodeDir: ..., number of cpuDirs 0". cAdvisor logs this at its own
+    ## klog "W" (warning) level for every NUMA node sysfs exposes with no
+    ## cpuDirs inside - completely routine on non-NUMA hardware (e.g. a
+    ## Raspberry Pi), where the kernel still exposes stub node1+
+    ## directories with nothing in them. Not a real operational warning,
+    ## just noisy - checked ahead of the generic klog branch below (which
+    ## would otherwise classify it as warning like any other genuine
+    ## cAdvisor "W" line) so this one well-known-benign message is
+    ## downgraded to info instead.
+    if is_null(reported_level) {
+      if match(message_for_level, r'^W\d{4} .*sysinfo\.go:\d+\] Found node without any CPU, nodeDir:') {
+        reported_level = "info"
+      }
+    }
+
     ## klog (cadvisor, and anything else from the Kubernetes/Go ecosystem
     ## using it): a single-letter level immediately followed by an MMDD
     ## timestamp, e.g. "I0809 14:40:45...", "W0809 ...", "E0809 ...". Found
