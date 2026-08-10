@@ -128,7 +128,11 @@ takes down the whole pipeline, not just enrichment (see
 
 Point your UniFi gateway or hosts' syslog at this machine — UDP/514,
 TCP/601, or TCP+TLS/6514 (see `siem-ingest/docs/tls-setup.md` for what
-sending hosts need to trust).
+sending hosts need to trust). For hosts that aren't a plain journald/rsyslog
+Linux box, see `siem-ingest/docs/unraid-docker-logs.md` (an Unraid box's
+Community App container logs, via a Vector sidecar) and
+`siem-ingest/docs/homebridge-pi-logs.md` (a natively-installed, `hb-service`-run
+app on its own Pi) for two worked examples.
 
 ### Verifying it's up
 
