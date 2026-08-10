@@ -70,9 +70,13 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
 - Beyond the local Docker test harness, the pipeline has also been verified
   against real traffic: a real UniFi gateway (UDP/514, both classic
   RFC3164-ish "Remote Logging" and the CEF-formatted "SIEM Server"
-  integration) and real hosts forwarding over TCP/601 via a host-level
-  rsyslog bridge (journald → `omfwd`). Port 6514 remains verified only via
-  `openssl s_client`, per the bullet above.
+  integration), real hosts forwarding over TCP/601 via a host-level rsyslog
+  bridge (journald → `omfwd`), an Unraid box's Community App container logs
+  via a `docker_logs`-sourced Vector sidecar (`docs/unraid-docker-logs.md`),
+  and a natively-installed Homebridge instance on its own Pi via the
+  systemd-unit variant of the rsyslog bridge (`docs/homebridge-pi-logs.md`).
+  Port 6514 remains verified only via `openssl s_client`, per the bullet
+  above.
 - **UniFi OS's "SIEM Server" integration** (Settings → System Logging / SIEM — a
   distinct feature from the classic "Remote Logging" toggle this pipeline was originally
   built against) sends **CEF-formatted** messages wrapped in a syslog envelope with no
