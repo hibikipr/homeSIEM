@@ -54,6 +54,9 @@ func TestLoad_DefaultsApplied(t *testing.T) {
 	if cfg.OllamaModel != "" {
 		t.Errorf("OllamaModel = %q, want empty when OLLAMA_MODEL is unset", cfg.OllamaModel)
 	}
+	if cfg.OllamaTimeoutSec != 300 {
+		t.Errorf("OllamaTimeoutSec = %d, want 300 (the default)", cfg.OllamaTimeoutSec)
+	}
 	if cfg.InsightsIntervalSec != 1800 {
 		t.Errorf("InsightsIntervalSec = %d, want 1800 (the default)", cfg.InsightsIntervalSec)
 	}
@@ -66,6 +69,7 @@ func TestLoad_InsightsEnvOverrides(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("OLLAMA_URL", "http://192.168.3.50:11434")
 	t.Setenv("OLLAMA_MODEL", "qwen3:27b")
+	t.Setenv("OLLAMA_TIMEOUT_SEC", "600")
 	t.Setenv("INSIGHTS_INTERVAL_SEC", "900")
 	t.Setenv("INSIGHTS_LOOKBACK_MIN", "30")
 
@@ -78,6 +82,9 @@ func TestLoad_InsightsEnvOverrides(t *testing.T) {
 	}
 	if cfg.OllamaModel != "qwen3:27b" {
 		t.Errorf("OllamaModel = %q, want qwen3:27b", cfg.OllamaModel)
+	}
+	if cfg.OllamaTimeoutSec != 600 {
+		t.Errorf("OllamaTimeoutSec = %d, want 600", cfg.OllamaTimeoutSec)
 	}
 	if cfg.InsightsIntervalSec != 900 {
 		t.Errorf("InsightsIntervalSec = %d, want 900", cfg.InsightsIntervalSec)

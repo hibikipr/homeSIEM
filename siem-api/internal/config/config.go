@@ -33,8 +33,13 @@ type Config struct {
 	// feature (siem-insights). Both optional: when OllamaURL is unset, the
 	// insights scheduler never starts and POST /insights/generate 400s,
 	// same degrade-gracefully posture as ntfy being unconfigured.
-	OllamaURL           string
-	OllamaModel         string
+	OllamaURL   string
+	OllamaModel string
+	// OllamaTimeoutSec bounds each Chat call's HTTP client timeout - a
+	// 20-30B model's first request after Ollama hasn't served anything
+	// recently can genuinely take minutes just to load into memory before
+	// generation even starts, well beyond a "normal" API call's timeout.
+	OllamaTimeoutSec    int
 	InsightsIntervalSec int
 	InsightsLookbackMin int
 }
@@ -58,6 +63,7 @@ func Load() (Config, error) {
 
 		OllamaURL:           os.Getenv("OLLAMA_URL"),
 		OllamaModel:         os.Getenv("OLLAMA_MODEL"),
+		OllamaTimeoutSec:    getenvInt("OLLAMA_TIMEOUT_SEC", 300),
 		InsightsIntervalSec: getenvInt("INSIGHTS_INTERVAL_SEC", 1800),
 		InsightsLookbackMin: getenvInt("INSIGHTS_LOOKBACK_MIN", 60),
 
