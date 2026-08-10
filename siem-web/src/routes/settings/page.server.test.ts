@@ -22,7 +22,20 @@ describe('Settings load', () => {
 				}),
 				getNotificationSettings: vi
 					.fn()
-					.mockResolvedValue({ ntfy_configured: false, min_severity: 'info' })
+					.mockResolvedValue({ ntfy_configured: false, min_severity: 'info' }),
+				getOllamaSettings: vi.fn().mockResolvedValue({
+					configured: false,
+					model: '',
+					timeout_sec: 300,
+					interval_sec: 1800,
+					lookback_min: 60,
+					system_prompt: '',
+					default_system_prompt: 'default prompt text',
+					temperature: 0.2,
+					top_p: 0.9,
+					num_predict: 1024,
+					num_ctx: 8192
+				})
 			};
 		});
 
@@ -34,6 +47,7 @@ describe('Settings load', () => {
 			{ id: 1, group_claim: 'admins', role: 'admin', priority: 10 }
 		]);
 		expect(result.notificationSettings).toEqual({ ntfy_configured: false, min_severity: 'info' });
+		expect(result.ollamaSettings.default_system_prompt).toBe('default prompt text');
 	});
 
 	it('returns an empty array when siem-api sends role_mappings: null', async () => {
@@ -47,7 +61,20 @@ describe('Settings load', () => {
 				}),
 				getNotificationSettings: vi
 					.fn()
-					.mockResolvedValue({ ntfy_configured: false, min_severity: 'info' })
+					.mockResolvedValue({ ntfy_configured: false, min_severity: 'info' }),
+				getOllamaSettings: vi.fn().mockResolvedValue({
+					configured: false,
+					model: '',
+					timeout_sec: 300,
+					interval_sec: 1800,
+					lookback_min: 60,
+					system_prompt: '',
+					default_system_prompt: 'default prompt text',
+					temperature: 0.2,
+					top_p: 0.9,
+					num_predict: 1024,
+					num_ctx: 8192
+				})
 			};
 		});
 

@@ -350,6 +350,56 @@ describe('SiemApiClient', () => {
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
 	});
 
+	it('getOllamaSettings fetches /settings/ollama with Authorization and parses the response', async () => {
+		const response = {
+			configured: true,
+			model: 'qwen3.6:27b',
+			timeout_sec: 300,
+			interval_sec: 1800,
+			lookback_min: 60,
+			system_prompt: '',
+			default_system_prompt: 'You are reviewing...',
+			temperature: 0.2,
+			top_p: 0.9,
+			num_predict: 1024,
+			num_ctx: 8192
+		};
+		const fetchFn = fakeFetch(response);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.getOllamaSettings('token-123');
+
+		expect(result).toEqual(response);
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/settings/ollama');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('updateOllamaSettings PUTs to /settings/ollama with Authorization and a JSON body', async () => {
+		const fetchFn = fakeFetch(null, 204);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.updateOllamaSettings('token-123', {
+			system_prompt: 'custom prompt',
+			temperature: 0.5,
+			top_p: 0.8,
+			num_predict: 2048,
+			num_ctx: 16384
+		});
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/settings/ollama');
+		expect(init?.method).toBe('PUT');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+		expect(JSON.parse(init?.body as string)).toEqual({
+			system_prompt: 'custom prompt',
+			temperature: 0.5,
+			top_p: 0.8,
+			num_predict: 2048,
+			num_ctx: 16384
+		});
+	});
+
 	it('getInsights fetches /insights with Authorization and parses the response', async () => {
 		const fetchFn = fakeFetch([{ id: 1, title: 't', dismissed: false }]);
 		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);

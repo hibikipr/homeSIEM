@@ -11,11 +11,12 @@ import (
 
 	"github.com/hibikipr/homeSIEM/siem-api/internal/insights"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
+	"github.com/hibikipr/homeSIEM/siem-api/internal/ollama"
 )
 
 type fakeChatterAPI struct{ response string }
 
-func (f *fakeChatterAPI) Chat(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+func (f *fakeChatterAPI) Chat(ctx context.Context, systemPrompt, userPrompt string, opts ollama.ChatOptions) (string, error) {
 	return f.response, nil
 }
 
@@ -86,7 +87,7 @@ func TestGenerateInsights_NotConfigured_Returns400(t *testing.T) {
 func TestGenerateInsights_Success_InsertsAndReturnsInsights(t *testing.T) {
 	s, st := newTestServer(t)
 	pb := &insights.PromptBuilder{Loki: fakeLokiQuerierAPI{}, Alerts: st, JobLabel: "siem"}
-	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: fakeInsightResponse}, st, time.Hour, s.deps.Logger)
+	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: fakeInsightResponse}, st, st, time.Hour, s.deps.Logger)
 	token := authToken(t, st, "analyst", 50)
 
 	req := httptest.NewRequest(http.MethodPost, "/insights/generate", nil)
@@ -109,7 +110,7 @@ func TestGenerateInsights_Success_InsertsAndReturnsInsights(t *testing.T) {
 func TestListInsights_ExcludesDismissedUnlessAllTrue(t *testing.T) {
 	s, st := newTestServer(t)
 	pb := &insights.PromptBuilder{Loki: fakeLokiQuerierAPI{}, Alerts: st, JobLabel: "siem"}
-	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: fakeInsightResponse}, st, time.Hour, s.deps.Logger)
+	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: fakeInsightResponse}, st, st, time.Hour, s.deps.Logger)
 	if err := s.deps.Insights.GenerateNow(context.Background()); err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
 	}
@@ -147,7 +148,7 @@ func TestListInsights_ExcludesDismissedUnlessAllTrue(t *testing.T) {
 func TestDismissInsight_Success(t *testing.T) {
 	s, st := newTestServer(t)
 	pb := &insights.PromptBuilder{Loki: fakeLokiQuerierAPI{}, Alerts: st, JobLabel: "siem"}
-	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: fakeInsightResponse}, st, time.Hour, s.deps.Logger)
+	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: fakeInsightResponse}, st, st, time.Hour, s.deps.Logger)
 	if err := s.deps.Insights.GenerateNow(context.Background()); err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
 	}
