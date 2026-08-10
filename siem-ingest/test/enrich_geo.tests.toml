@@ -881,6 +881,50 @@ name = "s6-rc supervisor line (manyfold's init system) overrides a mismatched PR
     '''
 
 [[tests]]
+name = "s6-overlay preinit line (manyfold) overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "/package/admin/s6-overlay/libexec/preinit: info: read-only root"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "s6-overlay preinit line (manyfold) overrides a mismatched PRI severity to warning"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    message = "/package/admin/s6-overlay/libexec/preinit: warning: unable to find /run in /proc/mounts"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "warning")
+    '''
+
+[[tests]]
 name = "cloudflared's plain (non-ANSI) INF line (scrypted) overrides a mismatched PRI severity"
 
   [tests.input]
