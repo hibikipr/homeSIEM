@@ -404,6 +404,119 @@ source = '''
       }
     }
 
+    ## Python's logging module, bracketed-timestamp formatter (paperless-ngx,
+    ## via Celery's own default log formatter): "[YYYY-MM-DD HH:MM:SS,mmm]
+    ## [LEVEL] [logger name] message" - every field bracketed, unlike the
+    ## asctime-with-millis case above which has no brackets around the
+    ## timestamp or level at all.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}\] \[(?P<val>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL)\] ').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
+    ## PostgreSQL's own log_line_prefix output (PostgreSQL_Immich, an Unraid
+    ## Community App forwarded via the docker_logs sidecar):
+    ## "YYYY-MM-DD HH:MM:SS.mmm TZ [PID] LEVEL:  message". Postgres's own
+    ## level vocabulary doesn't match the shared ladder below 1:1 - "LOG" is
+    ## routine server activity (checkpoints, connections, not an error), and
+    ## NOTICE/HINT/STATEMENT are all informational too.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+ \S+ \[\d+\] (?P<val>LOG|ERROR|WARNING|FATAL|PANIC|NOTICE|DEBUG\d?|HINT|STATEMENT):').val ?? null
+      if is_string(m) {
+        m = string!(m)
+        reported_level = if m == "LOG" || m == "NOTICE" || m == "HINT" || m == "STATEMENT" || starts_with(m, "DEBUG") {
+          "info"
+        } else if m == "WARNING" {
+          "warning"
+        } else if m == "ERROR" {
+          "err"
+        } else {
+          "crit" # FATAL, PANIC
+        }
+      }
+    }
+
+    ## Uvicorn's own plain (non-access-log) formatter (Bambuddy,
+    ## Paperless-AI, FileManagerAPI, and any other uvicorn-based app's
+    ## startup/lifecycle logging): "LEVEL:    message" - the level word
+    ## right at message start, a colon, then padding spaces. Distinct from
+    ## the uvicorn.access logger's own "<logger name>   LEVEL   message"
+    ## format already handled above, which logs individual requests rather
+    ## than app lifecycle events.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^(?P<val>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL):\s+\S').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
+    ## A common Java console log layout (Apache-Tika-Server, and the
+    ## Jetty/CXF libraries running underneath it): "LEVEL [thread] message"
+    ## - level word, whitespace, bracketed thread name.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^(?P<val>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\s+\[\w+\]\s').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
+    ## HAProxy's own log format (dockersocket, i.e. docker-socket-proxy):
+    ## "[LEVEL]   (PID) : message". HAProxy's vocabulary doesn't match the
+    ## shared ladder below 1:1 - "NOTICE" is routine startup/config
+    ## activity, not an error.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\[(?P<val>NOTICE|WARNING|ALERT|EMERG|ERR|CRIT|INFO|DEBUG)\]\s+\(\d+\)\s*:').val ?? null
+      if is_string(m) {
+        reported_level = if m == "NOTICE" { "info" } else if m == "ALERT" || m == "EMERG" { "crit" } else { downcase!(m) }
+      }
+    }
+
+    ## Ruby's own runtime warnings (manyfold): "path/to/file.rb:LINE:
+    ## warning: message" - anchored to Ruby's exact source-location-prefixed
+    ## warning format, not a bare "warning" word search.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\S+\.rb:\d+: (?P<val>warning): ').val ?? null
+      if is_string(m) {
+        reported_level = m
+      }
+    }
+
+    ## s6-rc's own supervisor messages (manyfold's init system):
+    ## "s6-rc: LEVEL: message".
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^s6-rc: (?P<val>info|warning|error|fatal): ').val ?? null
+      if is_string(m) {
+        reported_level = m
+      }
+    }
+
+    ## cloudflared's own plain (non-ANSI) log format (scrypted, which
+    ## bundles cloudflared for its Cloudflare Tunnel integration): ISO8601
+    ## Z timestamp, space, 3-letter level code, space. Same short-code
+    ## vocabulary as the ANSI-wrapped zerolog case above, just never
+    ## wrapped in ANSI escapes here - confirmed against real captured
+    ## output that this app doesn't emit them.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (?P<val>DBG|INF|WRN|ERR) ').val ?? null
+      if is_string(m) {
+        reported_level = if m == "DBG" || m == "INF" { "info" } else if m == "WRN" { "warning" } else { "err" }
+      }
+    }
+
+    ## A generic `nc`-style healthcheck/connectivity-check success line,
+    ## seen across several unrelated apps' entrypoint scripts (immich,
+    ## duplicati): "Connection to <target> <port> port [<proto>]
+    ## succeeded!" - a successful check is definitionally not an error, and
+    ## there's no single app or logger this is scoped to, unlike every
+    ## branch above.
+    if is_null(reported_level) {
+      if match(message_for_level, r'^Connection to .+ succeeded!$') {
+        reported_level = "info"
+      }
+    }
+
     if is_string(reported_level) {
       mapped_severity = if reported_level == "debug" { "debug" } else if reported_level == "info" { "info" } else if reported_level == "warn" || reported_level == "warning" { "warning" } else if reported_level == "error" || reported_level == "err" { "err" } else if reported_level == "fatal" || reported_level == "crit" || reported_level == "critical" { "crit" } else { null }
       if is_string(mapped_severity) {
