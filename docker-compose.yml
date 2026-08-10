@@ -94,6 +94,7 @@ services:
       # a model you've actually pulled (`ollama list` on the Ollama host).
       - OLLAMA_URL=${OLLAMA_URL}
       - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - OLLAMA_TIMEOUT_SEC=${OLLAMA_TIMEOUT_SEC:-300}
       - INSIGHTS_INTERVAL_SEC=${INSIGHTS_INTERVAL_SEC:-1800}
       - INSIGHTS_LOOKBACK_MIN=${INSIGHTS_LOOKBACK_MIN:-60}
     volumes:

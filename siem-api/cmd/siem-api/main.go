@@ -70,7 +70,7 @@ func main() {
 	// degrade-gracefully-when-unconfigured posture.
 	var insightsSvc *insights.Service
 	if cfg.OllamaURL != "" {
-		ollamaClient := ollama.New(cfg.OllamaURL, cfg.OllamaModel, &http.Client{Timeout: 120 * time.Second})
+		ollamaClient := ollama.New(cfg.OllamaURL, cfg.OllamaModel, &http.Client{Timeout: time.Duration(cfg.OllamaTimeoutSec) * time.Second})
 		promptBuilder := &insights.PromptBuilder{Loki: lokiClient, Alerts: st, JobLabel: cfg.LokiJobLabel}
 		insightsSvc = insights.NewService(promptBuilder, ollamaClient, st,
 			time.Duration(cfg.InsightsLookbackMin)*time.Minute, logger)
