@@ -22,12 +22,28 @@ source = '''
   appname = replace(string!(.container_name), r'^/', "")
   ts = format_timestamp!(.timestamp, "%Y-%m-%dT%H:%M:%S%.3fZ")
 
+  ## docker_logs reads raw stdout/stderr bytes straight from the Docker API,
+  ## including real ANSI escape (ESC, 0x1B) control bytes for any
+  ## color-coded logger - unlike the journald+rsyslog bridge used for this
+  ## deployment's own Docker host, where rsyslog's own RFC5424 output
+  ## re-escapes that same byte into the literal 4-character text "#033"
+  ## before it ever reaches Vector. siem-ingest's severity-detection
+  ## cascade (enrich_geo in vector.toml) was built entirely against that
+  ## rsyslog-escaped textual form - a real ESC byte doesn't match any of
+  ## it. Confirmed in production: manyfold's colored ERROR lines (real
+  ## Redis connection failures) were landing as severity=info because
+  ## nothing recognized them. Normalizing here, once, at the point this
+  ## representational difference is introduced, means every existing (and
+  ## future) "#033[...]"-pattern branch just works for Unraid-sourced apps
+  ## too, instead of needing a parallel raw-ESC-byte version of each one.
+  sanitized_message = replace(string!(.message), r'\x1b', "#033")
+
   ## Hand-build an RFC5424 syslog line: <PRI>VERSION TIMESTAMP HOSTNAME
   ## APP-NAME PROCID MSGID STRUCTURED-DATA MSG. siem-ingest's hosts_tcp
   ## source (Vector's own syslog decoder) re-parses this on arrival and
   ## derives host/program/severity/etc. from it - nothing else about this
   ## event is transmitted, only this one formatted string.
-  .message = "<" + to_string(pri) + ">1 " + ts + " " + hostname + " " + appname + " - - - " + string!(.message)
+  .message = "<" + to_string(pri) + ">1 " + ts + " " + hostname + " " + appname + " - - - " + sanitized_message
 '''
 
 [sinks.siem]

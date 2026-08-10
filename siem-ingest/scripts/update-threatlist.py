@@ -75,7 +75,12 @@ def fetch_source(source: dict, verbose: bool) -> dict[str, set[str]]:
         with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
             body = response.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, TimeoutError) as exc:
-        print(f"warning: {source['name']}: fetch failed ({exc}), skipping", file=sys.stderr)
+        # Uppercase "WARNING:"/"ERROR:" (not lowercase) so these lines match
+        # the uvicorn-style "LEVEL:    message" format enrich_geo's
+        # severity-detection cascade already recognizes (vector.toml) -
+        # otherwise every line here defaults to severity=err just from
+        # arriving on stderr, regardless of whether it's actually one.
+        print(f"WARNING: {source['name']}: fetch failed ({exc}), skipping", file=sys.stderr)
         return ips
 
     matched = 0
@@ -92,7 +97,7 @@ def fetch_source(source: dict, verbose: bool) -> dict[str, set[str]]:
         matched += 1
 
     if verbose:
-        print(f"{source['name']}: {matched} IPs from {source['url']}", file=sys.stderr)
+        print(f"INFO: {source['name']}: {matched} IPs from {source['url']}", file=sys.stderr)
     return ips
 
 
@@ -107,7 +112,7 @@ def load_extra(path: Path) -> dict[str, set[str]]:
             try:
                 ipaddress.ip_address(ip)
             except ValueError:
-                print(f"warning: --extra: skipping invalid IP {ip!r}", file=sys.stderr)
+                print(f"WARNING: --extra: skipping invalid IP {ip!r}", file=sys.stderr)
                 continue
             ips.setdefault(ip, set()).add(tag)
     return ips
@@ -144,7 +149,7 @@ def main() -> int:
             merged.setdefault(ip, set()).update(tags)
 
     if sources_ok == 0 and not args.extra:
-        print("error: every feed failed and no --extra file given, nothing to write", file=sys.stderr)
+        print("ERROR: every feed failed and no --extra file given, nothing to write", file=sys.stderr)
         return 1
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

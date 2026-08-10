@@ -56,7 +56,19 @@ per-app.
   can't detect a self-reported level in the message text (see the next
   section). `container_name` becomes the syslog APP-NAME, which lands as
   `program` in Loki — this is what tells apps apart in Search, since they
-  all share one `host` value.
+  all share one `host` value. Also replaces any real ANSI escape (ESC,
+  `0x1B`) control bytes in the message with the literal text `#033` before
+  framing it — `docker_logs` reads raw stdout/stderr straight from the
+  Docker API, so a color-coded logger's real ESC bytes survive intact,
+  unlike the journald+rsyslog bridge used for this deployment's own Docker
+  host, where rsyslog's own RFC5424 output already re-escapes that byte
+  into `#033` text. Every ANSI-aware branch in `enrich_geo`'s
+  severity-detection cascade is built against that rsyslog-escaped form —
+  without this, a color-coded logger's real errors and warnings land as
+  whatever the stdout/stderr default implies, not their real level.
+  Confirmed in production: manyfold's red-colored `ERROR` lines (real
+  Redis connection failures) were landing as `severity=info` before this
+  was added.
 - `sinks.siem` — a `socket` sink in TCP mode, sending each formatted line
   newline-delimited to `siem-ingest`'s existing TCP/601 source
   (`sources.hosts_tcp` in `vector.toml`). Plaintext, not TLS — this is
