@@ -20,6 +20,10 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
   two external dependencies nothing in this repo can supply (real GeoLite2
   data requires a MaxMind account; TLS needs a cert generated on the real
   host).
+- `docs/unraid-docker-logs.md` (plus the reference `docs/unraid-vector.toml`
+  it points at) — forwarding an Unraid box's Community App container logs
+  in here, for hosts that aren't systemd/journald-based like this
+  deployment's own Docker host.
 - `scripts/update-threatlist.py` — generates `threatlist.csv` from five
   free IP threat-intel feeds (stdlib-only, no `pip install`). Runs as the
   `siem-threatlist-updater` service in `docker-compose.yml` (built from
