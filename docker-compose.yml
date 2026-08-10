@@ -84,11 +84,16 @@ services:
       - SIEM_FASTPATH_TOKEN=${SIEM_FASTPATH_TOKEN}
       - APP_URL=${SIEM_APP_URL:-http://localhost:8080}
       # Optional LLM-powered insights (siem-insights) - unset OLLAMA_URL
-      # (the default) leaves the feature entirely off. No ":-" default
-      # value here on purpose: unlike TZ, an unset value is the valid
-      # "feature off" state, not a placeholder to fall back from.
+      # (the default) leaves the feature entirely off. No ":-" default on
+      # OLLAMA_URL or OLLAMA_MODEL, unlike TZ below: unset OLLAMA_URL is
+      # the valid "feature off" state, and OLLAMA_MODEL has no universally
+      # correct guess to fall back to - a hardcoded fallback here silently
+      # picks whatever model name seemed reasonable at the time, which may
+      # not be pulled on your actual Ollama instance. Every pass just
+      # fails with a 404 from Ollama's own /api/chat until you set this to
+      # a model you've actually pulled (`ollama list` on the Ollama host).
       - OLLAMA_URL=${OLLAMA_URL}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:27b}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
       - INSIGHTS_INTERVAL_SEC=${INSIGHTS_INTERVAL_SEC:-1800}
       - INSIGHTS_LOOKBACK_MIN=${INSIGHTS_LOOKBACK_MIN:-60}
     volumes:
