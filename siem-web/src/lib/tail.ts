@@ -1,4 +1,5 @@
 import type { LogEntry } from './server/siemApiClient';
+import type { ColumnDef } from './search';
 
 export const SYSLOG_SEVERITIES = [
 	'emerg',
@@ -10,6 +11,22 @@ export const SYSLOG_SEVERITIES = [
 	'info',
 	'debug'
 ] as const;
+
+export const TAIL_COLUMNS: ColumnDef[] = [
+	{ key: 'time', label: 'Time (UTC)' },
+	{ key: 'localTime', label: 'Local time' },
+	{ key: 'severity', label: 'Severity' },
+	{ key: 'host', label: 'Host' },
+	{ key: 'program', label: 'Program' },
+	// Never populated from a Loki stream label (facility isn't indexed as
+	// one) - only from the raw line's own parsed JSON, unlike every other
+	// column here. Hidden by default since it's rarely useful, but still
+	// real data once shown, not the permanently-empty column it used to be.
+	{ key: 'facility', label: 'Facility' },
+	{ key: 'message', label: 'Message' }
+];
+
+export const TAIL_DEFAULT_HIDDEN_COLUMNS = new Set(['facility']);
 
 export function filterBySeverity(entries: LogEntry[], activeSeverities: Set<string>): LogEntry[] {
 	return entries.filter((e) => activeSeverities.has(e.Labels.severity ?? 'info'));

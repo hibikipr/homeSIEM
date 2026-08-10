@@ -2,17 +2,22 @@
 	import type { LogEntry } from '$lib/server/siemApiClient';
 	import { computeVisibleRange, formatTimestamp } from '$lib/search';
 	import { severityColor } from '$lib/tail';
+	import { extractMessage, formatTimestampInZone } from '$lib/logline';
 
 	const ROW_HEIGHT = 28;
 
 	let {
 		entries,
 		selectedIndex,
-		onSelect
+		onSelect,
+		displayTimezone,
+		hiddenColumns
 	}: {
 		entries: LogEntry[];
 		selectedIndex: number | null;
 		onSelect: (index: number) => void;
+		displayTimezone: string;
+		hiddenColumns: ReadonlySet<string>;
 	} = $props();
 
 	let containerEl: HTMLDivElement;
@@ -75,11 +80,12 @@
 
 <div class="table-wrap">
 	<div class="header-row">
-		<span class="col-time">Time</span>
-		<span class="col-severity"></span>
-		<span class="col-host">Host</span>
-		<span class="col-program">Program</span>
-		<span class="col-message">Message</span>
+		{#if !hiddenColumns.has('time')}<span class="col-time">Time (UTC)</span>{/if}
+		{#if !hiddenColumns.has('localTime')}<span class="col-time">Time ({displayTimezone})</span>{/if}
+		{#if !hiddenColumns.has('severity')}<span class="col-severity"></span>{/if}
+		{#if !hiddenColumns.has('host')}<span class="col-host">Host</span>{/if}
+		{#if !hiddenColumns.has('program')}<span class="col-program">Program</span>{/if}
+		{#if !hiddenColumns.has('message')}<span class="col-message">Message</span>{/if}
 	</div>
 	<div class="scroll-container" bind:this={containerEl} onscroll={handleScroll}>
 		<div class="spacer" style:height="{entries.length * ROW_HEIGHT}px">
@@ -91,16 +97,34 @@
 					style:top="{(range.startIndex + i) * ROW_HEIGHT}px"
 					onclick={() => onSelect(range.startIndex + i)}
 				>
-					<span class="col-time mono">{formatTimestamp(entry.Timestamp)}</span>
-					<span class="col-severity">
-						<span class="dot" style:background={severityColor(entry.Labels.severity ?? 'info')}
-						></span>
-					</span>
-					<span class="col-host mono" title={entry.Labels.host ?? ''}
-						>{entry.Labels.host ?? ''}</span
-					>
-					<span class="col-program mono">{entry.Labels.program ?? ''}</span>
-					<span class="col-message">{entry.Line}</span>
+					{#if !hiddenColumns.has('time')}
+						<span class="col-time mono">{formatTimestamp(entry.Timestamp)}</span>
+					{/if}
+					{#if !hiddenColumns.has('localTime')}
+						<span class="col-time mono"
+							>{formatTimestampInZone(entry.Timestamp, displayTimezone)}</span
+						>
+					{/if}
+					{#if !hiddenColumns.has('severity')}
+						<span class="col-severity">
+							<span class="dot" style:background={severityColor(entry.Labels.severity ?? 'info')}
+							></span>
+						</span>
+					{/if}
+					{#if !hiddenColumns.has('host')}
+						<span class="col-host mono" title={entry.Labels.host ?? ''}
+							>{entry.Labels.host ?? ''}</span
+						>
+					{/if}
+					{#if !hiddenColumns.has('program')}
+						<span class="col-program mono" title={entry.Labels.program ?? ''}
+							>{entry.Labels.program ?? ''}</span
+						>
+					{/if}
+					{#if !hiddenColumns.has('message')}
+						{@const message = extractMessage(entry.Line)}
+						<span class="col-message" title={message}>{message}</span>
+					{/if}
 				</button>
 			{/each}
 		</div>

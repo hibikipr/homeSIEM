@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { load } from './+layout.server';
 import * as siemApiClientModule from '$lib/server/siemApiClient';
 
-vi.mock('$env/dynamic/private', () => ({ env: { API_URL: 'http://siem-api:8080' } }));
+vi.mock('$env/dynamic/private', () => ({
+	env: { API_URL: 'http://siem-api:8080', TZ: 'America/New_York' }
+}));
 
 vi.mock('$lib/server/siemApiClient', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('$lib/server/siemApiClient')>();
@@ -28,6 +30,7 @@ describe('Root layout load', () => {
 		expect(result.ingestRate).toBe(42);
 		expect(result.alertCount).toBe(3);
 		expect(getNavSummaryMock).toHaveBeenCalledWith('token-123');
+		expect(result.displayTimezone).toBe('America/New_York');
 	});
 
 	it('never calls the API for an unauthenticated session, returns zeros', async () => {
@@ -61,5 +64,20 @@ describe('Root layout load', () => {
 
 		expect(result.ingestRate).toBe(0);
 		expect(result.alertCount).toBe(0);
+	});
+
+	it('defaults displayTimezone to UTC when TZ is unset', async () => {
+		vi.resetModules();
+		vi.doMock('$env/dynamic/private', () => ({
+			env: { API_URL: 'http://siem-api:8080' }
+		}));
+		const { load: loadWithNoTz } = await import('./+layout.server');
+
+		const result = (await loadWithNoTz({
+			locals: {},
+			url: new URL('https://siem.townsville.cc/auth/login')
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.displayTimezone).toBe('UTC');
 	});
 });

@@ -1,4 +1,19 @@
 import type { LogEntry } from './server/siemApiClient';
+import { parseLogLine, extractField } from './logline';
+
+export interface ColumnDef {
+	key: string;
+	label: string;
+}
+
+export const SEARCH_COLUMNS: ColumnDef[] = [
+	{ key: 'time', label: 'Time (UTC)' },
+	{ key: 'localTime', label: 'Local time' },
+	{ key: 'severity', label: 'Severity' },
+	{ key: 'host', label: 'Host' },
+	{ key: 'program', label: 'Program' },
+	{ key: 'message', label: 'Message' }
+];
 
 export interface SearchFilters {
 	source: string;
@@ -63,21 +78,10 @@ export function deriveFacetCounts(entries: LogEntry[], labelKey: string): FacetC
 		.sort((a, b) => b.count - a.count);
 }
 
-function parseLine(line: string): Record<string, unknown> | null {
-	try {
-		const parsed = JSON.parse(line);
-		return typeof parsed === 'object' && parsed !== null
-			? (parsed as Record<string, unknown>)
-			: null;
-	} catch {
-		return null;
-	}
-}
-
 export function deriveCountryFacet(entries: LogEntry[]): FacetCount[] {
 	const counts = new Map<string, number>();
 	for (const entry of entries) {
-		const parsed = parseLine(entry.Line);
+		const parsed = parseLogLine(entry.Line);
 		if (!parsed) continue;
 		const geoip = parsed.geoip;
 		if (typeof geoip !== 'object' || geoip === null) continue;
@@ -106,10 +110,7 @@ export function formatTimestamp(iso: string): string {
 }
 
 export function extractSrcIp(line: string): string | null {
-	const parsed = parseLine(line);
-	if (!parsed) return null;
-	const value = parsed.src_ip;
-	return typeof value === 'string' ? value : null;
+	return extractField(line, 'src_ip');
 }
 
 export interface VolumeBucketLike {

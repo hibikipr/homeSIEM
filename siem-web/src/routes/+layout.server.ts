@@ -27,6 +27,13 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		user: locals.user,
 		activeRoute: url.pathname,
 		ingestRate,
-		alertCount
+		alertCount,
+		// The "local time" column on Search/Live tail formats the raw UTC
+		// timestamp in whatever zone this deployment's containers are
+		// configured with (the same TZ env var every service in the compose
+		// files already sets, e.g. "America/New_York") - not the viewer's own
+		// browser time zone, so everyone looking at the console sees the same
+		// wall-clock time regardless of where they are.
+		displayTimezone: (env.TZ as string) || 'UTC'
 	};
 };

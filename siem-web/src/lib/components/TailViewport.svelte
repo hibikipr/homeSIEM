@@ -3,6 +3,7 @@
 	import { untrack } from 'svelte';
 	import type { LogEntry } from '$lib/server/siemApiClient';
 	import { filterBySeverity, severityColor } from '$lib/tail';
+	import { extractField, extractMessage, formatTimestampInZone } from '$lib/logline';
 
 	const MAX_BUFFER = 5000;
 
@@ -11,13 +12,20 @@
 		paused = $bindable(false),
 		buffer = $bindable([]),
 		// eslint-disable-next-line no-useless-assignment -- read by the parent via bind:connected, not locally
-		connected = $bindable(true)
+		connected = $bindable(true),
+		displayTimezone,
+		hiddenColumns
 	}: {
 		activeSeverities: Set<string>;
 		paused: boolean;
 		buffer: LogEntry[];
 		connected: boolean;
+		displayTimezone: string;
+		hiddenColumns: ReadonlySet<string>;
 	} = $props();
+
+	const TOTAL_COLUMNS = 7;
+	let visibleColumnCount = $derived(TOTAL_COLUMNS - hiddenColumns.size);
 
 	let rendered = $state<LogEntry[]>([]);
 	let autoFollow = $state(true);
@@ -103,30 +111,49 @@
 		<table>
 			<thead>
 				<tr>
-					<th class="col-time">Time</th>
-					<th class="col-severity"></th>
-					<th class="col-host">Host</th>
-					<th class="col-program">Program</th>
-					<th class="col-facility">Facility</th>
-					<th>Message</th>
+					{#if !hiddenColumns.has('time')}<th class="col-time">Time (UTC)</th>{/if}
+					{#if !hiddenColumns.has('localTime')}<th class="col-time">Time ({displayTimezone})</th
+						>{/if}
+					{#if !hiddenColumns.has('severity')}<th class="col-severity"></th>{/if}
+					{#if !hiddenColumns.has('host')}<th class="col-host">Host</th>{/if}
+					{#if !hiddenColumns.has('program')}<th class="col-program">Program</th>{/if}
+					{#if !hiddenColumns.has('facility')}<th class="col-facility">Facility</th>{/if}
+					{#if !hiddenColumns.has('message')}<th>Message</th>{/if}
 				</tr>
 			</thead>
 			<tbody>
 				{#each rendered as entry, i (i)}
 					<tr>
-						<td class="col-time mono">{entry.Timestamp}</td>
-						<td class="col-severity">
-							<span class="dot" style:background={severityColor(entry.Labels.severity ?? 'info')}
-							></span>
-						</td>
-						<td class="col-host mono">{entry.Labels.host ?? ''}</td>
-						<td class="col-program mono">{entry.Labels.program ?? ''}</td>
-						<td class="col-facility mono">{entry.Labels.facility ?? ''}</td>
-						<td class="mono message">{entry.Line}</td>
+						{#if !hiddenColumns.has('time')}
+							<td class="col-time mono">{entry.Timestamp}</td>
+						{/if}
+						{#if !hiddenColumns.has('localTime')}
+							<td class="col-time mono"
+								>{formatTimestampInZone(entry.Timestamp, displayTimezone)}</td
+							>
+						{/if}
+						{#if !hiddenColumns.has('severity')}
+							<td class="col-severity">
+								<span class="dot" style:background={severityColor(entry.Labels.severity ?? 'info')}
+								></span>
+							</td>
+						{/if}
+						{#if !hiddenColumns.has('host')}
+							<td class="col-host mono">{entry.Labels.host ?? ''}</td>
+						{/if}
+						{#if !hiddenColumns.has('program')}
+							<td class="col-program mono">{entry.Labels.program ?? ''}</td>
+						{/if}
+						{#if !hiddenColumns.has('facility')}
+							<td class="col-facility mono">{extractField(entry.Line, 'facility') ?? ''}</td>
+						{/if}
+						{#if !hiddenColumns.has('message')}
+							<td class="mono message">{extractMessage(entry.Line)}</td>
+						{/if}
 					</tr>
 				{:else}
 					<tr class="empty-row">
-						<td colspan="6">
+						<td colspan={visibleColumnCount}>
 							{#if buffer.length === 0}
 								Waiting for events…
 							{:else if paused && filterBySeverity(buffer, activeSeverities).length > 0}

@@ -2,6 +2,7 @@
 	import type { LogEntry } from '$lib/server/siemApiClient';
 	import { extractSrcIp } from '$lib/search';
 	import { severityColor } from '$lib/tail';
+	import { parseLogLine } from '$lib/logline';
 
 	let {
 		entry,
@@ -16,13 +17,9 @@
 	} = $props();
 
 	function parsedFields(line: string): [string, string][] {
-		try {
-			const parsed = JSON.parse(line);
-			if (typeof parsed !== 'object' || parsed === null) return [];
-			return Object.entries(parsed).map(([k, v]) => [k, JSON.stringify(v)]);
-		} catch {
-			return [];
-		}
+		const parsed = parseLogLine(line);
+		if (!parsed) return [];
+		return Object.entries(parsed).map(([k, v]) => [k, JSON.stringify(v)]);
 	}
 </script>
 
