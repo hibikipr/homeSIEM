@@ -24,6 +24,12 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
   it points at) — forwarding an Unraid box's Community App container logs
   in here, for hosts that aren't systemd/journald-based like this
   deployment's own Docker host.
+- `docs/homebridge-pi-logs.md` (plus the reference
+  `docs/homebridge-rsyslog.conf` it points at) — forwarding a natively
+  (`hb-service`) installed Homebridge instance's logs from its own
+  Raspberry Pi, using the same journald+rsyslog-bridge approach as this
+  deployment's own host, adapted to filter on the systemd unit instead of
+  Docker's `CONTAINER_NAME` field.
 - `scripts/update-threatlist.py` — generates `threatlist.csv` from five
   free IP threat-intel feeds (stdlib-only, no `pip install`). Runs as the
   `siem-threatlist-updater` service in `docker-compose.yml` (built from
