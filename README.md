@@ -134,6 +134,41 @@ Community App container logs, via a Vector sidecar) and
 `siem-ingest/docs/homebridge-pi-logs.md` (a natively-installed, `hb-service`-run
 app on its own Pi) for two worked examples.
 
+### 5. (Optional) turn on LLM-powered insights
+
+siem-api can run a scheduled + on-demand pass against a locally-hosted
+[Ollama](https://ollama.com) instance that reviews recent error/warning
+activity and open alerts, surfacing severity-coded suggestions (with
+evidence) on the Wall and at `/insights` in siem-web. It's entirely
+optional and off by default — leave `OLLAMA_URL` unset and nothing changes:
+no scheduler runs, and "Generate now" just 400s.
+
+Ollama isn't something this stack runs for you — point it at wherever
+you're already running it (a beefier machine on your LAN; a Raspberry Pi
+can't run a 20B+ model). To turn it on, set in `.env`:
+
+```bash
+OLLAMA_URL=http://<ollama-host>:11434   # full base URL: scheme + host + port
+OLLAMA_MODEL=qwen3.6:27b                # whatever you've actually pulled — check `ollama list`
+OLLAMA_TIMEOUT_SEC=300                  # raise if a cold-start pass times out; a 20-30B model's
+                                         # first request after idling can take minutes to load
+INSIGHTS_INTERVAL_SEC=1800              # how often the scheduled pass runs
+INSIGHTS_LOOKBACK_MIN=60                # how far back each pass looks
+```
+
+Two things worth knowing before pointing this at a real Ollama instance:
+
+- Ollama binds to `127.0.0.1` by default — it needs `OLLAMA_HOST=0.0.0.0`
+  set on the Ollama host to be reachable from anywhere else at all.
+- A model name mismatch isn't something `Load()` can validate (any string
+  passes) — it just makes every pass fail with a 404 from Ollama's own
+  `/api/chat` until `OLLAMA_MODEL` matches a model you've actually pulled.
+
+See
+[`docs/superpowers/specs/2026-08-10-siem-insights-llm-design.md`](docs/superpowers/specs/2026-08-10-siem-insights-llm-design.md)
+for the full design, including why `qwen3.6:27b`-class models are
+recommended over coding-tuned models like Devstral for this task.
+
 ### Verifying it's up
 
 ```bash
