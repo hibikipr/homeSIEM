@@ -8,10 +8,28 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 )
+
+// ErrUnreachable wraps any error from the dial phase of a Chat() call - the
+// host refused the connection, had no route, or didn't resolve. Distinct
+// from a request that connected fine but got a non-2xx status (wrong model
+// name, a 404) or one that connected and then ran out of time
+// (OLLAMA_TIMEOUT_SEC too short for a slow model) - both of those mean
+// Ollama IS reachable, just unhappy about something else. Found in
+// production: OLLAMA_URL pointing at a host that had gone to sleep or
+// changed IP surfaced only as a generic "generate insights failed" with no
+// indication of which of these three very different problems it was.
+var ErrUnreachable = errors.New("ollama: host unreachable")
+
+func isDialError(err error) bool {
+	var opErr *net.OpError
+	return errors.As(err, &opErr) && opErr.Op == "dial"
+}
 
 type Client struct {
 	baseURL    string
@@ -90,6 +108,9 @@ func (c *Client) Chat(ctx context.Context, systemPrompt, userPrompt string, opts
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		if isDialError(err) {
+			return "", fmt.Errorf("ollama: chat request to %s: %w: %w", c.baseURL, ErrUnreachable, err)
+		}
 		return "", fmt.Errorf("ollama: chat request: %w", err)
 	}
 	defer resp.Body.Close()
