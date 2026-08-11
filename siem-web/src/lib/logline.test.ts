@@ -38,6 +38,18 @@ describe('extractMessage', () => {
 		expect(extractMessage('{"other":"field"}')).toBe('{"other":"field"}');
 		expect(extractMessage('plain text line')).toBe('plain text line');
 	});
+
+	it('strips raw ESC-byte ANSI codes (imfile-forwarded sources, e.g. Homebridge)', () => {
+		const line = JSON.stringify({
+			message: '\x1b[37m[tag]\x1b[39m \x1b[31mFailed to fetch\x1b[39m'
+		});
+		expect(extractMessage(line)).toBe('[tag] Failed to fetch');
+	});
+
+	it("strips rsyslog's escaped #033[...m text form (journald-sourced ANSI-colored sources)", () => {
+		const line = JSON.stringify({ message: '#033[33mWRN#033[0m something happened' });
+		expect(extractMessage(line)).toBe('WRN something happened');
+	});
 });
 
 describe('formatTimestampInZone', () => {
