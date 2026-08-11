@@ -2,6 +2,7 @@
 	import { RULE_TEMPLATES, parseGroupBy, type RuleShape } from '$lib/ruleTemplates';
 	import type { AlertSeverity } from '$lib/severity';
 	import type { RuleResponse } from '$lib/server/siemApiClient';
+	import MinutesPicker from '$lib/components/MinutesPicker.svelte';
 
 	let {
 		mode,
@@ -31,6 +32,22 @@
 	const BLANK_SEVERITY: AlertSeverity = 'warning';
 	const BLANK_COOLDOWN_SEC = 3600;
 	const BLANK_INTERVAL_SEC = 60;
+
+	// Minute presets shown in each dropdown - a rule whose existing value
+	// (edit mode) doesn't match one of these falls through to "Custom"
+	// automatically, see MinutesPicker.
+	const WINDOW_PRESETS_MIN = [1, 5, 15, 30, 60, 360, 1440];
+	const COOLDOWN_PRESETS_MIN = [5, 15, 30, 60, 360, 1440];
+	const INTERVAL_PRESETS_MIN = [1, 5, 15, 30, 60];
+
+	const SHAPE_DESCRIPTIONS: Record<RuleShape, string> = {
+		threshold:
+			'Alerts once a matching event happens at least this many times within the time window.',
+		absence:
+			"Alerts when a source that's normally sending logs stops - no matching events for a full heartbeat period.",
+		first_seen:
+			'Alerts the first time a value (e.g. a new source or host) shows up that was never seen before.'
+	};
 
 	let name = $state(initial?.name ?? defaultName);
 	let logql = $state(initial?.logql ?? defaultLogql);
@@ -132,6 +149,7 @@
 					{/each}
 				</select>
 			</label>
+			<p class="hint">Starts you off with a common rule shape - every field stays editable.</p>
 		{/if}
 		<label>
 			Name
@@ -140,51 +158,66 @@
 		<label>
 			Rule type
 			<select bind:value={shape}>
-				<option value="threshold">threshold</option>
-				<option value="absence">absence</option>
-				<option value="first_seen">first_seen</option>
+				<option value="threshold">Threshold — repeated events</option>
+				<option value="absence">Absence — a source goes quiet</option>
+				<option value="first_seen">First seen — a new value appears</option>
 			</select>
 		</label>
+		<p class="hint">{SHAPE_DESCRIPTIONS[shape]}</p>
 		{#if shape !== 'absence'}
 			<label>
-				LogQL
+				LogQL query
 				<textarea bind:value={logql} required></textarea>
 			</label>
+			<p class="hint">The Loki query this rule watches - same syntax as Search's query bar.</p>
 		{/if}
 		{#if shape !== 'absence'}
-			<label>
-				Window (seconds)
-				<input type="number" bind:value={windowSec} min="1" />
-			</label>
+			<MinutesPicker
+				bind:seconds={windowSec}
+				presetsMinutes={WINDOW_PRESETS_MIN}
+				label="Time window"
+				description="How far back to look for matching events each time this rule runs."
+			/>
 		{/if}
 		{#if shape === 'threshold'}
 			<label>
 				Threshold
 				<input type="number" bind:value={threshold} min="1" />
 			</label>
+			<p class="hint">Alert once this many matching events happen within the time window above.</p>
 		{/if}
 		{#if shape !== 'absence'}
 			<label>
 				Group by (comma-separated)
 				<input bind:value={groupBy} placeholder="source, host" />
 			</label>
+			<p class="hint">
+				{shape === 'first_seen'
+					? 'Which field to watch for brand-new values in - e.g. "source" catches a sender that has never logged before.'
+					: 'Count matches separately per value of these fields instead of all together. Leave blank to treat every match as one group.'}
+			</p>
 		{/if}
 		<label>
 			Severity
 			<select bind:value={severity}>
-				<option value="critical">critical</option>
-				<option value="warning">warning</option>
-				<option value="info">info</option>
+				<option value="critical">Critical</option>
+				<option value="warning">Warning</option>
+				<option value="info">Info</option>
 			</select>
 		</label>
-		<label>
-			Cooldown (seconds)
-			<input type="number" bind:value={cooldownSec} min="0" />
-		</label>
-		<label>
-			Evaluation interval (seconds)
-			<input type="number" bind:value={intervalSec} min="1" />
-		</label>
+		<p class="hint">How urgent the resulting alert is.</p>
+		<MinutesPicker
+			bind:seconds={cooldownSec}
+			presetsMinutes={COOLDOWN_PRESETS_MIN}
+			label="Cooldown"
+			description="Minimum time to wait before raising another alert for the same match, so you don't get repeat notifications for the same ongoing issue."
+		/>
+		<MinutesPicker
+			bind:seconds={intervalSec}
+			presetsMinutes={INTERVAL_PRESETS_MIN}
+			label="Check every"
+			description="How often this rule re-checks for matches. Shorter catches problems sooner but adds load - most rules don't need less than a minute."
+		/>
 		{#if error}
 			<p class="error">{error}</p>
 		{/if}
@@ -216,7 +249,7 @@
 		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow-raised);
 		padding: var(--space-6);
-		width: 360px;
+		width: 380px;
 		max-height: 90vh;
 		overflow-y: auto;
 		display: flex;
@@ -250,6 +283,12 @@
 		font-size: var(--text-label);
 		min-height: 60px;
 		resize: vertical;
+	}
+	.hint {
+		margin: calc(-1 * var(--space-2)) 0 0;
+		font-size: 11px;
+		color: var(--color-muted-2);
+		line-height: 1.4;
 	}
 	.error {
 		color: var(--color-severity-critical);
