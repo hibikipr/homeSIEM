@@ -69,11 +69,11 @@ describe('deriveCountryBreakdown', () => {
 		return { Timestamp: '2026-08-02T00:00:00Z', Labels: {}, Line: line };
 	}
 
-	it('counts geoip.cc occurrences and sorts descending', () => {
+	it('counts geoip.country_code occurrences and sorts descending', () => {
 		const entries = [
-			entry('{"geoip":{"cc":"US"}}'),
-			entry('{"geoip":{"cc":"US"}}'),
-			entry('{"geoip":{"cc":"DE"}}')
+			entry('{"geoip":{"country_code":"US"}}'),
+			entry('{"geoip":{"country_code":"US"}}'),
+			entry('{"geoip":{"country_code":"DE"}}')
 		];
 
 		expect(deriveCountryBreakdown(entries)).toEqual([
@@ -87,6 +87,37 @@ describe('deriveCountryBreakdown', () => {
 			entry('not json'),
 			entry('{}'),
 			entry('{"geoip":{}}'),
+			entry('{"geoip":{"country_code":"US"}}')
+		];
+		expect(deriveCountryBreakdown(entries)).toEqual([{ country: 'US', count: 1 }]);
+	});
+
+	it('extracts country_code from a real full geoip object shape (regression: the field is never "cc")', () => {
+		// Shaped exactly like Vector's actual geoip enrichment table output
+		// (enrich_geo in vector.toml) - found in production that this
+		// widget read .geoip.cc, a field that has never existed in the
+		// real enriched data at all.
+		const entries = [
+			entry(
+				JSON.stringify({
+					geoip: {
+						city_name: 'Kissimmee',
+						continent_code: 'NA',
+						country_code: 'US',
+						country_name: 'United States',
+						latitude: 28.3056,
+						longitude: -81.4197,
+						metro_code: 534,
+						postal_code: '34741',
+						region_code: 'FL',
+						region_name: 'Florida',
+						timezone: 'America/New_York'
+					}
+				})
+			),
+			// A geoip object with no country_code (e.g. only "cc") must not
+			// be picked up - proves this isn't silently falling back to
+			// some other key.
 			entry('{"geoip":{"cc":"US"}}')
 		];
 		expect(deriveCountryBreakdown(entries)).toEqual([{ country: 'US', count: 1 }]);

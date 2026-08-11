@@ -111,11 +111,11 @@ describe('mergeSourceFacet', () => {
 });
 
 describe('deriveCountryFacet', () => {
-	it('extracts geoip.cc from the parsed line and counts it', () => {
+	it('extracts geoip.country_code from the parsed line and counts it', () => {
 		const entries = [
-			fakeEntry({ Line: '{"geoip":{"cc":"US"}}' }),
-			fakeEntry({ Line: '{"geoip":{"cc":"US"}}' }),
-			fakeEntry({ Line: '{"geoip":{"cc":"DE"}}' })
+			fakeEntry({ Line: '{"geoip":{"country_code":"US"}}' }),
+			fakeEntry({ Line: '{"geoip":{"country_code":"US"}}' }),
+			fakeEntry({ Line: '{"geoip":{"country_code":"DE"}}' })
 		];
 		expect(deriveCountryFacet(entries)).toEqual([
 			{ value: 'US', count: 2 },
@@ -123,7 +123,11 @@ describe('deriveCountryFacet', () => {
 		]);
 	});
 
-	it('skips lines with no geoip.cc, including malformed JSON', () => {
+	it('does not fall back to a "cc" field (regression: that field never exists in real geoip data)', () => {
+		expect(deriveCountryFacet([fakeEntry({ Line: '{"geoip":{"cc":"US"}}' })])).toEqual([]);
+	});
+
+	it('skips lines with no geoip.country_code, including malformed JSON', () => {
 		expect(deriveCountryFacet([fakeEntry({ Line: 'not json' })])).toEqual([]);
 	});
 });

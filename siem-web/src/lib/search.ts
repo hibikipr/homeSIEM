@@ -107,7 +107,10 @@ export function deriveCountryFacet(entries: LogEntry[]): FacetCount[] {
 		if (!parsed) continue;
 		const geoip = parsed.geoip;
 		if (typeof geoip !== 'object' || geoip === null) continue;
-		const country = (geoip as Record<string, unknown>).cc;
+		// Vector's geoip enrichment table names this field country_code,
+		// not "cc" - see the matching comment in wall.ts's
+		// deriveCountryBreakdown, the same bug fixed in the same way.
+		const country = (geoip as Record<string, unknown>).country_code;
 		if (typeof country !== 'string' || country === '') continue;
 		counts.set(country, (counts.get(country) ?? 0) + 1);
 	}

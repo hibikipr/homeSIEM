@@ -15,7 +15,9 @@ describe('Wall load', () => {
 		const searchMock = vi.fn().mockResolvedValue({
 			logql: '{job="siem"}',
 			count: 1,
-			entries: [{ Timestamp: '2026-08-02T00:00:00Z', Labels: {}, Line: '{"geoip":{"cc":"US"}}' }]
+			entries: [
+				{ Timestamp: '2026-08-02T00:00:00Z', Labels: {}, Line: '{"geoip":{"country_code":"US"}}' }
+			]
 		});
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
