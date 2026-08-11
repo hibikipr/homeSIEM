@@ -78,6 +78,28 @@ export function deriveFacetCounts(entries: LogEntry[], labelKey: string): FacetC
 		.sort((a, b) => b.count - a.count);
 }
 
+// Found in production: the Source facet is derived purely from the current
+// (filtered, limit-capped) result set - a claimed, actively-logging source
+// (e.g. a low-volume one like Homebridge) can be completely absent from it
+// with no filters applied, simply because a handful of high-volume sources
+// (this host's own containers logging about themselves) exhaust the whole
+// 1000-entry cap within a couple of minutes of real time. That reads as
+// "this source isn't being ingested" when it's actually just crowded out
+// of the current page. Merges in every known claimed source not already
+// present in the derived counts, at count 0 - still clickable (via the
+// same onFacetClick as any other row) to pivot the search to it directly,
+// just visually distinguished as "known but not in this result set" by the
+// caller.
+export function mergeSourceFacet(entries: LogEntry[], knownSourceNames: string[]): FacetCount[] {
+	const counts = deriveFacetCounts(entries, 'source');
+	const present = new Set(counts.map((c) => c.value));
+	const missing = knownSourceNames
+		.filter((name) => !present.has(name))
+		.sort((a, b) => a.localeCompare(b))
+		.map((name) => ({ value: name, count: 0 }));
+	return [...counts, ...missing];
+}
+
 export function deriveCountryFacet(entries: LogEntry[]): FacetCount[] {
 	const counts = new Map<string, number>();
 	for (const entry of entries) {

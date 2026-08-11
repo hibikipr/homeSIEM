@@ -4,6 +4,7 @@ import {
 	filtersToSearchParams,
 	rangeToSeconds,
 	deriveFacetCounts,
+	mergeSourceFacet,
 	deriveCountryFacet,
 	formatTimestamp,
 	extractSrcIp,
@@ -80,6 +81,32 @@ describe('deriveFacetCounts', () => {
 
 	it('skips entries missing the label', () => {
 		expect(deriveFacetCounts([fakeEntry({ Labels: {} })], 'severity')).toEqual([]);
+	});
+});
+
+describe('mergeSourceFacet', () => {
+	it('adds a known claimed source not present in the current results at count 0', () => {
+		const entries = [fakeEntry({ Labels: { source: 'udm-ultra' } })];
+		expect(mergeSourceFacet(entries, ['udm-ultra', 'homebridge'])).toEqual([
+			{ value: 'udm-ultra', count: 1 },
+			{ value: 'homebridge', count: 0 }
+		]);
+	});
+
+	it('does not duplicate a source already present in the derived counts', () => {
+		const entries = [
+			fakeEntry({ Labels: { source: 'udm-ultra' } }),
+			fakeEntry({ Labels: { source: 'udm-ultra' } })
+		];
+		expect(mergeSourceFacet(entries, ['udm-ultra'])).toEqual([{ value: 'udm-ultra', count: 2 }]);
+	});
+
+	it('sorts multiple missing sources alphabetically', () => {
+		expect(mergeSourceFacet([], ['tower', 'homebridge', 'raspberrypi'])).toEqual([
+			{ value: 'homebridge', count: 0 },
+			{ value: 'raspberrypi', count: 0 },
+			{ value: 'tower', count: 0 }
+		]);
 	});
 });
 

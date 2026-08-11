@@ -20,11 +20,18 @@ function fakeSearchResult(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+function fakeGetSources() {
+	return vi.fn().mockResolvedValue([
+		{ id: 1, name: 'udm-ultra', claimed: true },
+		{ id: 2, name: 'unclaimed-host', claimed: false }
+	]);
+}
+
 describe('Search load', () => {
 	it("fetches with limit=1000 (matching siem-api's own default) and returns the search result", async () => {
 		const searchMock = vi.fn().mockResolvedValue(fakeSearchResult());
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { search: searchMock };
+			return { search: searchMock, getSources: fakeGetSources() };
 		});
 
 		const result = (await load({
@@ -37,11 +44,33 @@ describe('Search load', () => {
 			'token-123',
 			expect.objectContaining({ limit: '1000' })
 		);
+		// fakeGetSources() returns one claimed and one unclaimed source -
+		// only the claimed one's name should survive into page data.
+		expect(result.claimedSourceNames).toEqual(['udm-ultra']);
+	});
+
+	it('degrades to an empty claimedSourceNames list when the sources lookup fails', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				search: vi.fn().mockResolvedValue(fakeSearchResult()),
+				getSources: vi.fn().mockRejectedValue(new Error('boom'))
+			};
+		});
+
+		const result = (await load({
+			locals: { sessionToken: 'token-123' },
+			url: new URL('https://siem.townsville.cc/search')
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.claimedSourceNames).toEqual([]);
 	});
 
 	it('has no selected entry or context summary when ?preview= is absent', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { search: vi.fn().mockResolvedValue(fakeSearchResult()) };
+			return {
+				search: vi.fn().mockResolvedValue(fakeSearchResult()),
+				getSources: fakeGetSources()
+			};
 		});
 
 		const result = (await load({
@@ -69,7 +98,7 @@ describe('Search load', () => {
 			)
 			.mockResolvedValueOnce(fakeSearchResult({ count: 4, entries: [] }));
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { search: searchMock };
+			return { search: searchMock, getSources: fakeGetSources() };
 		});
 
 		const result = (await load({
@@ -90,7 +119,7 @@ describe('Search load', () => {
 	it('resolves previewIndex to null when ?preview= is non-numeric', async () => {
 		const searchMock = vi.fn().mockResolvedValue(fakeSearchResult());
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { search: searchMock };
+			return { search: searchMock, getSources: fakeGetSources() };
 		});
 
 		const result = (await load({
@@ -106,7 +135,10 @@ describe('Search load', () => {
 
 	it('redirects to /auth/logout on a 401/403 from the primary search', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { search: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')) };
+			return {
+				search: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
+				getSources: fakeGetSources()
+			};
 		});
 
 		await expect(
@@ -119,7 +151,10 @@ describe('Search load', () => {
 
 	it('surfaces a 502 when siem-api fails for a reason other than auth', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { search: vi.fn().mockRejectedValue(new SiemApiError(500, 'boom')) };
+			return {
+				search: vi.fn().mockRejectedValue(new SiemApiError(500, 'boom')),
+				getSources: fakeGetSources()
+			};
 		});
 
 		await expect(
