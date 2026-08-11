@@ -24,13 +24,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 		[stats, openAlerts, sample] = await Promise.all([
 			client.getEventsStats(token),
 			client.getAlerts(token, 'open'),
-			// The Wall only needs a representative sample to derive a country
-			// breakdown from, not an exhaustive one, and doesn't use the
-			// volume histogram /events/search also computes by default - 200
-			// entries is still plenty for a stable "top countries" picture,
-			// and volume=false skips a whole extra Loki query server-side
-			// that would otherwise be fetched and immediately discarded.
-			client.search(token, { limit: '200', volume: 'false' })
+			// geoip=true: found in production that geoip-bearing security
+			// events (a UniFi threat/block with a public src or dst IP) are
+			// a tiny fraction of this host's overall log volume - an
+			// unfiltered recent-200 sample almost never contained one at
+			// all, even when enrich_geo was enriching them correctly, so
+			// the country breakdown was reliably empty. Filtering at the
+			// LogQL level means every one of the 200 entries can actually
+			// contribute a country. volume=false skips a whole extra Loki
+			// query server-side that would otherwise be fetched and
+			// immediately discarded.
+			client.search(token, { limit: '200', volume: 'false', geoip: 'true' })
 		]);
 	} catch (err) {
 		if (err instanceof SiemApiError) {
