@@ -583,9 +583,40 @@ source = '''
   ## ip_cidr_contains() with `?? false` similarly protects against a
   ## malformed non-IP src string (attacker-reachable over unauthenticated
   ## UDP/514) aborting the same way.
-  if is_string(.src_ip) && !(ip_cidr_contains("10.0.0.0/8", .src_ip) ?? false) {
-    .geoip = get_enrichment_table_record("geolite", { "ip": .src_ip }) ?? {}
-    .threat_intel = get_enrichment_table_record("threatlist", { "ip": .src_ip }).tag ?? null
+  ##
+  ## All three RFC1918 private ranges, not just 10.0.0.0/8: found in
+  ## production that this network's own LAN uses 192.168.0.0/16, which the
+  ## original single-range check didn't cover at all - every admin-action/
+  ## client-connect CEF event's private src_ip was being sent to the geoip
+  ## enrichment table for a lookup that could only ever come back empty.
+  ## VRL has no user-defined functions/closures - the 3-range check below is
+  ## duplicated for src/dst rather than factored into one, not copy-pasted
+  ## by accident.
+  src_is_public = is_string(.src_ip) &&
+    !(ip_cidr_contains("10.0.0.0/8", .src_ip) ?? false) &&
+    !(ip_cidr_contains("172.16.0.0/12", .src_ip) ?? false) &&
+    !(ip_cidr_contains("192.168.0.0/16", .src_ip) ?? false)
+  dst_is_public = is_string(.dst_ip) &&
+    !(ip_cidr_contains("10.0.0.0/8", .dst_ip) ?? false) &&
+    !(ip_cidr_contains("172.16.0.0/12", .dst_ip) ?? false) &&
+    !(ip_cidr_contains("192.168.0.0/16", .dst_ip) ?? false)
+
+  ## Found in production: this UniFi gateway's CEF stream is dominated by
+  ## *outbound* firewall blocks (a LAN device blocked from reaching some
+  ## external host, e.g. a DNS-over-HTTPS policy) - those carry no CEF src=
+  ## key at all (only dst=), so .src_ip is always null for them and they
+  ## never reached the geoip lookup, even though the externally-interesting
+  ## IP (dst) was right there. Prefer src (inbound - "who's trying to reach
+  ## us", the more security-relevant direction) when it's a genuine public
+  ## IP; fall back to dst (outbound - "where we tried to go") only when src
+  ## isn't. threat_intel reuses the same chosen IP for the same reason: a
+  ## known-bad destination our own device tried to reach is just as worth
+  ## flagging as a known-bad inbound source.
+  geoip_ip = if src_is_public { .src_ip } else if dst_is_public { .dst_ip } else { null }
+
+  if is_string(geoip_ip) {
+    .geoip = get_enrichment_table_record("geolite", { "ip": geoip_ip }) ?? {}
+    .threat_intel = get_enrichment_table_record("threatlist", { "ip": geoip_ip }).tag ?? null
   }
 '''
 

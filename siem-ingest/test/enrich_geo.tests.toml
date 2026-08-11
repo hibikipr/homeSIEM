@@ -80,6 +80,61 @@ name = "CEF event with a valid public src still gets geoip enrichment (regressio
     '''
 
 [[tests]]
+name = "outbound-blocked CEF event with no src= but a public dst= still gets geoip enrichment (dst fallback)"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    # Shaped like a real captured outbound firewall block: UniFi's CEF
+    # extension for these carries no src= key at all (only
+    # UNIFIsrcClientIp=, which this pipeline doesn't parse into .src_ip),
+    # so .src_ip is null and only dst= is available.
+    message = "CGU CEF:0|Ubiquiti|UniFi Network|10.5.67|203|Blocked by Firewall|4|proto=TCP dpt=443 act=blocked dst=8.8.8.8 UNIFIsrcClientIp=192.168.3.39 msg=blocked"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert!(is_null(.src_ip), "this CEF extension has no src= key")
+      assert!(
+        exists(.geoip),
+        "a public dst_ip must reach the geoip lookup when src_ip is absent - this is the dst fallback this test covers"
+      )
+    '''
+
+[[tests]]
+name = "CEF event with a private 192.168.0.0/16 src and no dst= does not get geoip enrichment"
+
+  [tests.input]
+  insert_at = "parse_unifi"
+  type = "log"
+
+    [tests.input.log_fields]
+    # 192.168.x.x is this network's own LAN range - previously NOT excluded
+    # by the old 10.0.0.0/8-only private-range check, so this exact shape
+    # (an admin/client-activity CEF event with a private LAN src_ip) was
+    # reaching the geoip enrichment table for a lookup that could only ever
+    # come back empty.
+    message = "CGU CEF:0|Ubiquiti|UniFi Network|10.5.67|544|Network Accessed|4|src=192.168.1.135 msg=accessed"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.src_ip, "192.168.1.135")
+      assert!(
+        !exists(.geoip),
+        "a private 192.168.0.0/16 src_ip with no public dst_ip must not reach the geoip lookup at all"
+      )
+    '''
+
+[[tests]]
 name = "syslog event's self-reported level= overrides a mismatched RFC5424 PRI severity"
 
   [tests.input]
