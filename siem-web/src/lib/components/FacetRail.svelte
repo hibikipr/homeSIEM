@@ -1,17 +1,19 @@
 <script lang="ts">
-	import { deriveFacetCounts, deriveCountryFacet } from '$lib/search';
+	import { deriveFacetCounts, deriveCountryFacet, mergeSourceFacet } from '$lib/search';
 	import { severityColor } from '$lib/tail';
 	import type { LogEntry } from '$lib/server/siemApiClient';
 
 	let {
 		entries,
+		claimedSourceNames,
 		onFacetClick
 	}: {
 		entries: LogEntry[];
+		claimedSourceNames: string[];
 		onFacetClick: (field: string, value: string) => void;
 	} = $props();
 
-	let sources = $derived(deriveFacetCounts(entries, 'source'));
+	let sources = $derived(mergeSourceFacet(entries, claimedSourceNames));
 	let severities = $derived(deriveFacetCounts(entries, 'severity'));
 	let programs = $derived(deriveFacetCounts(entries, 'program'));
 	let countries = $derived(deriveCountryFacet(entries));
@@ -21,7 +23,12 @@
 	<section>
 		<h2>Source</h2>
 		{#each sources as facet (facet.value)}
-			<button class="facet-row" onclick={() => onFacetClick('source', facet.value)}>
+			<button
+				class="facet-row"
+				class:zero={facet.count === 0}
+				title={facet.count === 0 ? 'Known source, not in the current results' : undefined}
+				onclick={() => onFacetClick('source', facet.value)}
+			>
 				<span class="name">{facet.value}</span>
 				<span class="count mono">{facet.count}</span>
 			</button>
@@ -86,6 +93,9 @@
 	}
 	.facet-row.display-only {
 		cursor: default;
+	}
+	.facet-row.zero {
+		opacity: 0.5;
 	}
 	.facet-row:hover:not(.display-only) {
 		color: var(--color-accent-light);

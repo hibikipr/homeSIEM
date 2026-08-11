@@ -78,7 +78,11 @@
 		<ColumnToggle columns={SEARCH_COLUMNS} hidden={hiddenColumns} onToggle={toggleColumn} />
 	</div>
 	<div class="body">
-		<FacetRail entries={data.entries} onFacetClick={facetClick} />
+		<FacetRail
+			entries={data.entries}
+			claimedSourceNames={data.claimedSourceNames}
+			onFacetClick={facetClick}
+		/>
 		<ResultTable
 			entries={data.entries}
 			selectedIndex={data.previewIndex}

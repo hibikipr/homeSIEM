@@ -289,6 +289,31 @@ source = '''
       }
     }
 
+    ## homebridge-log (via imfile tailing homebridge.log directly - see
+    ## docs/homebridge-pi-logs.md): Homebridge's own Logger wraps every
+    ## line's timestamp in white (\x1b[37m) and its plugin-name tag in cyan
+    ## (\x1b[36m) regardless of level, then colors the actual message text
+    ## itself - red (\x1b[31m) for real errors (confirmed against a
+    ## captured "Failed to get state from Sync Box: AbortError..." sample),
+    ## yellow (\x1b[33m) for warnings per Homebridge's own logger
+    ## implementation (same color table, not yet directly observed in this
+    ## deployment - update this comment once one is), no extra color wrap
+    ## at all for info/debug (the overwhelming majority - plain
+    ## accessory-state lines like "[Govee] ... current brightness [20%]").
+    ## Raw ESC bytes here, not rsyslog's usual #033[-escaped text used
+    ## elsewhere in this cascade - imfile forwards the log file's bytes
+    ## as-is; nothing rewrites control characters the way the journald
+    ## path's rsyslog escaping does for other sources.
+    if is_null(reported_level) && .appname == "homebridge-log" {
+      if match(message_for_level, r'^\x1b\[37m\[\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2}\] \x1b\[39m\x1b\[36m\[[^\]]*\]\x1b\[39m \x1b\[31m') {
+        reported_level = "err"
+      } else if match(message_for_level, r'^\x1b\[37m\[\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2}\] \x1b\[39m\x1b\[36m\[[^\]]*\]\x1b\[39m \x1b\[33m') {
+        reported_level = "warning"
+      } else if match(message_for_level, r'^\x1b\[37m\[\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2}\] \x1b\[39m\x1b\[36m\[[^\]]*\]\x1b\[39m ') {
+        reported_level = "info"
+      }
+    }
+
     ## cAdvisor's own sysinfo.go NUMA probe: "Found node without any CPU,
     ## nodeDir: ..., number of cpuDirs 0". cAdvisor logs this at its own
     ## klog "W" (warning) level for every NUMA node sysfs exposes with no

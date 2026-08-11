@@ -13,6 +13,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
 	const token = locals.sessionToken as string;
 
+	// The Source facet needs the full list of claimed sources, not just
+	// whatever happens to be in the current (filtered, capped) result set -
+	// see mergeSourceFacet's own comment for why. Supplementary, not gated
+	// content: started here so its round trip overlaps with the main
+	// search below rather than adding to it, and a failure here degrades to
+	// an empty list rather than breaking the page.
+	const claimedSourceNamesPromise = client
+		.getSources(token)
+		.then((sources) => sources.filter((s) => s.claimed).map((s) => s.name))
+		.catch((err) => {
+			console.error('search: sources lookup failed', err);
+			return [] as string[];
+		});
+
 	const filters = parseFiltersFromURL(url);
 	const end = new Date();
 	const start = new Date(end.getTime() - rangeToSeconds(filters.range) * 1000);
@@ -77,6 +91,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
+	const claimedSourceNames = await claimedSourceNamesPromise;
+
 	return {
 		filters,
 		logql: result.logql,
@@ -85,6 +101,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		volume: result.volume,
 		previewIndex,
 		selectedEntry,
-		contextSummary
+		contextSummary,
+		claimedSourceNames
 	};
 };
