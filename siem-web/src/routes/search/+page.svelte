@@ -7,7 +7,7 @@
 	import FacetRail from '$lib/components/FacetRail.svelte';
 	import ResultTable from '$lib/components/ResultTable.svelte';
 	import EventInspector from '$lib/components/EventInspector.svelte';
-	import RuleFromEventForm from '$lib/components/RuleFromEventForm.svelte';
+	import RuleForm from '$lib/components/RuleForm.svelte';
 	import ColumnToggle from '$lib/components/ColumnToggle.svelte';
 	import type { LogEntry } from '$lib/server/siemApiClient';
 	import type { PageData } from './$types';
@@ -100,11 +100,12 @@
 </div>
 
 {#if ruleFormSeed}
-	<RuleFromEventForm
+	<RuleForm
+		mode="create"
 		defaultName={ruleFormSeed.name}
 		defaultLogql={ruleFormSeed.logql}
 		onClose={() => (ruleFormSeed = null)}
-		onCreated={(id) => {
+		onSaved={(id) => {
 			ruleFormSeed = null;
 			// Rules only live in Alerts -> Rules, not on this page - land the
 			// user there with the new rule selected instead of leaving them

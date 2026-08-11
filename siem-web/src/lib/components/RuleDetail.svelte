@@ -4,13 +4,16 @@
 	let {
 		rule,
 		canEdit = false,
-		onToggled
+		onToggled,
+		onEdit
 	}: {
 		rule: RuleResponse;
 		canEdit?: boolean;
 		// Called after a successful enable/disable so the parent can refresh
 		// its own data (the rule list this detail pane was rendered from).
 		onToggled?: () => void;
+		// Opens the parent's edit form for this rule.
+		onEdit?: () => void;
 	} = $props();
 
 	let toggling = $state(false);
@@ -61,6 +64,7 @@
 		<div class="status">
 			<span class="enabled" class:off={!rule.enabled}>{rule.enabled ? 'enabled' : 'disabled'}</span>
 			{#if canEdit}
+				<button class="toggle" onclick={onEdit}>Edit</button>
 				<button class="toggle" onclick={toggleEnabled} disabled={toggling}>
 					{toggling ? '…' : rule.enabled ? 'Disable' : 'Enable'}
 				</button>
@@ -72,6 +76,7 @@
 		<span>severity: {rule.severity}</span>
 		<span>window: {rule.window_sec}s</span>
 		<span>cooldown: {rule.cooldown_sec}s</span>
+		<span>evaluates every: {rule.interval_sec}s</span>
 	</div>
 	<div class="destinations">destinations: {rule.destinations.join(', ')}</div>
 	<div class="logql-block">{rule.logql}</div>
