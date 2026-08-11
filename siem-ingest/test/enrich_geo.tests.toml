@@ -239,6 +239,127 @@ name = "a Go stdlib-timestamped message without an immediate level word is left 
     '''
 
 [[tests]]
+name = "unificlientalerts 'No unknown devices' line overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "unificlientalerts"
+    message = "2026/08/10 12:11:50 No unknown devices in current client list; skipping notification check."
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "unificlientalerts 'Check triggered by WebSocket event.' line overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "unificlientalerts"
+    message = "2026/08/10 12:11:50 Check triggered by WebSocket event."
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "unificlientalerts 'WebSocket connection event (events)' line overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "unificlientalerts"
+    message = "2026/08/10 12:11:47 WebSocket connection event (events)"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "unificlientalerts genuine 401 reconnect failure stays err - a real error is not flipped"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "unificlientalerts"
+    message = "2026/08/10 12:11:47 Failed to retrieve clients, reconnecting: failed to fetch clients: https://192.168.3.1:443/proxy/network/v2/api/site/default/clients/active?includeTrafficUsage=true&includeUnifiDevices=true: 401 Unauthorized: invalid status code from server"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## This is a genuine problem (a stale/expired UniFi API session, not
+      ## routine activity) - confirms the fix doesn't blanket-downgrade
+      ## every line this program logs.
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
+name = "a different program's message that happens to match unificlientalerts' wording is not downgraded"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "some-other-app"
+    message = "2026/08/10 12:11:50 No unknown devices in current client list; skipping notification check."
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Proves the fix is scoped to .appname == "unificlientalerts", not a
+      ## bare message-text match that could accidentally downgrade some
+      ## other app that happens to log similar-sounding wording.
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
 name = "logfmt level=INFO (uppercase) overrides a mismatched PRI severity"
 
   [tests.input]

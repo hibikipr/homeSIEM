@@ -256,6 +256,32 @@ source = '''
       }
     }
 
+    ## unificlientalerts (a small Go program with no structured/leveled
+    ## logging at all - just log.Println, never an INFO/WARN/ERROR word)
+    ## logs its routine per-check activity to stderr like everything else,
+    ## so Docker's journald driver tags every line PRIORITY=3/err regardless
+    ## of content. Unlike the ntfy-style case above, there's no level word
+    ## to read at all here, so these three known-benign message shapes are
+    ## matched by their literal text instead - scoped to this program
+    ## specifically (.appname ==), since the wording alone (e.g. "WebSocket
+    ## connection event") isn't distinctive enough to safely match across
+    ## any app that might use similar phrasing. The one real failure mode
+    ## this program logs ("Failed to retrieve clients, reconnecting: ...
+    ## 401 Unauthorized") is deliberately NOT matched here - that's a
+    ## genuine problem (a stale/expired UniFi API session) and must keep
+    ## surfacing as an error. .appname, not .program - .program is only a
+    ## Loki sink label (templated from .appname at write time, see
+    ## sinks.loki's `program = "{{ appname }}"` far below); it doesn't exist
+    ## as an event field this early in the pipeline.
+    if is_null(reported_level) && .appname == "unificlientalerts" {
+      m = parse_regex(message_for_level,
+        r'^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} (?P<val>No unknown devices in current client list; skipping notification check\.|Check triggered by WebSocket event\.|WebSocket connection event)'
+      ).val ?? null
+      if is_string(m) {
+        reported_level = "info"
+      }
+    }
+
     ## cAdvisor's own sysinfo.go NUMA probe: "Found node without any CPU,
     ## nodeDir: ..., number of cpuDirs 0". cAdvisor logs this at its own
     ## klog "W" (warning) level for every NUMA node sysfs exposes with no
