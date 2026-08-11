@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +20,12 @@ type fakeChatterAPI struct{ response string }
 
 func (f *fakeChatterAPI) Chat(ctx context.Context, systemPrompt, userPrompt string, opts ollama.ChatOptions) (string, error) {
 	return f.response, nil
+}
+
+type fakeChatterUnreachableAPI struct{}
+
+func (f *fakeChatterUnreachableAPI) Chat(ctx context.Context, systemPrompt, userPrompt string, opts ollama.ChatOptions) (string, error) {
+	return "", fmt.Errorf("ollama: chat request to http://192.168.1.135:11434: %w: dial tcp 192.168.1.135:11434: connect: no route to host", ollama.ErrUnreachable)
 }
 
 type fakeLokiQuerierAPI struct{}
@@ -81,6 +89,25 @@ func TestGenerateInsights_NotConfigured_Returns400(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGenerateInsights_OllamaUnreachable_Returns502WithClearMessage(t *testing.T) {
+	s, st := newTestServer(t)
+	pb := &insights.PromptBuilder{Loki: fakeLokiQuerierAPI{}, Alerts: st, JobLabel: "siem"}
+	s.deps.Insights = insights.NewService(pb, &fakeChatterUnreachableAPI{}, st, st, time.Hour, s.deps.Logger)
+	token := authToken(t, st, "analyst", 50)
+
+	req := httptest.NewRequest(http.MethodPost, "/insights/generate", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502, body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Ollama host not reachable") {
+		t.Errorf("body = %q, want it to mention the host being unreachable rather than a generic failure", rec.Body.String())
 	}
 }
 

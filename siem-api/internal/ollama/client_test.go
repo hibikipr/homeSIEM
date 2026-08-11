@@ -3,6 +3,8 @@ package ollama
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -97,5 +99,43 @@ func TestChat_RequestTimesOut_ReturnsError(t *testing.T) {
 	c := New(srv.URL, "qwen3:27b", &http.Client{Timeout: 20 * time.Millisecond})
 	if _, err := c.Chat(context.Background(), "s", "u", ChatOptions{}); err == nil {
 		t.Fatal("Chat() error = nil, want a timeout error")
+	}
+}
+
+func TestChat_DialFailure_WrapsErrUnreachable(t *testing.T) {
+	// Bind a port, then close it immediately - a subsequent connection
+	// attempt fails during dial with "connection refused", reliably
+	// exercising the dial-error classifier without depending on real
+	// external network unreachability being available in a test environment.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen() error = %v", err)
+	}
+	addr := ln.Addr().String()
+	ln.Close()
+
+	c := New("http://"+addr, "qwen3:27b", &http.Client{Timeout: 2 * time.Second})
+	_, err = c.Chat(context.Background(), "s", "u", ChatOptions{})
+	if err == nil {
+		t.Fatal("Chat() error = nil, want a dial error")
+	}
+	if !errors.Is(err, ErrUnreachable) {
+		t.Errorf("errors.Is(err, ErrUnreachable) = false, want true; err = %v", err)
+	}
+}
+
+func TestChat_NonOKStatus_DoesNotWrapErrUnreachable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "qwen3:27b", srv.Client())
+	_, err := c.Chat(context.Background(), "s", "u", ChatOptions{})
+	if err == nil {
+		t.Fatal("Chat() error = nil, want error for 404 response")
+	}
+	if errors.Is(err, ErrUnreachable) {
+		t.Error("errors.Is(err, ErrUnreachable) = true, want false - a connected request with a bad status is not an unreachable host")
 	}
 }

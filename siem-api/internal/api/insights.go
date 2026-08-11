@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hibikipr/homeSIEM/siem-api/internal/ollama"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
 )
 
@@ -72,7 +73,11 @@ func (s *Server) handleGenerateInsights(w http.ResponseWriter, r *http.Request) 
 	}
 	if err := s.deps.Insights.GenerateNow(r.Context()); err != nil {
 		s.deps.Logger.Error("generate insights failed", "error", err)
-		http.Error(w, "generate insights failed", http.StatusBadGateway)
+		msg := "generate insights failed"
+		if errors.Is(err, ollama.ErrUnreachable) {
+			msg = "generate insights failed: Ollama host not reachable - check OLLAMA_URL and that the host is powered on and reachable on the network"
+		}
+		http.Error(w, msg, http.StatusBadGateway)
 		return
 	}
 	list, err := s.deps.Store.ListInsights(r.Context(), false, 100)
