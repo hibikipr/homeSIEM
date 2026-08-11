@@ -1,23 +1,27 @@
 <script lang="ts">
 	import { RULE_TEMPLATES, parseGroupBy, type RuleShape } from '$lib/ruleTemplates';
 	import type { AlertSeverity } from '$lib/severity';
+	import type { RuleResponse } from '$lib/server/siemApiClient';
 
 	let {
-		defaultName,
-		defaultLogql,
+		mode,
+		initial = null,
+		defaultName = '',
+		defaultLogql = '',
 		onClose,
-		onCreated
+		onSaved
 	}: {
-		defaultName: string;
-		defaultLogql: string;
-		// Cancel button only - abandons the form without creating anything.
+		mode: 'create' | 'edit';
+		// The rule being edited - required (and used to seed every field) in
+		// edit mode, always null in create mode.
+		initial?: RuleResponse | null;
+		// Create mode only - lets Search seed a new rule's name/query from
+		// the current search/event context.
+		defaultName?: string;
+		defaultLogql?: string;
 		onClose: () => void;
-		// Called with the new rule's id after a successful create, instead
-		// of onClose - found via feedback that creating a rule here gave no
-		// indication of where it went (Rules only live in Alerts -> Rules,
-		// not on this page), so callers use this to navigate there / select
-		// the new rule rather than just closing the form silently.
-		onCreated: (ruleId: number) => void;
+		// Called with the rule's id after a successful create or update.
+		onSaved: (ruleId: number) => void;
 	} = $props();
 
 	const BLANK_SHAPE: RuleShape = 'threshold';
@@ -25,17 +29,24 @@
 	const BLANK_THRESHOLD = 5;
 	const BLANK_GROUP_BY = '';
 	const BLANK_SEVERITY: AlertSeverity = 'warning';
+	const BLANK_COOLDOWN_SEC = 3600;
+	const BLANK_INTERVAL_SEC = 60;
 
-	let name = $state(defaultName);
-	let logql = $state(defaultLogql);
-	let shape = $state<RuleShape>(BLANK_SHAPE);
-	let windowSec = $state(BLANK_WINDOW_SEC);
-	let threshold = $state(BLANK_THRESHOLD);
-	let groupBy = $state(BLANK_GROUP_BY);
-	let severity = $state<AlertSeverity>(BLANK_SEVERITY);
+	let name = $state(initial?.name ?? defaultName);
+	let logql = $state(initial?.logql ?? defaultLogql);
+	let shape = $state<RuleShape>((initial?.shape as RuleShape | undefined) ?? BLANK_SHAPE);
+	let windowSec = $state(initial?.window_sec ?? BLANK_WINDOW_SEC);
+	let threshold = $state(initial?.threshold ?? BLANK_THRESHOLD);
+	let groupBy = $state(initial?.group_by.join(', ') ?? BLANK_GROUP_BY);
+	let severity = $state<AlertSeverity>(initial?.severity ?? BLANK_SEVERITY);
+	let cooldownSec = $state(initial?.cooldown_sec ?? BLANK_COOLDOWN_SEC);
+	let intervalSec = $state(initial?.interval_sec ?? BLANK_INTERVAL_SEC);
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 
+	// Templates only make sense as a starting point for a brand-new rule -
+	// applying one over an existing rule's already-tuned settings would be
+	// destructive, so the picker itself is hidden in edit mode (see markup).
 	function applyTemplate(event: Event) {
 		const index = Number((event.target as HTMLSelectElement).value);
 		if (index < 0) {
@@ -63,32 +74,43 @@
 		submitting = true;
 		error = null;
 		try {
-			const response = await fetch('/api/search/rules', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					name,
-					shape,
-					logql,
-					window_sec: windowSec,
-					threshold,
-					group_by: parseGroupBy(groupBy),
-					severity,
-					destinations: ['inapp'],
-					cooldown_sec: 3600,
-					interval_sec: 60,
-					enabled: true
-				})
+			const body = JSON.stringify({
+				name,
+				shape,
+				logql,
+				window_sec: windowSec,
+				threshold,
+				group_by: parseGroupBy(groupBy),
+				severity,
+				// destinations isn't user-editable yet (no UI for picking
+				// ntfy/inapp) - preserve whatever the rule already had rather
+				// than silently resetting it to just ["inapp"] on every edit.
+				destinations: initial?.destinations ?? ['inapp'],
+				cooldown_sec: cooldownSec,
+				interval_sec: intervalSec,
+				enabled: initial?.enabled ?? true
 			});
+			const response =
+				mode === 'edit' && initial
+					? await fetch(`/api/rules/${initial.id}`, {
+							method: 'PUT',
+							headers: { 'Content-Type': 'application/json' },
+							body
+						})
+					: await fetch('/api/search/rules', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body
+						});
 			if (!response.ok) {
 				error =
 					response.status === 403
-						? "You don't have permission to create rules."
-						: 'Failed to create rule.';
+						? `You don't have permission to ${mode === 'edit' ? 'edit' : 'create'} rules.`
+						: `Failed to ${mode === 'edit' ? 'update' : 'create'} rule.`;
 				return;
 			}
-			const created = (await response.json()) as { id: number };
-			onCreated(created.id);
+			const saved = (await response.json()) as { id: number };
+			onSaved(saved.id);
 		} catch {
 			error = 'Network error — check your connection and try again.';
 		} finally {
@@ -99,16 +121,18 @@
 
 <div class="overlay">
 	<form class="rule-form" onsubmit={submit}>
-		<h2>Create rule</h2>
-		<label>
-			Template
-			<select onchange={applyTemplate}>
-				<option value="-1">Blank / custom</option>
-				{#each RULE_TEMPLATES as template, index (template.name)}
-					<option value={index}>{template.label}</option>
-				{/each}
-			</select>
-		</label>
+		<h2>{mode === 'edit' ? 'Edit rule' : 'Create rule'}</h2>
+		{#if mode === 'create'}
+			<label>
+				Template
+				<select onchange={applyTemplate}>
+					<option value="-1">Blank / custom</option>
+					{#each RULE_TEMPLATES as template, index (template.name)}
+						<option value={index}>{template.label}</option>
+					{/each}
+				</select>
+			</label>
+		{/if}
 		<label>
 			Name
 			<input bind:value={name} required />
@@ -153,13 +177,25 @@
 				<option value="info">info</option>
 			</select>
 		</label>
+		<label>
+			Cooldown (seconds)
+			<input type="number" bind:value={cooldownSec} min="0" />
+		</label>
+		<label>
+			Evaluation interval (seconds)
+			<input type="number" bind:value={intervalSec} min="1" />
+		</label>
 		{#if error}
 			<p class="error">{error}</p>
 		{/if}
 		<div class="actions">
 			<button type="button" onclick={onClose}>Cancel</button>
 			<button type="submit" disabled={submitting}>
-				{submitting ? 'Creating…' : 'Create rule'}
+				{#if submitting}
+					{mode === 'edit' ? 'Saving…' : 'Creating…'}
+				{:else}
+					{mode === 'edit' ? 'Save changes' : 'Create rule'}
+				{/if}
 			</button>
 		</div>
 	</form>

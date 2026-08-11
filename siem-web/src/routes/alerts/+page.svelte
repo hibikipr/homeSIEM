@@ -4,11 +4,13 @@
 	import AlertInbox from '$lib/components/AlertInbox.svelte';
 	import AlertDetail from '$lib/components/AlertDetail.svelte';
 	import RuleDetail from '$lib/components/RuleDetail.svelte';
-	import RuleFromEventForm from '$lib/components/RuleFromEventForm.svelte';
+	import RuleForm from '$lib/components/RuleForm.svelte';
+	import type { RuleResponse } from '$lib/server/siemApiClient';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let showRuleForm = $state(false);
+	let editingRule = $state<RuleResponse | null>(null);
 	// Same role gate siem-api's own POST/PUT /rules routes enforce
 	// (RoleAnalyst) - reused for both creating and toggling rules.
 	let canManageRules = $derived(data.userRole === 'admin' || data.userRole === 'analyst');
@@ -43,6 +45,7 @@
 			rule={data.selectedRule}
 			canEdit={canManageRules}
 			onToggled={() => invalidateAll()}
+			onEdit={() => (editingRule = data.selectedRule ?? null)}
 		/>
 	{:else}
 		<div class="empty">
@@ -52,15 +55,26 @@
 </div>
 
 {#if showRuleForm}
-	<RuleFromEventForm
+	<RuleForm
+		mode="create"
 		defaultName=""
 		defaultLogql=""
 		onClose={() => (showRuleForm = false)}
-		onCreated={(id) => {
+		onSaved={(id) => {
 			showRuleForm = false;
 			// Switches to the Rules tab and selects the new rule, even if the
 			// form was opened from the Open/Acked tab.
 			goto(resolve(`/alerts?state=rules&id=${id}`));
+		}}
+	/>
+{:else if editingRule}
+	<RuleForm
+		mode="edit"
+		initial={editingRule}
+		onClose={() => (editingRule = null)}
+		onSaved={() => {
+			editingRule = null;
+			invalidateAll();
 		}}
 	/>
 {/if}
