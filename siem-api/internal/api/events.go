@@ -28,12 +28,13 @@ type searchResponse struct {
 func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filters := loki.Filters{
-		Source:   q.Get("source"),
-		Host:     q.Get("host"),
-		Program:  q.Get("program"),
-		Severity: q.Get("severity"),
-		Facility: q.Get("facility"),
-		FreeText: q.Get("q"),
+		Source:       q.Get("source"),
+		Host:         q.Get("host"),
+		Program:      q.Get("program"),
+		Severity:     q.Get("severity"),
+		Facility:     q.Get("facility"),
+		FreeText:     q.Get("q"),
+		RequireGeoIP: q.Get("geoip") == "true",
 	}
 	logql := loki.BuildQuery(s.deps.JobLabel, filters)
 

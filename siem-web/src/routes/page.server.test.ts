@@ -63,7 +63,11 @@ describe('Wall load', () => {
 		expect(result.openAlertCount).toBe(1);
 		expect(result.triageAlerts).toHaveLength(1);
 		expect(result.countryBreakdown).toEqual([{ country: 'US', count: 1 }]);
-		expect(searchMock).toHaveBeenCalledWith('token-123', { limit: '200', volume: 'false' });
+		expect(searchMock).toHaveBeenCalledWith('token-123', {
+			limit: '200',
+			volume: 'false',
+			geoip: 'true'
+		});
 		expect(result.insights).toHaveLength(1);
 		expect(result.insights[0].title).toBe('Bambuddy errors look mistagged');
 	});

@@ -57,6 +57,35 @@ func TestEventsSearch_ReturnsCompiledQueryAndEntries(t *testing.T) {
 // catch a regression to reading only result.Series[0] of an unsummed query,
 // which would silently under-report volume for the most common usage of this
 // screen.
+func TestEventsSearch_GeoipTrue_AddsTheGeoipFilterToTheCompiledQuery(t *testing.T) {
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+	token := authToken(t, st, "viewer", 100)
+
+	req := httptest.NewRequest(http.MethodGet, "/events/search?geoip=true", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	want := `{job="siem"} | json cc="geoip.country_code" | cc != ""`
+	if resp.LogQL != want {
+		t.Errorf("LogQL = %q, want %q", resp.LogQL, want)
+	}
+}
+
 func TestEventsSearch_IncludesVolumeBuckets(t *testing.T) {
 	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")

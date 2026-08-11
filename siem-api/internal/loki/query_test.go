@@ -56,6 +56,22 @@ func TestBuildQuery_FreeText(t *testing.T) {
 	}
 }
 
+func TestBuildQuery_RequireGeoIP(t *testing.T) {
+	got := BuildQuery("siem", Filters{RequireGeoIP: true})
+	want := `{job="siem"} | json cc="geoip.country_code" | cc != ""`
+	if got != want {
+		t.Errorf("BuildQuery() = %q, want %q", got, want)
+	}
+}
+
+func TestBuildQuery_RequireGeoIP_ComposesAfterOtherFilters(t *testing.T) {
+	got := BuildQuery("siem", Filters{Source: "udm-ultra", FreeText: "blocked", RequireGeoIP: true})
+	want := `{job="siem",source="udm-ultra"} |= "blocked" | json cc="geoip.country_code" | cc != ""`
+	if got != want {
+		t.Errorf("BuildQuery() = %q, want %q", got, want)
+	}
+}
+
 func TestBuildQuery_ExtraFieldsRejectInvalidKeyNames(t *testing.T) {
 	got := BuildQuery("siem", Filters{Extra: map[string]string{
 		`src_ip" | label_format evil=`: "10.0.0.5",
