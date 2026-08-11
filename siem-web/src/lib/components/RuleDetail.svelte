@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { RuleResponse } from '$lib/server/siemApiClient';
+	import { formatSecondsAsMinutes } from '$lib/minutePresets';
 
 	let {
 		rule,
@@ -74,9 +75,9 @@
 	<h1>{rule.name}</h1>
 	<div class="meta">
 		<span>severity: {rule.severity}</span>
-		<span>window: {rule.window_sec}s</span>
-		<span>cooldown: {rule.cooldown_sec}s</span>
-		<span>evaluates every: {rule.interval_sec}s</span>
+		<span>window: {formatSecondsAsMinutes(rule.window_sec)}</span>
+		<span>cooldown: {formatSecondsAsMinutes(rule.cooldown_sec)}</span>
+		<span>evaluates every: {formatSecondsAsMinutes(rule.interval_sec)}</span>
 	</div>
 	<div class="destinations">destinations: {rule.destinations.join(', ')}</div>
 	<div class="logql-block">{rule.logql}</div>
