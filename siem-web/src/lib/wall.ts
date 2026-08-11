@@ -46,7 +46,14 @@ export function deriveCountryBreakdown(entries: LogEntry[]): CountryCount[] {
 		const geoip = (parsed as Record<string, unknown>).geoip;
 		if (typeof geoip !== 'object' || geoip === null) continue;
 
-		const country = (geoip as Record<string, unknown>).cc;
+		// Vector's geoip enrichment table (see enrich_geo in vector.toml)
+		// names this field country_code - there's no "cc" field in the
+		// actual enriched data at all, despite that being what this file
+		// read for as long as this widget has existed. Found in production:
+		// confirmed directly against a live captured event that .geoip.cc
+		// was always undefined, so this widget could never have populated
+		// even on a sample that did contain a geoip-enriched entry.
+		const country = (geoip as Record<string, unknown>).country_code;
 		if (typeof country !== 'string' || country === '') continue;
 
 		counts.set(country, (counts.get(country) ?? 0) + 1);
