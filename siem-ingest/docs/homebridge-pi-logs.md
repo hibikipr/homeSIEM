@@ -62,6 +62,46 @@ with two changes:
    - The Homebridge Pi can actually reach `siem-ingest` on port 601:
      `nc -zv <siem-ingest-lan-ip> 601` from the Homebridge Pi.
 
+## Journal forwarding alone misses the actual Homebridge/plugin activity
+
+Found in production: with only the journal-based block in place, the SIEM
+only ever received hb-service's own brief startup supervisor chatter (nginx
+config lines, "[HB Supervisor] ..." debug output) - one short burst per
+service restart, nothing in between. hb-service redirects the real
+Homebridge process's own output (accessory events, plugin logs, pairing
+activity - the stuff actually worth monitoring) to a log **file**
+(`/var/lib/homebridge/homebridge.log` by default) instead of stdout, so none
+of it ever reaches journald or gets picked up by `imjournal` at all,
+regardless of whether the bridge itself is configured correctly.
+
+[`homebridge-rsyslog.conf`](homebridge-rsyslog.conf) now has a second block
+using rsyslog's `imfile` module to tail that log file directly, forwarded
+the same way as the journal-based block. Before deploying it:
+
+1. Confirm the actual log file path on your install - it can differ (a
+   custom storage path, `HOMEBRIDGE_CONFIG_UI_STORAGE_PATH`, etc.):
+   ```bash
+   ls -la /var/lib/homebridge/homebridge.log
+   ```
+   If that doesn't exist, check `sudo journalctl -u homebridge -n 20` right
+   after a restart for the supervisor's own "Logging to ..." line, which
+   states the real path for your install.
+2. Update the `File=` path in the `imfile` `input()` block if it differs.
+3. Redeploy: `sudo cp homebridge-rsyslog.conf /etc/rsyslog.d/60-siem-homebridge-forward.conf`
+   (with `SIEM_INGEST_HOST` replaced, as before) then
+   `sudo systemctl restart rsyslog`.
+4. Verify: `{job="siem", program="homebridge-log"}` in Search/Loki should
+   start showing real accessory/plugin activity, not just startup bursts.
+
+## Absence detection
+
+Once real activity is flowing (not just startup bursts), consider adding an
+`absence` rule in Alerts → Rules scoped to `{job="siem", host="homebridge"}`
+so the SIEM itself notices if this pipe goes quiet again, rather than
+noticing by hand. Pick the window based on how often your actual plugins
+log something - a supervisor-only setup (see above) restarts too
+irregularly for an absence window to mean anything useful.
+
 ## New sources may need a new severity-detection branch
 
 Same caveat as any new source (see the Unraid doc): `enrich_geo`'s severity
