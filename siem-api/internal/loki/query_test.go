@@ -21,6 +21,28 @@ func TestBuildQuery_MandatedLabels(t *testing.T) {
 	}
 }
 
+// Regression: facility is never promoted to a Loki stream label (see
+// siem-ingest/vector.toml's sinks.loki.labels), so folding it into the
+// label selector matched zero streams for every facility value entered.
+// Found in production against live Loki data.
+func TestBuildQuery_FacilityNeverBecomesALabel(t *testing.T) {
+	got := BuildQuery("siem", Filters{Source: "udm-ultra", Facility: "user"})
+
+	braceEnd := strings.Index(got, "}")
+	if braceEnd < 0 {
+		t.Fatalf("BuildQuery() = %q, no closing brace found", got)
+	}
+	labelPart := got[:braceEnd]
+	if strings.Contains(labelPart, "facility") {
+		t.Errorf("BuildQuery() label selector %q contains facility — facility must never become a label", labelPart)
+	}
+
+	rest := got[braceEnd:]
+	if !strings.Contains(rest, `| json`) || !strings.Contains(rest, `facility="user"`) {
+		t.Errorf("BuildQuery() = %q, want a json filter for facility after the label selector", got)
+	}
+}
+
 func TestBuildQuery_ExtraFieldsNeverBecomeLabels(t *testing.T) {
 	got := BuildQuery("siem", Filters{Source: "udm-ultra", Extra: map[string]string{"src_ip": "10.0.0.5"}})
 

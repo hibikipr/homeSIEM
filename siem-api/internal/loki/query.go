@@ -14,6 +14,13 @@ type Filters struct {
 	Host     string
 	Program  string
 	Severity string
+	// Facility is never promoted to a Loki stream label (see
+	// siem-ingest/vector.toml's sinks.loki.labels, which only sets job,
+	// source, host, program, severity) - it only exists inside each line's
+	// own JSON body. Found in production: BuildQuery used to fold this into
+	// the label selector like the fields above, which silently matched zero
+	// streams for every facility value ever entered. Must stay a
+	// post-`| json` filter, not a label.
 	Facility string
 	Extra    map[string]string // non-label fields, e.g. src_ip — always emitted as filters, never as labels
 	FreeText string
@@ -37,13 +44,16 @@ func BuildQuery(jobLabel string, f Filters) string {
 		{"host", f.Host},
 		{"program", f.Program},
 		{"severity", f.Severity},
-		{"facility", f.Facility},
 	} {
 		if pair.value != "" {
 			labels = append(labels, fmt.Sprintf("%s=%q", pair.name, pair.value))
 		}
 	}
 	query := "{" + strings.Join(labels, ",") + "}"
+
+	if f.Facility != "" {
+		query += fmt.Sprintf(` | json | facility=%q`, f.Facility)
+	}
 
 	if len(f.Extra) > 0 {
 		keys := make([]string, 0, len(f.Extra))
