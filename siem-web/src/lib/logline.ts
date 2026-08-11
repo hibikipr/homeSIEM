@@ -22,11 +22,30 @@ export function extractField(line: string, key: string): string | null {
 	return typeof value === 'string' ? value : null;
 }
 
+// Some sources' loggers color their own output (Homebridge's own Logger,
+// most visibly - siem-ingest's severity classification for it depends on
+// reading these exact codes, see vector.toml's enrich_geo transform - but
+// nothing ever strips them back out for display). Useful in a real
+// terminal, meaningless - and ugly, literal "\x1b[31m...\x1b[39m" bracketing
+// the text - once rendered as plain text here. Strips both the raw ESC-byte
+// form (imfile-forwarded sources, whose control bytes pass through
+// unmodified) and rsyslog's traditional escaped "#033[...m" text form
+// (every journald-sourced ANSI-colored source in this app, whose control
+// bytes get escaped in transit), so neither ever reaches the UI.
+// eslint-disable-next-line no-control-regex -- deliberately matching the real ESC (0x1B) control byte, not a typo.
+const ANSI_ESCAPE_BYTE = /\x1b\[[0-9;]*m/g;
+const ANSI_ESCAPE_TEXT = /#033\[[0-9;]*m/g;
+
+function stripAnsi(text: string): string {
+	return text.replace(ANSI_ESCAPE_BYTE, '').replace(ANSI_ESCAPE_TEXT, '');
+}
+
 // Falls back to the raw line for anything that isn't the JSON shape
 // enrich_geo produces (malformed line, or a .message-less event) rather than
 // showing an empty cell.
 export function extractMessage(line: string): string {
-	return extractField(line, 'message') ?? line;
+	const message = extractField(line, 'message') ?? line;
+	return stripAnsi(message);
 }
 
 type DatePart = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second';
