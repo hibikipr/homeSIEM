@@ -55,11 +55,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		const srcIp = extractSrcIp(selectedEntry.Line);
 		if (srcIp) {
 			try {
+				// entries=false/volume=false: this callout only ever shows
+				// contextResult.count - fetching up to 5000 full log entries
+				// (and a volume histogram) just to read their length was
+				// measurably slower than asking siem-api for a real
+				// aggregate count directly.
 				const contextResult = await client.search(token, {
 					q: srcIp,
 					start: new Date(end.getTime() - 24 * 60 * 60 * 1000).toISOString(),
 					end: end.toISOString(),
-					limit: '5000'
+					entries: 'false',
+					volume: 'false'
 				});
 				contextSummary = { count: contextResult.count };
 			} catch (err) {

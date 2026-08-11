@@ -106,6 +106,101 @@ func TestEventsSearch_IncludesVolumeBuckets(t *testing.T) {
 	}
 }
 
+func TestEventsSearch_VolumeFalse_SkipsTheVolumeQueryEntirely(t *testing.T) {
+	var sawVolumeQuery bool
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(query, "count_over_time") {
+			sawVolumeQuery = true
+			w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+			return
+		}
+		w.Write([]byte(`{"status":"success","data":{"result":[
+			{"stream":{"job":"siem"},"values":[["1700000000000000000","hello"]]}
+		]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search?volume=false", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if sawVolumeQuery {
+		t.Error("expected no count_over_time (volume) query to be made when volume=false")
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(resp.Entries) != 1 {
+		t.Errorf("Entries = %+v, want the 1 entry from the fake server still returned", resp.Entries)
+	}
+	if resp.Volume == nil || len(resp.Volume) != 0 {
+		t.Errorf("Volume = %+v, want an empty (non-nil) array", resp.Volume)
+	}
+}
+
+func TestEventsSearch_EntriesFalse_SkipsEntriesQueryAndReturnsRealCount(t *testing.T) {
+	var sawEntriesQuery bool
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasPrefix(query, "sum(count_over_time"):
+			// The count-only instant query - a real total, deliberately
+			// larger than any `limit` a caller might have passed, proving
+			// this isn't just len(entries) silently capped.
+			w.Write([]byte(`{"status":"success","data":{"result":[
+				{"metric":{},"value":[1700000000,"12345"]}
+			]}}`))
+		case strings.Contains(query, "count_over_time"):
+			// Volume-bucket query, requested independently below.
+			w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+		default:
+			sawEntriesQuery = true
+			w.Write([]byte(`{"status":"success","data":{"result":[
+				{"stream":{"job":"siem"},"values":[["1700000000000000000","hello"]]}
+			]}}`))
+		}
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search?entries=false&volume=false&limit=5", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if sawEntriesQuery {
+		t.Error("expected no entries (query_range log-stream) query to be made when entries=false")
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if resp.Count != 12345 {
+		t.Errorf("Count = %d, want 12345 (the real aggregate, not capped at limit=5)", resp.Count)
+	}
+	if resp.Entries == nil || len(resp.Entries) != 0 {
+		t.Errorf("Entries = %+v, want an empty (non-nil) array", resp.Entries)
+	}
+}
+
 func TestEventsSearch_SucceedsWhenVolumeQueryFails(t *testing.T) {
 	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
