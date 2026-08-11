@@ -63,7 +63,7 @@ describe('Wall load', () => {
 		expect(result.openAlertCount).toBe(1);
 		expect(result.triageAlerts).toHaveLength(1);
 		expect(result.countryBreakdown).toEqual([{ country: 'US', count: 1 }]);
-		expect(searchMock).toHaveBeenCalledWith('token-123', { limit: '1000' });
+		expect(searchMock).toHaveBeenCalledWith('token-123', { limit: '200', volume: 'false' });
 		expect(result.insights).toHaveLength(1);
 		expect(result.insights[0].title).toBe('Bambuddy errors look mistagged');
 	});
@@ -91,7 +91,8 @@ describe('Wall load', () => {
 			return {
 				getEventsStats: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
 				getAlerts: vi.fn().mockResolvedValue([]),
-				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] })
+				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+				getInsights: vi.fn().mockResolvedValue([])
 			};
 		});
 
@@ -106,7 +107,8 @@ describe('Wall load', () => {
 			return {
 				getEventsStats: vi.fn().mockResolvedValue({ event_count_24h: 0, heat_grid: [] }),
 				getAlerts: vi.fn().mockRejectedValue(new SiemApiError(403, 'role no longer valid')),
-				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] })
+				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+				getInsights: vi.fn().mockResolvedValue([])
 			};
 		});
 
@@ -120,7 +122,8 @@ describe('Wall load', () => {
 			return {
 				getEventsStats: vi.fn().mockResolvedValue({ event_count_24h: 0, heat_grid: [] }),
 				getAlerts: vi.fn().mockResolvedValue([]),
-				search: vi.fn().mockRejectedValue(new SiemApiError(500, 'boom'))
+				search: vi.fn().mockRejectedValue(new SiemApiError(500, 'boom')),
+				getInsights: vi.fn().mockResolvedValue([])
 			};
 		});
 

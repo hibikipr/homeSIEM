@@ -83,7 +83,7 @@ describe('Search load', () => {
 		expect(searchMock).toHaveBeenNthCalledWith(
 			2,
 			'token-123',
-			expect.objectContaining({ limit: '5000' })
+			expect.objectContaining({ entries: 'false', volume: 'false' })
 		);
 	});
 
