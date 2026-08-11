@@ -308,6 +308,78 @@ name = "unificlientalerts 'WebSocket connection event (events)' line overrides a
     '''
 
 [[tests]]
+name = "unificlientalerts 'WebSocket connected: <url>' line overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "unificlientalerts"
+    message = "2026/08/11 09:16:08 WebSocket connected: wss://192.168.3.1:443/proxy/network/wss/s/default/events?clients=v2&next_ai_notifications=true"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Prefix match, not a full-literal one - the wss:// URL varies.
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "unificlientalerts startup/shutdown lifecycle lines override a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "unificlientalerts"
+    message = "2026/08/11 09:16:08 WebSocket: detected UniFi OS controller (modern path)."
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "unificlientalerts 'Received signal <name>; shutting down.' line overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "unificlientalerts"
+    message = "2026/08/11 09:16:07 Received signal terminated; shutting down."
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Prefix+suffix match, not a full-literal one - the signal name
+      ## (terminated/interrupt/...) varies.
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
 name = "unificlientalerts genuine 401 reconnect failure stays err - a real error is not flipped"
 
   [tests.input]
