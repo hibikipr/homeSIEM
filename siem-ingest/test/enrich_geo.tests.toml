@@ -1287,3 +1287,65 @@ name = "netfilter event with a valid public src still gets geoip enrichment (pre
       assert_eq!(.action, "drop")
       assert!(exists(.geoip), "the pre-existing netfilter path must still reach the geoip lookup after the guard fix")
     '''
+
+[[tests]]
+name = "a blank-message line (ffmpeg banner separator, forwarded by Scrypted) is dropped before it reaches Loki"
+no_outputs_from = ["drop_blank_messages"]
+
+  [tests.input]
+  insert_at = "enrich_geo"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "tower"
+    appname = "scrypted"
+    severity = "info"
+    parser = "rfc5424"
+    message = ""
+
+[[tests]]
+name = "a non-blank message (e.g. ffmpeg's own banner content) still reaches Loki"
+
+  [tests.input]
+  insert_at = "enrich_geo"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "tower"
+    appname = "scrypted"
+    severity = "info"
+    parser = "rfc5424"
+    message = "title           : 1C6A1B81F1E1_0"
+
+  [[tests.outputs]]
+  extract_from = "drop_blank_messages"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.message, "title           : 1C6A1B81F1E1_0")
+    '''
+
+[[tests]]
+name = "fast_path still receives blank-message events unaffected (only the Loki sink is filtered)"
+
+  [tests.input]
+  insert_at = "enrich_geo"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "info"
+    parser = "rfc5424"
+    message = ""
+    action = "drop"
+    dst_port = 22
+
+  [[tests.outputs]]
+  extract_from = "fast_path"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.action, "drop")
+    '''

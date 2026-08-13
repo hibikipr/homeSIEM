@@ -734,6 +734,28 @@ tag = "string"
 
 # ---------------------------------------------------------- heartbeat
 
+## Found in production: Scrypted forwards ffmpeg's own multi-line startup
+## banner (Duration/Metadata/Stream info printed to stderr on every
+## motion-triggered recording or rebroadcast) line-by-line over syslog -
+## nothing joins multi-line output back together, so each line, including
+## ffmpeg's blank separator lines and Scrypted's own blank line before most
+## of its entries, lands as its own event with message="". These carry zero
+## information (an insights pass over a run of them produced a "repeated
+## empty error messages" finding that looked alarming but wasn't - severity
+## was correctly "info" throughout, just noisy) and this isn't
+## Scrypted-specific: any line-oriented forwarder hits the same thing for
+## any multi-line-banner-emitting program. Scoped to the Loki sink only
+## (not fast_path or the heartbeat pipeline) - fast_path cares about
+## .threat_intel/.action, and heartbeat_throttle/heartbeat_shape use
+## .source/.source_ip/.transport/.parser, none of which depend on .message,
+## so dropping blank-message noise here can't affect either.
+[transforms.drop_blank_messages]
+type = "filter"
+inputs = ["enrich_geo"]
+condition = '''
+  !(is_string(.message) && .message == "")
+'''
+
 [transforms.heartbeat_throttle]
 type = "throttle"
 inputs = ["enrich_geo"]
@@ -795,7 +817,7 @@ X-Fastpath-Token = "${SIEM_FASTPATH_TOKEN}"
 
 [sinks.loki]
 type = "loki"
-inputs = ["enrich_geo"]
+inputs = ["drop_blank_messages"]
 endpoint = "${LOKI_ENDPOINT}"
 out_of_order_action = "accept"
 
