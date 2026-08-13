@@ -8,8 +8,8 @@ export const POST: RequestHandler = async ({ locals }) => {
 	const token = locals.sessionToken as string;
 
 	try {
-		const insights = await client.generateInsightsNow(token);
-		return json(insights);
+		const result = await client.generateInsightsNow(token);
+		return json(result);
 	} catch (err) {
 		if (err instanceof SiemApiError) {
 			return json({ error: err.message }, { status: err.status });

@@ -18,6 +18,11 @@ type evidenceItem struct {
 	Count         int    `json:"count"`
 }
 
+type generateInsightsResponse struct {
+	Generated int               `json:"generated"`
+	Insights  []insightResponse `json:"insights"`
+}
+
 type insightResponse struct {
 	ID        int64          `json:"id"`
 	CreatedAt time.Time      `json:"created_at"`
@@ -71,7 +76,8 @@ func (s *Server) handleGenerateInsights(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "insights is not configured", http.StatusBadRequest)
 		return
 	}
-	if err := s.deps.Insights.GenerateNow(r.Context()); err != nil {
+	generated, err := s.deps.Insights.GenerateNow(r.Context())
+	if err != nil {
 		s.deps.Logger.Error("generate insights failed", "error", err)
 		msg := "generate insights failed"
 		if errors.Is(err, ollama.ErrUnreachable) {
@@ -87,7 +93,7 @@ func (s *Server) handleGenerateInsights(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(toInsightResponses(list))
+	json.NewEncoder(w).Encode(generateInsightsResponse{Generated: generated, Insights: toInsightResponses(list)})
 }
 
 func (s *Server) handleDismissInsight(w http.ResponseWriter, r *http.Request) {

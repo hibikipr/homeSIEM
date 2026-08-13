@@ -68,11 +68,13 @@ var validSeverities = map[string]bool{"info": true, "warning": true, "critical":
 // from Chat or from prompt-building ARE propagated (the caller - the
 // scheduler - decides how to log/retry a failed pass), since those
 // indicate the pass genuinely couldn't run at all, unlike a response that
-// ran but didn't parse.
-func (s *Service) GenerateNow(ctx context.Context) error {
+// ran but didn't parse. The returned int is how many insights this pass
+// actually inserted, so a caller (e.g. a manually-triggered pass) can tell
+// "ran fine, found nothing" apart from "ran fine, found three things".
+func (s *Service) GenerateNow(ctx context.Context) (int, error) {
 	settings, err := s.Settings.GetOllamaSettings(ctx)
 	if err != nil {
-		return fmt.Errorf("insights: get ollama settings: %w", err)
+		return 0, fmt.Errorf("insights: get ollama settings: %w", err)
 	}
 	systemPrompt := settings.SystemPrompt
 	if systemPrompt == "" {
@@ -81,7 +83,7 @@ func (s *Service) GenerateNow(ctx context.Context) error {
 
 	userPrompt, err := s.Prompt.Build(ctx, s.Lookback)
 	if err != nil {
-		return fmt.Errorf("insights: build prompt: %w", err)
+		return 0, fmt.Errorf("insights: build prompt: %w", err)
 	}
 
 	opts := ollama.ChatOptions{
@@ -92,16 +94,17 @@ func (s *Service) GenerateNow(ctx context.Context) error {
 	}
 	response, err := s.Chat.Chat(ctx, systemPrompt, userPrompt, opts)
 	if err != nil {
-		return fmt.Errorf("insights: chat: %w", err)
+		return 0, fmt.Errorf("insights: chat: %w", err)
 	}
 
 	parsed, err := parseModelResponse(response)
 	if err != nil {
 		s.Logger.Warn("insights: malformed model response, skipping this pass",
 			"error", err, "response", response)
-		return nil
+		return 0, nil
 	}
 
+	inserted := 0
 	for _, mi := range parsed {
 		severity := mi.Severity
 		if !validSeverities[severity] {
@@ -120,9 +123,11 @@ func (s *Service) GenerateNow(ctx context.Context) error {
 			EvidenceJSON: string(evidenceJSON),
 		}); err != nil {
 			s.Logger.Warn("insights: failed to insert insight", "error", err, "title", mi.Title)
+			continue
 		}
+		inserted++
 	}
-	return nil
+	return inserted, nil
 }
 
 // parseModelResponse extracts the first "[...]" substring from the model's

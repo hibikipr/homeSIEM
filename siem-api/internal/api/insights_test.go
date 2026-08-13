@@ -125,12 +125,41 @@ func TestGenerateInsights_Success_InsertsAndReturnsInsights(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
 	}
-	var got []insightResponse
+	var got generateInsightsResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if len(got) != 1 || got[0].Title != "t" {
-		t.Errorf("got = %+v, want one insight titled %q", got, "t")
+	if got.Generated != 1 {
+		t.Errorf("Generated = %d, want 1", got.Generated)
+	}
+	if len(got.Insights) != 1 || got.Insights[0].Title != "t" {
+		t.Errorf("Insights = %+v, want one insight titled %q", got.Insights, "t")
+	}
+}
+
+func TestGenerateInsights_NoInsightsProduced_ReturnsZeroGenerated(t *testing.T) {
+	s, st := newTestServer(t)
+	pb := &insights.PromptBuilder{Loki: fakeLokiQuerierAPI{}, Alerts: st, JobLabel: "siem"}
+	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: "[]"}, st, st, time.Hour, s.deps.Logger)
+	token := authToken(t, st, "analyst", 50)
+
+	req := httptest.NewRequest(http.MethodPost, "/insights/generate", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var got generateInsightsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.Generated != 0 {
+		t.Errorf("Generated = %d, want 0 when the model returned nothing actionable", got.Generated)
+	}
+	if len(got.Insights) != 0 {
+		t.Errorf("Insights = %+v, want empty", got.Insights)
 	}
 }
 
@@ -138,7 +167,7 @@ func TestListInsights_ExcludesDismissedUnlessAllTrue(t *testing.T) {
 	s, st := newTestServer(t)
 	pb := &insights.PromptBuilder{Loki: fakeLokiQuerierAPI{}, Alerts: st, JobLabel: "siem"}
 	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: fakeInsightResponse}, st, st, time.Hour, s.deps.Logger)
-	if err := s.deps.Insights.GenerateNow(context.Background()); err != nil {
+	if _, err := s.deps.Insights.GenerateNow(context.Background()); err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
 	}
 	list, err := st.ListInsights(context.Background(), false, 10)
@@ -176,7 +205,7 @@ func TestDismissInsight_Success(t *testing.T) {
 	s, st := newTestServer(t)
 	pb := &insights.PromptBuilder{Loki: fakeLokiQuerierAPI{}, Alerts: st, JobLabel: "siem"}
 	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: fakeInsightResponse}, st, st, time.Hour, s.deps.Logger)
-	if err := s.deps.Insights.GenerateNow(context.Background()); err != nil {
+	if _, err := s.deps.Insights.GenerateNow(context.Background()); err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
 	}
 	list, _ := st.ListInsights(context.Background(), false, 10)

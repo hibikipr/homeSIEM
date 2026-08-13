@@ -7,18 +7,24 @@
 
 	let generating = $state(false);
 	let generateError = $state<string | null>(null);
+	let generateNotice = $state<string | null>(null);
 	let dismissingId = $state<number | null>(null);
 	let expandedId = $state<number | null>(null);
 
 	async function generateNow() {
 		generating = true;
 		generateError = null;
+		generateNotice = null;
 		try {
 			const response = await fetch('/api/insights/generate', { method: 'POST' });
 			if (!response.ok) {
 				const body = await response.json().catch(() => ({}));
 				generateError = body.error ?? 'Failed to generate insights.';
 				return;
+			}
+			const body = await response.json();
+			if (body.generated === 0) {
+				generateNotice = 'Pass complete: no new insights this time.';
 			}
 			await invalidateAll();
 		} finally {
@@ -54,6 +60,8 @@
 	</header>
 	{#if generateError}
 		<p class="generate-error">{generateError}</p>
+	{:else if generateNotice}
+		<p class="generate-notice">{generateNotice}</p>
 	{/if}
 
 	{#if data.insights.length === 0}
@@ -147,6 +155,10 @@
 	}
 	.generate-error {
 		color: var(--color-severity-critical);
+		font-size: 12px;
+	}
+	.generate-notice {
+		color: var(--color-muted);
 		font-size: 12px;
 	}
 	.empty {
