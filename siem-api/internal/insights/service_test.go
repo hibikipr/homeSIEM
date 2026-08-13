@@ -84,8 +84,12 @@ func TestGenerateNow_HappyPath_InsertsOneInsightPerElement(t *testing.T) {
 	ins := &fakeInsightStore{}
 	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err != nil {
+	generated, err := svc.GenerateNow(context.Background())
+	if err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
+	}
+	if generated != 1 {
+		t.Errorf("generated = %d, want 1", generated)
 	}
 
 	if len(ins.inserted) != 1 {
@@ -112,7 +116,7 @@ func TestGenerateNow_ResponseWrappedInProseAndCodeFence_StillParses(t *testing.T
 	ins := &fakeInsightStore{}
 	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err != nil {
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
 	}
 	if len(ins.inserted) != 1 {
@@ -126,9 +130,12 @@ func TestGenerateNow_MalformedResponse_InsertsNothingLogsWarningNoError(t *testi
 	ins := &fakeInsightStore{}
 	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&buf))
 
-	err := svc.GenerateNow(context.Background())
+	generated, err := svc.GenerateNow(context.Background())
 	if err != nil {
 		t.Fatalf("GenerateNow() error = %v, want nil (a malformed response must not crash the scheduler loop)", err)
+	}
+	if generated != 0 {
+		t.Errorf("generated = %d, want 0", generated)
 	}
 	if len(ins.inserted) != 0 {
 		t.Errorf("len(inserted) = %d, want 0", len(ins.inserted))
@@ -143,8 +150,12 @@ func TestGenerateNow_EmptyArrayResponse_InsertsNothingNoError(t *testing.T) {
 	ins := &fakeInsightStore{}
 	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err != nil {
+	generated, err := svc.GenerateNow(context.Background())
+	if err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
+	}
+	if generated != 0 {
+		t.Errorf("generated = %d, want 0 for a genuinely empty (nothing actionable) response", generated)
 	}
 	if len(ins.inserted) != 0 {
 		t.Errorf("len(inserted) = %d, want 0 for a genuinely empty (nothing actionable) response", len(ins.inserted))
@@ -157,7 +168,7 @@ func TestGenerateNow_InvalidSeverity_CoercedToInfo(t *testing.T) {
 	ins := &fakeInsightStore{}
 	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err != nil {
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
 	}
 	if len(ins.inserted) != 1 {
@@ -173,7 +184,7 @@ func TestGenerateNow_ChatError_PropagatesNoInserts(t *testing.T) {
 	ins := &fakeInsightStore{}
 	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err == nil {
+	if _, err := svc.GenerateNow(context.Background()); err == nil {
 		t.Fatal("GenerateNow() error = nil, want the Chat error propagated")
 	}
 	if len(ins.inserted) != 0 {
@@ -188,7 +199,7 @@ func TestGenerateNow_PromptBuildError_PropagatesNoInserts(t *testing.T) {
 	ins := &fakeInsightStore{}
 	svc := NewService(pb, chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err == nil {
+	if _, err := svc.GenerateNow(context.Background()); err == nil {
 		t.Fatal("GenerateNow() error = nil, want the prompt-build error propagated")
 	}
 	if len(ins.inserted) != 0 {
@@ -201,7 +212,7 @@ func TestGenerateNow_NoPromptOverride_UsesDefaultSystemPrompt(t *testing.T) {
 	ins := &fakeInsightStore{}
 	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err != nil {
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
 	}
 	if chat.gotSystemPrompt != DefaultSystemPrompt {
@@ -217,7 +228,7 @@ func TestGenerateNow_PromptOverrideSet_UsesOverride(t *testing.T) {
 	}}
 	svc := NewService(testPromptBuilder(), chat, ins, settings, time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err != nil {
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
 	}
 	if chat.gotSystemPrompt != "custom system prompt" {
@@ -233,7 +244,7 @@ func TestGenerateNow_PassesGenerationOptionsThrough(t *testing.T) {
 	}}
 	svc := NewService(testPromptBuilder(), chat, ins, settings, time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err != nil {
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
 		t.Fatalf("GenerateNow() error = %v", err)
 	}
 	want := ollama.ChatOptions{Temperature: 0.7, TopP: 0.5, NumPredict: 2048, NumCtx: 16384}
@@ -248,7 +259,7 @@ func TestGenerateNow_SettingsError_PropagatesNoInserts(t *testing.T) {
 	settings := &fakeSettingsStore{err: errors.New("db unavailable")}
 	svc := NewService(testPromptBuilder(), chat, ins, settings, time.Hour, testLogger(&bytes.Buffer{}))
 
-	if err := svc.GenerateNow(context.Background()); err == nil {
+	if _, err := svc.GenerateNow(context.Background()); err == nil {
 		t.Fatal("GenerateNow() error = nil, want the settings-fetch error propagated")
 	}
 	if len(ins.inserted) != 0 {

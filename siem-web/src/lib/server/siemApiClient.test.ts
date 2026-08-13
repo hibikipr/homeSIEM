@@ -423,16 +423,30 @@ describe('SiemApiClient', () => {
 	});
 
 	it('generateInsightsNow POSTs to /insights/generate and parses the response', async () => {
-		const fetchFn = fakeFetch([{ id: 2, title: 'new insight', dismissed: false }]);
+		const fetchFn = fakeFetch({
+			generated: 1,
+			insights: [{ id: 2, title: 'new insight', dismissed: false }]
+		});
 		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
 
 		const result = await client.generateInsightsNow('token-123');
 
-		expect(result).toHaveLength(1);
+		expect(result.generated).toBe(1);
+		expect(result.insights).toHaveLength(1);
 		const [url, init] = fetchFn.mock.calls[0];
 		expect(url).toBe('http://siem-api:8080/insights/generate');
 		expect(init?.method).toBe('POST');
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('generateInsightsNow reports zero generated when the pass finds nothing', async () => {
+		const fetchFn = fakeFetch({ generated: 0, insights: [] });
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.generateInsightsNow('token-123');
+
+		expect(result.generated).toBe(0);
+		expect(result.insights).toHaveLength(0);
 	});
 
 	it('dismissInsight PUTs to /insights/{id}/dismiss with Authorization', async () => {

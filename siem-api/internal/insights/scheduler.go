@@ -32,7 +32,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := s.svc.GenerateNow(ctx); err != nil {
+			if _, err := s.svc.GenerateNow(ctx); err != nil {
 				s.logger.Warn("insights: scheduled pass failed", "error", err)
 			}
 		}

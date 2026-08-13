@@ -34,6 +34,11 @@ export interface Insight {
 	dismissed: boolean;
 }
 
+export interface GenerateInsightsResponse {
+	generated: number;
+	insights: Insight[];
+}
+
 export interface AlertResponse {
 	id: number;
 	rule_id: number;
@@ -336,8 +341,8 @@ export class SiemApiClient {
 		return this.request<Insight[]>(path, this.authInit(sessionToken));
 	}
 
-	async generateInsightsNow(sessionToken: string): Promise<Insight[]> {
-		return this.request<Insight[]>('/insights/generate', {
+	async generateInsightsNow(sessionToken: string): Promise<GenerateInsightsResponse> {
+		return this.request<GenerateInsightsResponse>('/insights/generate', {
 			method: 'POST',
 			...this.authInit(sessionToken)
 		});
