@@ -213,6 +213,33 @@ name = "Go stdlib-logged INFO line overrides a stderr-derived RFC5424 PRI severi
     '''
 
 [[tests]]
+name = "UI-poller's bracket-wrapped Go stdlib ERROR line overrides a stderr-derived RFC5424 PRI severity"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    appname = "UI-poller"
+    severity = "info"
+    parser = "rfc5424"
+    message = "2026/08/12 15:34:29 [ERROR] event fetch for Loki failed: https://192.168.3.1: unifi.GetAlarms(): https://192.168.3.1/proxy/network/api/s/default/list/alarm: 400 : invalid status code from server: error initializing inputs"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Found in production: UI-poller wraps its level word in brackets
+      ## ("[ERROR] ...") rather than writing it bare like ntfy above, so
+      ## the bare-word branch never matched and a genuine UniFi fetch
+      ## failure was landing as severity=info.
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
 name = "a Go stdlib-timestamped message without an immediate level word is left untouched"
 
   [tests.input]

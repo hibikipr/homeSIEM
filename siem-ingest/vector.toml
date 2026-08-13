@@ -256,6 +256,22 @@ source = '''
       }
     }
 
+    ## Found in production: UI-poller (a Go stdlib-logged UniFi alarm
+    ## poller) wraps its level word in brackets - "[ERROR] event fetch
+    ## for Loki failed: ..." - instead of writing it bare like ntfy above,
+    ## so the bare-word branch's `[A-Z]+` never got a chance to start
+    ## matching (the very next character after the date/time is "[", not
+    ## a letter). Same underlying Go stdlib "YYYY/MM/DD HH:MM:SS" prefix
+    ## and PRI-vs-self-reported mismatch as the bare-word case, just this
+    ## program's logger happens to bracket the level. A real UniFi fetch
+    ## failure was landing as severity=info and never surfacing.
+    if is_null(reported_level) {
+      m = parse_regex(message_for_level, r'^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[(?P<val>[A-Z]+)\]').val ?? null
+      if is_string(m) {
+        reported_level = downcase!(m)
+      }
+    }
+
     ## unificlientalerts (a small Go program with no structured/leveled
     ## logging at all - just log.Println, never an INFO/WARN/ERROR word)
     ## logs its routine activity to stderr like everything else, so
