@@ -8,8 +8,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const token = locals.sessionToken as string;
 
 	let insights;
+	let mutedInsights;
 	try {
 		insights = await client.getInsights(token, true);
+		mutedInsights = await client.listMutedInsights(token);
 	} catch (err) {
 		if (err instanceof SiemApiError) {
 			if (err.status === 401 || err.status === 403) {
@@ -20,5 +22,5 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw err;
 	}
 
-	return { insights };
+	return { insights, mutedInsights };
 };

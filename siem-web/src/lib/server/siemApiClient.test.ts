@@ -460,4 +460,43 @@ describe('SiemApiClient', () => {
 		expect(init?.method).toBe('PUT');
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
 	});
+
+	it('muteInsight PUTs to /insights/{id}/mute with Authorization', async () => {
+		const fetchFn = fakeFetch(null, 204);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.muteInsight('token-123', 7);
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/insights/7/mute');
+		expect(init?.method).toBe('PUT');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('listMutedInsights fetches /insights/muted with Authorization', async () => {
+		const fetchFn = fakeFetch([
+			{ fingerprint: 'abc123', category: 'operational', programs: 'UI-poller', muted_at: '2026-08-14T00:00:00Z' }
+		]);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.listMutedInsights('token-123');
+
+		expect(result).toHaveLength(1);
+		expect(result[0].fingerprint).toBe('abc123');
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/insights/muted');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
+	it('unmuteInsight DELETEs to /insights/muted/{fingerprint}, URL-encoded', async () => {
+		const fetchFn = fakeFetch(null, 204);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.unmuteInsight('token-123', 'ab/cd');
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/insights/muted/ab%2Fcd');
+		expect(init?.method).toBe('DELETE');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
 });

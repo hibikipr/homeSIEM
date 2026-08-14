@@ -78,5 +78,57 @@ func Migrate(db *sql.DB) error {
 	if _, err := db.Exec(migrationsSQL); err != nil {
 		return fmt.Errorf("store: apply migrations: %w", err)
 	}
+
+	for _, col := range insightColumns {
+		if err := addColumnIfMissing(db, "insights", col.name, col.ddl); err != nil {
+			return fmt.Errorf("store: add insights column: %w", err)
+		}
+	}
+	if err := backfillInsightFingerprints(db); err != nil {
+		return fmt.Errorf("store: backfill insight fingerprints: %w", err)
+	}
+
+	return nil
+}
+
+// insightColumns are added to the insights table after its initial
+// migrations.sql CREATE TABLE - unlike that file's statements, they can't
+// be expressed as an idempotent CREATE, since SQLite has no
+// "ALTER TABLE ... ADD COLUMN IF NOT EXISTS" and a bare ADD COLUMN fails
+// with "duplicate column name" on every startup after the first. Applied
+// via addColumnIfMissing instead, which checks PRAGMA table_info first.
+var insightColumns = []struct{ name, ddl string }{
+	{"fingerprint", "ALTER TABLE insights ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ''"},
+	{"occurrence_count", "ALTER TABLE insights ADD COLUMN occurrence_count INTEGER NOT NULL DEFAULT 1"},
+	{"last_seen_at", "ALTER TABLE insights ADD COLUMN last_seen_at TEXT NOT NULL DEFAULT ''"},
+}
+
+// addColumnIfMissing runs ddl only if table doesn't already have column -
+// see insightColumns for why this can't just be an idempotent CREATE.
+func addColumnIfMissing(db *sql.DB, table, column, ddl string) error {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return fmt.Errorf("table_info(%s): %w", table, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return fmt.Errorf("table_info(%s) scan: %w", table, err)
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if _, err := db.Exec(ddl); err != nil {
+		return fmt.Errorf("add column %s.%s: %w", table, column, err)
+	}
 	return nil
 }

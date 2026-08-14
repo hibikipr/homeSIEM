@@ -9,7 +9,10 @@
 	let generateError = $state<string | null>(null);
 	let generateNotice = $state<string | null>(null);
 	let dismissingId = $state<number | null>(null);
+	let mutingId = $state<number | null>(null);
+	let unmutingFingerprint = $state<string | null>(null);
 	let expandedId = $state<number | null>(null);
+	let showMuted = $state(false);
 
 	async function generateNow() {
 		generating = true;
@@ -41,6 +44,38 @@
 			}
 		} finally {
 			dismissingId = null;
+		}
+	}
+
+	// Unlike dismiss (clears just this row; a future recurrence reappears),
+	// mute suppresses every future occurrence of the same underlying finding
+	// - a stronger, standing action, so it gets a confirmation.
+	async function mute(id: number, title: string) {
+		if (!confirm(`Never show "${title}" again? You can undo this from Muted patterns below.`)) {
+			return;
+		}
+		mutingId = id;
+		try {
+			const response = await fetch(`/api/insights/${id}/mute`, { method: 'PUT' });
+			if (response.ok) {
+				await invalidateAll();
+			}
+		} finally {
+			mutingId = null;
+		}
+	}
+
+	async function unmute(fingerprint: string) {
+		unmutingFingerprint = fingerprint;
+		try {
+			const response = await fetch(`/api/insights/muted/${encodeURIComponent(fingerprint)}`, {
+				method: 'DELETE'
+			});
+			if (response.ok) {
+				await invalidateAll();
+			}
+		} finally {
+			unmutingFingerprint = null;
 		}
 	}
 
@@ -78,23 +113,43 @@
 						<div class="text">
 							<div class="row-title-line">
 								<span class="row-title">{insight.title}</span>
+								{#if insight.occurrence_count > 1}
+									<span class="occurrence-badge" title="{insight.occurrence_count} occurrences"
+										>×{insight.occurrence_count}</span
+									>
+								{/if}
 								<span class="category">{insight.category}</span>
 								{#if insight.dismissed}
 									<span class="dismissed-badge">Dismissed</span>
 								{/if}
 							</div>
-							<span class="created-at">{new Date(insight.created_at).toLocaleString()}</span>
+							<span class="created-at">
+								{#if insight.occurrence_count > 1}
+									Last seen {new Date(insight.last_seen_at).toLocaleString()}
+								{:else}
+									{new Date(insight.created_at).toLocaleString()}
+								{/if}
+							</span>
 						</div>
 					</button>
-					{#if !insight.dismissed}
+					<div class="row-actions">
+						{#if !insight.dismissed}
+							<button
+								class="dismiss"
+								onclick={() => dismiss(insight.id)}
+								disabled={dismissingId === insight.id}
+							>
+								Dismiss
+							</button>
+						{/if}
 						<button
-							class="dismiss"
-							onclick={() => dismiss(insight.id)}
-							disabled={dismissingId === insight.id}
+							class="mute"
+							onclick={() => mute(insight.id, insight.title)}
+							disabled={mutingId === insight.id}
 						>
-							Dismiss
+							Mute
 						</button>
-					{/if}
+					</div>
 				</li>
 				{#if expandedId === insight.id}
 					<li class="detail">
@@ -124,6 +179,35 @@
 			{/each}
 		</ul>
 	{/if}
+
+	<section class="muted-section">
+		<button class="muted-toggle" onclick={() => (showMuted = !showMuted)}>
+			{showMuted ? '▾' : '▸'} Muted patterns ({data.mutedInsights.length})
+		</button>
+		{#if showMuted}
+			{#if data.mutedInsights.length === 0}
+				<p class="empty">Nothing muted. Use "Mute" on an insight to stop seeing that pattern.</p>
+			{:else}
+				<ul class="muted-list">
+					{#each data.mutedInsights as m (m.fingerprint)}
+						<li class="muted-row">
+							<div class="text">
+								<span class="row-title">{m.category}</span>
+								<span class="muted-programs">{m.programs}</span>
+							</div>
+							<button
+								class="dismiss"
+								onclick={() => unmute(m.fingerprint)}
+								disabled={unmutingFingerprint === m.fingerprint}
+							>
+								Unmute
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		{/if}
+	</section>
 </div>
 
 <style>
@@ -223,6 +307,14 @@
 		text-transform: uppercase;
 		color: var(--color-muted-2);
 	}
+	.occurrence-badge {
+		font-size: 10px;
+		font-weight: 600;
+		color: var(--color-muted-2);
+		background: var(--color-surface-3);
+		border-radius: var(--radius-sm);
+		padding: 0 var(--space-1);
+	}
 	.dismissed-badge {
 		font-size: 10px;
 		text-transform: uppercase;
@@ -235,7 +327,14 @@
 		font-size: 11px;
 		color: var(--color-muted);
 	}
-	.dismiss {
+	.row-actions {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.dismiss,
+	.mute {
 		flex-shrink: 0;
 		background: none;
 		border: none;
@@ -243,7 +342,11 @@
 		font-size: 11px;
 		cursor: pointer;
 	}
-	.dismiss:disabled {
+	.mute {
+		color: var(--color-muted);
+	}
+	.dismiss:disabled,
+	.mute:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
@@ -276,5 +379,38 @@
 	.evidence .sample {
 		font-family: var(--font-mono);
 		color: var(--color-muted);
+	}
+	.muted-section {
+		margin-top: var(--space-5);
+	}
+	.muted-toggle {
+		background: none;
+		border: none;
+		color: var(--color-muted);
+		font-size: 12px;
+		cursor: pointer;
+		padding: 0;
+	}
+	.muted-list {
+		list-style: none;
+		margin: var(--space-2) 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.muted-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		background: var(--color-surface-2);
+		border-radius: var(--radius-default);
+		padding: var(--space-2) var(--space-3);
+	}
+	.muted-programs {
+		font-size: 11px;
+		color: var(--color-muted);
+		margin-left: var(--space-2);
 	}
 </style>
