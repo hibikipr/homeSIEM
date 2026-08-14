@@ -120,10 +120,11 @@ func (s *Server) handleDismissInsight(w http.ResponseWriter, r *http.Request) {
 }
 
 type mutedFingerprintResponse struct {
-	Fingerprint string    `json:"fingerprint"`
-	Category    string    `json:"category"`
-	Programs    string    `json:"programs"`
-	MutedAt     time.Time `json:"muted_at"`
+	Fingerprint  string    `json:"fingerprint"`
+	Category     string    `json:"category"`
+	Programs     string    `json:"programs"`
+	ExampleTitle string    `json:"example_title"`
+	MutedAt      time.Time `json:"muted_at"`
 }
 
 // handleMuteInsight mutes the fingerprint of the given insight - unlike
@@ -156,7 +157,7 @@ func (s *Server) handleMuteInsight(w http.ResponseWriter, r *http.Request) {
 		programs = append(programs, e.Program)
 	}
 
-	if err := s.deps.Store.MuteFingerprint(r.Context(), in.Fingerprint, in.Category, strings.Join(programs, ",")); err != nil {
+	if err := s.deps.Store.MuteFingerprint(r.Context(), in.Fingerprint, in.Category, strings.Join(programs, ","), in.Title); err != nil {
 		s.deps.Logger.Error("mute insight: mute fingerprint failed", "insight_id", id, "error", err)
 		http.Error(w, "mute insight failed", http.StatusInternalServerError)
 		return
@@ -178,7 +179,10 @@ func (s *Server) handleListMutedInsights(w http.ResponseWriter, r *http.Request)
 	}
 	out := make([]mutedFingerprintResponse, len(list))
 	for i, m := range list {
-		out[i] = mutedFingerprintResponse{Fingerprint: m.Fingerprint, Category: m.Category, Programs: m.Programs, MutedAt: m.MutedAt}
+		out[i] = mutedFingerprintResponse{
+			Fingerprint: m.Fingerprint, Category: m.Category, Programs: m.Programs,
+			ExampleTitle: m.ExampleTitle, MutedAt: m.MutedAt,
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)

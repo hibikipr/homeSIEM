@@ -88,6 +88,12 @@ func Migrate(db *sql.DB) error {
 		return fmt.Errorf("store: backfill insight fingerprints: %w", err)
 	}
 
+	for _, col := range mutedFingerprintColumns {
+		if err := addColumnIfMissing(db, "muted_insight_fingerprints", col.name, col.ddl); err != nil {
+			return fmt.Errorf("store: add muted_insight_fingerprints column: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -101,6 +107,17 @@ var insightColumns = []struct{ name, ddl string }{
 	{"fingerprint", "ALTER TABLE insights ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ''"},
 	{"occurrence_count", "ALTER TABLE insights ADD COLUMN occurrence_count INTEGER NOT NULL DEFAULT 1"},
 	{"last_seen_at", "ALTER TABLE insights ADD COLUMN last_seen_at TEXT NOT NULL DEFAULT ''"},
+}
+
+// mutedFingerprintColumns: same addColumnIfMissing treatment as
+// insightColumns, for muted_insight_fingerprints - category+programs alone
+// ("operational" / "UI-poller") turned out too coarse to remind anyone what
+// they actually muted, since the mute scope is deliberately broader than
+// any one insight's title (see ComputeFingerprint). example_title captures
+// the specific insight's title at the moment it was muted, purely for
+// display in the "Muted patterns" list - it plays no part in matching.
+var mutedFingerprintColumns = []struct{ name, ddl string }{
+	{"example_title", "ALTER TABLE muted_insight_fingerprints ADD COLUMN example_title TEXT NOT NULL DEFAULT ''"},
 }
 
 // addColumnIfMissing runs ddl only if table doesn't already have column -

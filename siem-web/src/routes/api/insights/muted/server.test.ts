@@ -12,7 +12,13 @@ vi.mock('$lib/server/siemApiClient', async (importOriginal) => {
 describe('GET /api/insights/muted', () => {
 	it('returns the muted fingerprints from listMutedInsights', async () => {
 		const listMutedInsightsMock = vi.fn().mockResolvedValue([
-			{ fingerprint: 'abc123', category: 'operational', programs: 'UI-poller', muted_at: '2026-08-14T00:00:00Z' }
+			{
+				fingerprint: 'abc123',
+				category: 'operational',
+				programs: 'UI-poller',
+				example_title: 'UI-poller repeated errors',
+				muted_at: '2026-08-14T00:00:00Z'
+			}
 		]);
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return { listMutedInsights: listMutedInsightsMock };

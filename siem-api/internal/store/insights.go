@@ -184,10 +184,11 @@ func (s *Store) DismissInsight(ctx context.Context, id int64) error {
 // --------------------------------------------------------- muted fingerprints
 
 type MutedFingerprint struct {
-	Fingerprint string
-	Category    string
-	Programs    string // comma-joined, for display in a "manage mutes" UI
-	MutedAt     time.Time
+	Fingerprint  string
+	Category     string
+	Programs     string // comma-joined, for display in a "manage mutes" UI
+	ExampleTitle string // the title of whichever insight was actually muted, for display only - not part of the match
+	MutedAt      time.Time
 }
 
 func (s *Store) IsFingerprintMuted(ctx context.Context, fingerprint string) (bool, error) {
@@ -202,12 +203,14 @@ func (s *Store) IsFingerprintMuted(ctx context.Context, fingerprint string) (boo
 }
 
 // MuteFingerprint is idempotent (INSERT OR REPLACE) so muting an
-// already-muted fingerprint just refreshes muted_at rather than erroring.
-func (s *Store) MuteFingerprint(ctx context.Context, fingerprint, category, programs string) error {
+// already-muted fingerprint just refreshes muted_at/exampleTitle rather
+// than erroring - e.g. muting again from a differently-worded recurrence
+// updates which title is shown without creating a second row.
+func (s *Store) MuteFingerprint(ctx context.Context, fingerprint, category, programs, exampleTitle string) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO muted_insight_fingerprints (fingerprint, category, programs, muted_at)
-		VALUES (?, ?, ?, ?)
-	`, fingerprint, category, programs, formatTime(time.Now()))
+		INSERT OR REPLACE INTO muted_insight_fingerprints (fingerprint, category, programs, example_title, muted_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, fingerprint, category, programs, exampleTitle, formatTime(time.Now()))
 	if err != nil {
 		return fmt.Errorf("store: mute fingerprint: %w", err)
 	}
@@ -231,7 +234,7 @@ func (s *Store) UnmuteFingerprint(ctx context.Context, fingerprint string) error
 
 func (s *Store) ListMutedFingerprints(ctx context.Context) ([]MutedFingerprint, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT fingerprint, category, programs, muted_at
+		SELECT fingerprint, category, programs, example_title, muted_at
 		FROM muted_insight_fingerprints
 		ORDER BY muted_at DESC
 	`)
@@ -243,7 +246,7 @@ func (s *Store) ListMutedFingerprints(ctx context.Context) ([]MutedFingerprint, 
 	var out []MutedFingerprint
 	for rows.Next() {
 		var m MutedFingerprint
-		if err := rows.Scan(&m.Fingerprint, &m.Category, &m.Programs, scanTime(&m.MutedAt)); err != nil {
+		if err := rows.Scan(&m.Fingerprint, &m.Category, &m.Programs, &m.ExampleTitle, scanTime(&m.MutedAt)); err != nil {
 			return nil, fmt.Errorf("store: list muted fingerprints: %w", err)
 		}
 		out = append(out, m)
