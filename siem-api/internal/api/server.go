@@ -97,6 +97,9 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /insights", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListInsights)))
 	s.mux.Handle("POST /insights/generate", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleGenerateInsights)))
 	s.mux.Handle("PUT /insights/{id}/dismiss", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleDismissInsight)))
+	s.mux.Handle("PUT /insights/{id}/mute", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleMuteInsight)))
+	s.mux.Handle("GET /insights/muted", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListMutedInsights)))
+	s.mux.Handle("DELETE /insights/muted/{fingerprint}", protect(s.deps.Verifier, s.deps.Store, auth.RoleAnalyst, http.HandlerFunc(s.handleUnmuteInsight)))
 	s.mux.HandleFunc("POST /auth/session", s.handleAuthSession)
 	s.mux.HandleFunc("POST /auth/local", s.handleAuthLocal)
 }

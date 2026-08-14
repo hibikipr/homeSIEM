@@ -37,7 +37,12 @@
 				<li class="row">
 					<span class="dot" style:background={severityColor(insight.severity)}></span>
 					<div class="text">
-						<div class="row-title">{insight.title}</div>
+						<div class="row-title">
+							{insight.title}
+							{#if insight.occurrence_count > 1}
+								<span class="occurrence-badge">×{insight.occurrence_count}</span>
+							{/if}
+						</div>
 						<div class="row-detail">{insight.detail}</div>
 					</div>
 					<button
@@ -109,6 +114,15 @@
 		font-size: 12.5px;
 		font-weight: 500;
 		color: var(--color-text);
+	}
+	.occurrence-badge {
+		font-size: 10px;
+		font-weight: 600;
+		color: var(--color-muted-2);
+		background: var(--color-surface-3);
+		border-radius: var(--radius-sm);
+		padding: 0 var(--space-1);
+		margin-left: var(--space-1);
 	}
 	.row-detail {
 		font-size: 11px;

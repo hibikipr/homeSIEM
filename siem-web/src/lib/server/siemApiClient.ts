@@ -32,6 +32,16 @@ export interface Insight {
 	category: string;
 	evidence: InsightEvidence[];
 	dismissed: boolean;
+	fingerprint: string;
+	occurrence_count: number;
+	last_seen_at: string;
+}
+
+export interface MutedInsightFingerprint {
+	fingerprint: string;
+	category: string;
+	programs: string; // comma-joined
+	muted_at: string;
 }
 
 export interface GenerateInsightsResponse {
@@ -351,6 +361,28 @@ export class SiemApiClient {
 	async dismissInsight(sessionToken: string, id: number): Promise<void> {
 		return this.requestNoContent(`/insights/${id}/dismiss`, {
 			method: 'PUT',
+			...this.authInit(sessionToken)
+		});
+	}
+
+	// Unlike dismissInsight (clears just this row; a future recurrence
+	// reappears), muteInsight suppresses every future occurrence of the same
+	// underlying finding until unmuteInsight is called - see siem-api's
+	// Service.GenerateNow fingerprint dedup.
+	async muteInsight(sessionToken: string, id: number): Promise<void> {
+		return this.requestNoContent(`/insights/${id}/mute`, {
+			method: 'PUT',
+			...this.authInit(sessionToken)
+		});
+	}
+
+	async listMutedInsights(sessionToken: string): Promise<MutedInsightFingerprint[]> {
+		return this.request<MutedInsightFingerprint[]>('/insights/muted', this.authInit(sessionToken));
+	}
+
+	async unmuteInsight(sessionToken: string, fingerprint: string): Promise<void> {
+		return this.requestNoContent(`/insights/muted/${encodeURIComponent(fingerprint)}`, {
+			method: 'DELETE',
 			...this.authInit(sessionToken)
 		});
 	}

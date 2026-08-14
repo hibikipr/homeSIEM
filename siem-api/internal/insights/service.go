@@ -18,6 +18,9 @@ type Chatter interface {
 
 type InsightStore interface {
 	InsertInsight(ctx context.Context, in store.Insight) (store.Insight, error)
+	FindMostRecentInsightByFingerprint(ctx context.Context, fingerprint string) (store.Insight, bool, error)
+	BumpInsight(ctx context.Context, id int64, detail, severity, evidenceJSON string) (store.Insight, error)
+	IsFingerprintMuted(ctx context.Context, fingerprint string) (bool, error)
 }
 
 // SettingsStore is the admin-editable half of a GenerateNow pass (system
@@ -68,9 +71,23 @@ var validSeverities = map[string]bool{"info": true, "warning": true, "critical":
 // from Chat or from prompt-building ARE propagated (the caller - the
 // scheduler - decides how to log/retry a failed pass), since those
 // indicate the pass genuinely couldn't run at all, unlike a response that
-// ran but didn't parse. The returned int is how many insights this pass
-// actually inserted, so a caller (e.g. a manually-triggered pass) can tell
-// "ran fine, found nothing" apart from "ran fine, found three things".
+// ran but didn't parse. The returned int counts every finding this pass
+// reported that wasn't muted - both brand-new insights and recurrences of
+// an existing one (see the fingerprint dedup below) - so a caller (e.g. a
+// manually-triggered pass) can tell "ran fine, found nothing live" apart
+// from "ran fine, found three things", regardless of whether those three
+// are new rows or bumped occurrences of rows already on screen.
+//
+// Each parsed finding is deduped by fingerprint (category + the set of
+// programs in its evidence - see store.ComputeFingerprint) rather than
+// inserted unconditionally: a muted fingerprint is dropped entirely: a
+// fingerprint matching an existing row bumps that row's occurrence_count/
+// last_seen_at/detail/evidence instead of creating a duplicate (and
+// un-dismisses it, since a recurrence after being cleared is new
+// information); anything else is a first-time hit and gets a new row.
+// Without this, a real, persistent condition (the kind of thing this
+// service exists to surface) would otherwise get a fresh row every single
+// pass forever, flooding the Insights tab with duplicates of itself.
 func (s *Service) GenerateNow(ctx context.Context) (int, error) {
 	settings, err := s.Settings.GetOllamaSettings(ctx)
 	if err != nil {
@@ -104,7 +121,7 @@ func (s *Service) GenerateNow(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	inserted := 0
+	processed := 0
 	for _, mi := range parsed {
 		severity := mi.Severity
 		if !validSeverities[severity] {
@@ -115,19 +132,51 @@ func (s *Service) GenerateNow(ctx context.Context) (int, error) {
 			s.Logger.Warn("insights: failed to encode evidence, skipping this insight", "error", err, "title", mi.Title)
 			continue
 		}
+
+		programs := make([]string, 0, len(mi.Evidence))
+		for _, e := range mi.Evidence {
+			programs = append(programs, e.Program)
+		}
+		fingerprint := store.ComputeFingerprint(mi.Category, programs)
+
+		muted, err := s.Store.IsFingerprintMuted(ctx, fingerprint)
+		if err != nil {
+			s.Logger.Warn("insights: failed to check muted fingerprint, skipping this insight", "error", err, "title", mi.Title)
+			continue
+		}
+		if muted {
+			s.Logger.Debug("insights: skipping muted fingerprint", "category", mi.Category, "programs", programs)
+			continue
+		}
+
+		existing, found, err := s.Store.FindMostRecentInsightByFingerprint(ctx, fingerprint)
+		if err != nil {
+			s.Logger.Warn("insights: failed to look up existing insight, skipping this insight", "error", err, "title", mi.Title)
+			continue
+		}
+		if found {
+			if _, err := s.Store.BumpInsight(ctx, existing.ID, mi.Detail, severity, string(evidenceJSON)); err != nil {
+				s.Logger.Warn("insights: failed to bump insight", "error", err, "title", mi.Title)
+				continue
+			}
+			processed++
+			continue
+		}
+
 		if _, err := s.Store.InsertInsight(ctx, store.Insight{
 			Title:        mi.Title,
 			Detail:       mi.Detail,
 			Severity:     severity,
 			Category:     mi.Category,
 			EvidenceJSON: string(evidenceJSON),
+			Fingerprint:  fingerprint,
 		}); err != nil {
 			s.Logger.Warn("insights: failed to insert insight", "error", err, "title", mi.Title)
 			continue
 		}
-		inserted++
+		processed++
 	}
-	return inserted, nil
+	return processed, nil
 }
 
 // parseModelResponse extracts the first "[...]" substring from the model's
