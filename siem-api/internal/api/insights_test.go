@@ -135,6 +135,33 @@ func TestGenerateInsights_Success_InsertsAndReturnsInsights(t *testing.T) {
 	if len(got.Insights) != 1 || got.Insights[0].Title != "t" {
 		t.Errorf("Insights = %+v, want one insight titled %q", got.Insights, "t")
 	}
+	if got.Insights[0].RecommendedFix != "" {
+		t.Errorf("RecommendedFix = %q, want empty - fakeInsightResponse omits the field", got.Insights[0].RecommendedFix)
+	}
+}
+
+func TestGenerateInsights_RecommendedFixPresent_ReturnedInResponse(t *testing.T) {
+	s, st := newTestServer(t)
+	response := `[{"title":"t","detail":"d","severity":"warning","category":"other","evidence":[],"recommended_fix":"restart the X service"}]`
+	pb := &insights.PromptBuilder{Loki: fakeLokiQuerierAPI{}, Alerts: st, JobLabel: "siem"}
+	s.deps.Insights = insights.NewService(pb, &fakeChatterAPI{response: response}, st, st, time.Hour, s.deps.Logger)
+	token := authToken(t, st, "analyst", 50)
+
+	req := httptest.NewRequest(http.MethodPost, "/insights/generate", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var got generateInsightsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got.Insights) != 1 || got.Insights[0].RecommendedFix != "restart the X service" {
+		t.Errorf("Insights = %+v, want one insight with RecommendedFix %q", got.Insights, "restart the X service")
+	}
 }
 
 func TestGenerateInsights_NoInsightsProduced_ReturnsZeroGenerated(t *testing.T) {

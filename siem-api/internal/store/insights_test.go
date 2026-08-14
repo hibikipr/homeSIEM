@@ -183,7 +183,8 @@ func TestBumpInsight_IncrementsCountAndUndismisses(t *testing.T) {
 		t.Fatalf("DismissInsight() error = %v", err)
 	}
 
-	bumped, err := s.BumpInsight(ctx, in.ID, "new detail", "critical", `[{"program":"X","sample_message":"y","count":9}]`)
+	bumped, err := s.BumpInsight(ctx, in.ID, "new detail", "critical",
+		`[{"program":"X","sample_message":"y","count":9}]`, "restart the X service")
 	if err != nil {
 		t.Fatalf("BumpInsight() error = %v", err)
 	}
@@ -192,6 +193,9 @@ func TestBumpInsight_IncrementsCountAndUndismisses(t *testing.T) {
 	}
 	if bumped.Detail != "new detail" || bumped.Severity != "critical" {
 		t.Errorf("bumped = %+v, want refreshed detail/severity", bumped)
+	}
+	if bumped.RecommendedFix != "restart the X service" {
+		t.Errorf("RecommendedFix after bump = %q, want %q", bumped.RecommendedFix, "restart the X service")
 	}
 	if bumped.Dismissed {
 		t.Error("Dismissed = true after bump, want a recurrence to un-dismiss it")

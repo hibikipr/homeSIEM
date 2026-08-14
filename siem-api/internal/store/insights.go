@@ -24,6 +24,7 @@ type Insight struct {
 	Fingerprint     string
 	OccurrenceCount int
 	LastSeenAt      time.Time
+	RecommendedFix  string // model-suggested fix, empty when the model had none specific enough to offer
 }
 
 func scanInsight(row rowScanner) (Insight, error) {
@@ -31,14 +32,14 @@ func scanInsight(row rowScanner) (Insight, error) {
 	var dismissed int
 	if err := row.Scan(&in.ID, scanTime(&in.CreatedAt), &in.Title, &in.Detail,
 		&in.Severity, &in.Category, &in.EvidenceJSON, &dismissed,
-		&in.Fingerprint, &in.OccurrenceCount, scanTime(&in.LastSeenAt)); err != nil {
+		&in.Fingerprint, &in.OccurrenceCount, scanTime(&in.LastSeenAt), &in.RecommendedFix); err != nil {
 		return Insight{}, err
 	}
 	in.Dismissed = dismissed != 0
 	return in, nil
 }
 
-const insightColumnList = `id, created_at, title, detail, severity, category, evidence_json, dismissed, fingerprint, occurrence_count, last_seen_at`
+const insightColumnList = `id, created_at, title, detail, severity, category, evidence_json, dismissed, fingerprint, occurrence_count, last_seen_at, recommended_fix`
 
 // ComputeFingerprint derives a stable identity for "the same underlying
 // finding recurring" from category plus the set of programs in its
@@ -70,9 +71,9 @@ func ComputeFingerprint(category string, programs []string) string {
 func (s *Store) InsertInsight(ctx context.Context, in Insight) (Insight, error) {
 	now := formatTime(time.Now())
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO insights (created_at, title, detail, severity, category, evidence_json, dismissed, fingerprint, occurrence_count, last_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?, 0, ?, 1, ?)
-	`, now, in.Title, in.Detail, in.Severity, in.Category, in.EvidenceJSON, in.Fingerprint, now)
+		INSERT INTO insights (created_at, title, detail, severity, category, evidence_json, dismissed, fingerprint, occurrence_count, last_seen_at, recommended_fix)
+		VALUES (?, ?, ?, ?, ?, ?, 0, ?, 1, ?, ?)
+	`, now, in.Title, in.Detail, in.Severity, in.Category, in.EvidenceJSON, in.Fingerprint, now, in.RecommendedFix)
 	if err != nil {
 		return Insight{}, fmt.Errorf("store: insert insight: %w", err)
 	}
@@ -85,12 +86,12 @@ func (s *Store) InsertInsight(ctx context.Context, in Insight) (Insight, error) 
 
 // BumpInsight records a repeat occurrence of an existing insight:
 // increments occurrence_count, refreshes last_seen_at/detail/severity/
-// evidence_json to the latest pass's version (so the row doesn't show stale
-// text from whenever it first appeared), and un-dismisses it. A recurrence
-// after being dismissed is new information worth re-surfacing, same as a
-// first-time hit - only an explicit mute (see MuteFingerprint) suppresses a
-// fingerprint regardless of recurrence.
-func (s *Store) BumpInsight(ctx context.Context, id int64, detail, severity, evidenceJSON string) (Insight, error) {
+// evidence_json/recommended_fix to the latest pass's version (so the row
+// doesn't show stale text from whenever it first appeared), and
+// un-dismisses it. A recurrence after being dismissed is new information
+// worth re-surfacing, same as a first-time hit - only an explicit mute
+// (see MuteFingerprint) suppresses a fingerprint regardless of recurrence.
+func (s *Store) BumpInsight(ctx context.Context, id int64, detail, severity, evidenceJSON, recommendedFix string) (Insight, error) {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE insights
 		SET occurrence_count = occurrence_count + 1,
@@ -98,9 +99,10 @@ func (s *Store) BumpInsight(ctx context.Context, id int64, detail, severity, evi
 		    detail = ?,
 		    severity = ?,
 		    evidence_json = ?,
+		    recommended_fix = ?,
 		    dismissed = 0
 		WHERE id = ?
-	`, formatTime(time.Now()), detail, severity, evidenceJSON, id)
+	`, formatTime(time.Now()), detail, severity, evidenceJSON, recommendedFix, id)
 	if err != nil {
 		return Insight{}, fmt.Errorf("store: bump insight: %w", err)
 	}

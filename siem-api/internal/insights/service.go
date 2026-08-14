@@ -19,7 +19,7 @@ type Chatter interface {
 type InsightStore interface {
 	InsertInsight(ctx context.Context, in store.Insight) (store.Insight, error)
 	FindMostRecentInsightByFingerprint(ctx context.Context, fingerprint string) (store.Insight, bool, error)
-	BumpInsight(ctx context.Context, id int64, detail, severity, evidenceJSON string) (store.Insight, error)
+	BumpInsight(ctx context.Context, id int64, detail, severity, evidenceJSON, recommendedFix string) (store.Insight, error)
 	IsFingerprintMuted(ctx context.Context, fingerprint string) (bool, error)
 }
 
@@ -51,11 +51,12 @@ type modelEvidence struct {
 }
 
 type modelInsight struct {
-	Title    string          `json:"title"`
-	Detail   string          `json:"detail"`
-	Severity string          `json:"severity"`
-	Category string          `json:"category"`
-	Evidence []modelEvidence `json:"evidence"`
+	Title          string          `json:"title"`
+	Detail         string          `json:"detail"`
+	Severity       string          `json:"severity"`
+	Category       string          `json:"category"`
+	Evidence       []modelEvidence `json:"evidence"`
+	RecommendedFix string          `json:"recommended_fix"`
 }
 
 // validSeverities matches the real severity vocabulary used everywhere else
@@ -155,7 +156,7 @@ func (s *Service) GenerateNow(ctx context.Context) (int, error) {
 			continue
 		}
 		if found {
-			if _, err := s.Store.BumpInsight(ctx, existing.ID, mi.Detail, severity, string(evidenceJSON)); err != nil {
+			if _, err := s.Store.BumpInsight(ctx, existing.ID, mi.Detail, severity, string(evidenceJSON), mi.RecommendedFix); err != nil {
 				s.Logger.Warn("insights: failed to bump insight", "error", err, "title", mi.Title)
 				continue
 			}
@@ -164,12 +165,13 @@ func (s *Service) GenerateNow(ctx context.Context) (int, error) {
 		}
 
 		if _, err := s.Store.InsertInsight(ctx, store.Insight{
-			Title:        mi.Title,
-			Detail:       mi.Detail,
-			Severity:     severity,
-			Category:     mi.Category,
-			EvidenceJSON: string(evidenceJSON),
-			Fingerprint:  fingerprint,
+			Title:          mi.Title,
+			Detail:         mi.Detail,
+			Severity:       severity,
+			Category:       mi.Category,
+			EvidenceJSON:   string(evidenceJSON),
+			Fingerprint:    fingerprint,
+			RecommendedFix: mi.RecommendedFix,
 		}); err != nil {
 			s.Logger.Warn("insights: failed to insert insight", "error", err, "title", mi.Title)
 			continue

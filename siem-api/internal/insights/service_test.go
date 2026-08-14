@@ -98,7 +98,7 @@ func (f *fakeInsightStore) FindMostRecentInsightByFingerprint(ctx context.Contex
 	return store.Insight{}, false, nil
 }
 
-func (f *fakeInsightStore) BumpInsight(ctx context.Context, id int64, detail, severity, evidenceJSON string) (store.Insight, error) {
+func (f *fakeInsightStore) BumpInsight(ctx context.Context, id int64, detail, severity, evidenceJSON, recommendedFix string) (store.Insight, error) {
 	if f.bumpErr != nil {
 		return store.Insight{}, f.bumpErr
 	}
@@ -108,6 +108,7 @@ func (f *fakeInsightStore) BumpInsight(ctx context.Context, id int64, detail, se
 			f.inserted[i].Detail = detail
 			f.inserted[i].Severity = severity
 			f.inserted[i].EvidenceJSON = evidenceJSON
+			f.inserted[i].RecommendedFix = recommendedFix
 			f.inserted[i].Dismissed = false
 			f.bumped = append(f.bumped, id)
 			return f.inserted[i], nil
@@ -161,6 +162,9 @@ func TestGenerateNow_HappyPath_InsertsOneInsightPerElement(t *testing.T) {
 	}
 	if got.EvidenceJSON == "" {
 		t.Error("EvidenceJSON is empty, want the encoded evidence array")
+	}
+	if got.RecommendedFix != "" {
+		t.Errorf("RecommendedFix = %q, want empty - validResponse omits the field entirely", got.RecommendedFix)
 	}
 }
 
@@ -318,6 +322,72 @@ func TestGenerateNow_SettingsError_PropagatesNoInserts(t *testing.T) {
 	}
 	if len(ins.inserted) != 0 {
 		t.Errorf("len(inserted) = %d, want 0", len(ins.inserted))
+	}
+}
+
+const responseWithRecommendedFix = `[
+  {
+    "title": "UI-poller repeated errors",
+    "detail": "The list/alarm endpoint is returning 400 on every poll.",
+    "severity": "warning",
+    "category": "operational",
+    "evidence": [{"program": "UI-poller", "sample_message": "400 invalid status code from server", "count": 40}],
+    "recommended_fix": "Set POLLER_SAVE_ALARMS=false - the endpoint no longer works on this controller version."
+  }
+]`
+
+func TestGenerateNow_RecommendedFixPresent_IsStoredOnInsert(t *testing.T) {
+	chat := &fakeChatter{response: responseWithRecommendedFix}
+	ins := &fakeInsightStore{}
+	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
+
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
+		t.Fatalf("GenerateNow() error = %v", err)
+	}
+	if len(ins.inserted) != 1 {
+		t.Fatalf("len(inserted) = %d, want 1", len(ins.inserted))
+	}
+	want := "Set POLLER_SAVE_ALARMS=false - the endpoint no longer works on this controller version."
+	if ins.inserted[0].RecommendedFix != want {
+		t.Errorf("RecommendedFix = %q, want %q", ins.inserted[0].RecommendedFix, want)
+	}
+}
+
+func TestGenerateNow_RecommendedFixPresent_IsRefreshedOnBump(t *testing.T) {
+	chat := &fakeChatter{response: validResponse} // no recommended_fix
+	ins := &fakeInsightStore{}
+	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
+
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
+		t.Fatalf("GenerateNow() [pass 1] error = %v", err)
+	}
+	if ins.inserted[0].RecommendedFix != "" {
+		t.Fatalf("RecommendedFix after pass 1 = %q, want empty", ins.inserted[0].RecommendedFix)
+	}
+
+	// Pass 2 reports the same fingerprint but this time with a fix - the
+	// bumped row must pick it up, not keep the first pass's empty value.
+	fixedResponse := `[
+	  {
+	    "title": "Bambuddy errors look mistagged",
+	    "detail": "Several ERROR lines are actually routine.",
+	    "severity": "warning",
+	    "category": "severity-misclassification",
+	    "evidence": [{"program": "Bambuddy", "sample_message": "ERROR ...", "count": 12}],
+	    "recommended_fix": "Add a severity-override rule for Bambuddy's ERROR-prefixed routine lines."
+	  }
+	]`
+	chat.response = fixedResponse
+
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
+		t.Fatalf("GenerateNow() [pass 2] error = %v", err)
+	}
+	if len(ins.inserted) != 1 {
+		t.Fatalf("len(inserted) after pass 2 = %d, want still 1 (bumped, not duplicated)", len(ins.inserted))
+	}
+	want := "Add a severity-override rule for Bambuddy's ERROR-prefixed routine lines."
+	if ins.inserted[0].RecommendedFix != want {
+		t.Errorf("RecommendedFix after bump = %q, want %q", ins.inserted[0].RecommendedFix, want)
 	}
 }
 
