@@ -119,6 +119,9 @@
 									>
 								{/if}
 								<span class="category">{insight.category}</span>
+								{#if insight.recommended_fix}
+									<span class="fix-badge" title="A recommended fix is available">Fix available</span>
+								{/if}
 								{#if insight.dismissed}
 									<span class="dismissed-badge">Dismissed</span>
 								{/if}
@@ -154,6 +157,12 @@
 				{#if expandedId === insight.id}
 					<li class="detail">
 						<p>{insight.detail}</p>
+						{#if insight.recommended_fix}
+							<div class="recommended-fix">
+								<span class="recommended-fix-label">Recommended fix</span>
+								<p>{insight.recommended_fix}</p>
+							</div>
+						{/if}
 						{#if insight.evidence.length > 0}
 							<table class="evidence">
 								<thead>
@@ -319,6 +328,15 @@
 		border-radius: var(--radius-sm);
 		padding: 0 var(--space-1);
 	}
+	.fix-badge {
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		color: var(--color-accent-light);
+		border: 1px solid var(--color-accent-light);
+		border-radius: var(--radius-sm);
+		padding: 0 var(--space-1);
+	}
 	.dismissed-badge {
 		font-size: 10px;
 		text-transform: uppercase;
@@ -363,6 +381,24 @@
 	}
 	.detail p {
 		margin: 0 0 var(--space-2);
+	}
+	.recommended-fix {
+		background: var(--color-surface-2);
+		border-left: 3px solid var(--color-accent-light);
+		border-radius: var(--radius-sm);
+		padding: var(--space-2) var(--space-3);
+		margin: 0 0 var(--space-3);
+	}
+	.recommended-fix-label {
+		display: block;
+		font-size: var(--text-eyebrow);
+		text-transform: uppercase;
+		color: var(--color-accent-light);
+		margin-bottom: var(--space-1);
+	}
+	.recommended-fix p {
+		margin: 0;
+		color: var(--color-text-2);
 	}
 	.evidence {
 		width: 100%;

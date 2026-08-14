@@ -201,6 +201,13 @@ Rules:
   the data you were given. Never invent or assume anything beyond it.
 - If nothing in the data looks actionable, return an empty JSON array - do
   not manufacture a suggestion just to have something to say.
+- Include "recommended_fix" only when the data gives you enough to name a
+  specific, concrete action - a config value to change, a command to run,
+  a setting to check. Leave it as an empty string otherwise. A vague
+  suggestion like "investigate further" or "check the logs" is worse than
+  no recommendation at all - you are working from an aggregated rollup and
+  a handful of deduplicated sample lines, not a live investigation, so
+  don't imply more certainty than that data actually supports.
 - Respond with ONLY a JSON array (no prose, no markdown code fence)
   matching exactly this shape:
 [
@@ -209,7 +216,8 @@ Rules:
     "detail": "a few sentences",
     "severity": "info|warning|critical",
     "category": "severity-misclassification|operational|security|other",
-    "evidence": [{"program": "string", "sample_message": "string", "count": 0}]
+    "evidence": [{"program": "string", "sample_message": "string", "count": 0}],
+    "recommended_fix": "string, empty if you don't have a specific one"
   }
 ]`
 

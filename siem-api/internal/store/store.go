@@ -107,6 +107,7 @@ var insightColumns = []struct{ name, ddl string }{
 	{"fingerprint", "ALTER TABLE insights ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ''"},
 	{"occurrence_count", "ALTER TABLE insights ADD COLUMN occurrence_count INTEGER NOT NULL DEFAULT 1"},
 	{"last_seen_at", "ALTER TABLE insights ADD COLUMN last_seen_at TEXT NOT NULL DEFAULT ''"},
+	{"recommended_fix", "ALTER TABLE insights ADD COLUMN recommended_fix TEXT NOT NULL DEFAULT ''"},
 }
 
 // mutedFingerprintColumns: same addColumnIfMissing treatment as

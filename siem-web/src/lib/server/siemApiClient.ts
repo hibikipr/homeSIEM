@@ -35,6 +35,7 @@ export interface Insight {
 	fingerprint: string;
 	occurrence_count: number;
 	last_seen_at: string;
+	recommended_fix: string;
 }
 
 export interface MutedInsightFingerprint {

@@ -36,6 +36,7 @@ type insightResponse struct {
 	Fingerprint     string         `json:"fingerprint"`
 	OccurrenceCount int            `json:"occurrence_count"`
 	LastSeenAt      time.Time      `json:"last_seen_at"`
+	RecommendedFix  string         `json:"recommended_fix"`
 }
 
 func toInsightResponse(in store.Insight) insightResponse {
@@ -49,6 +50,7 @@ func toInsightResponse(in store.Insight) insightResponse {
 		ID: in.ID, CreatedAt: in.CreatedAt, Title: in.Title, Detail: in.Detail,
 		Severity: in.Severity, Category: in.Category, Evidence: evidence, Dismissed: in.Dismissed,
 		Fingerprint: in.Fingerprint, OccurrenceCount: in.OccurrenceCount, LastSeenAt: in.LastSeenAt,
+		RecommendedFix: in.RecommendedFix,
 	}
 }
 

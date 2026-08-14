@@ -42,6 +42,9 @@
 							{#if insight.occurrence_count > 1}
 								<span class="occurrence-badge">×{insight.occurrence_count}</span>
 							{/if}
+							{#if insight.recommended_fix}
+								<span class="fix-badge" title="A recommended fix is available">Fix</span>
+							{/if}
 						</div>
 						<div class="row-detail">{insight.detail}</div>
 					</div>
@@ -120,6 +123,16 @@
 		font-weight: 600;
 		color: var(--color-muted-2);
 		background: var(--color-surface-3);
+		border-radius: var(--radius-sm);
+		padding: 0 var(--space-1);
+		margin-left: var(--space-1);
+	}
+	.fix-badge {
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		color: var(--color-accent-light);
+		border: 1px solid var(--color-accent-light);
 		border-radius: var(--radius-sm);
 		padding: 0 var(--space-1);
 		margin-left: var(--space-1);
