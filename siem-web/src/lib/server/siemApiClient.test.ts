@@ -475,7 +475,13 @@ describe('SiemApiClient', () => {
 
 	it('listMutedInsights fetches /insights/muted with Authorization', async () => {
 		const fetchFn = fakeFetch([
-			{ fingerprint: 'abc123', category: 'operational', programs: 'UI-poller', muted_at: '2026-08-14T00:00:00Z' }
+			{
+				fingerprint: 'abc123',
+				category: 'operational',
+				programs: 'UI-poller',
+				example_title: 'UI-poller repeated errors',
+				muted_at: '2026-08-14T00:00:00Z'
+			}
 		]);
 		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
 
@@ -483,6 +489,7 @@ describe('SiemApiClient', () => {
 
 		expect(result).toHaveLength(1);
 		expect(result[0].fingerprint).toBe('abc123');
+		expect(result[0].example_title).toBe('UI-poller repeated errors');
 		const [url, init] = fetchFn.mock.calls[0];
 		expect(url).toBe('http://siem-api:8080/insights/muted');
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');

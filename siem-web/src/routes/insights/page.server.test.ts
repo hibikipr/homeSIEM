@@ -18,7 +18,13 @@ describe('Insights load', () => {
 				listMutedInsights: vi
 					.fn()
 					.mockResolvedValue([
-						{ fingerprint: 'abc123', category: 'operational', programs: 'UI-poller', muted_at: 'x' }
+						{
+							fingerprint: 'abc123',
+							category: 'operational',
+							programs: 'UI-poller',
+							example_title: 'UI-poller repeated errors',
+							muted_at: 'x'
+						}
 					])
 			};
 		});

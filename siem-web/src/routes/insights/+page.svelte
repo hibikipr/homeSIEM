@@ -192,8 +192,12 @@
 					{#each data.mutedInsights as m (m.fingerprint)}
 						<li class="muted-row">
 							<div class="text">
-								<span class="row-title">{m.category}</span>
-								<span class="muted-programs">{m.programs}</span>
+								<span class="row-title">{m.example_title || '(untitled insight)'}</span>
+								<span class="muted-meta">
+									{m.category} · {m.programs} · muted {new Date(
+										m.muted_at
+									).toLocaleString()}
+								</span>
 							</div>
 							<button
 								class="dismiss"
@@ -408,9 +412,8 @@
 		border-radius: var(--radius-default);
 		padding: var(--space-2) var(--space-3);
 	}
-	.muted-programs {
+	.muted-meta {
 		font-size: 11px;
 		color: var(--color-muted);
-		margin-left: var(--space-2);
 	}
 </style>

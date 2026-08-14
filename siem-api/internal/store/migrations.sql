@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS insights (
 -- dismissed insight that recurs is new information worth re-surfacing (see
 -- Store.BumpInsight un-dismissing on recurrence); a muted one is a standing
 -- "never show me this again" that recurrence must not override.
+-- example_title is added from Go, not here - see mutedFingerprintColumns in
+-- store.go, same reasoning as insights' fingerprint/occurrence_count/
+-- last_seen_at above.
 CREATE TABLE IF NOT EXISTS muted_insight_fingerprints (
   fingerprint TEXT PRIMARY KEY,
   category    TEXT NOT NULL,

@@ -41,6 +41,7 @@ export interface MutedInsightFingerprint {
 	fingerprint: string;
 	category: string;
 	programs: string; // comma-joined
+	example_title: string; // the muted insight's title at mute time - display only
 	muted_at: string;
 }
 

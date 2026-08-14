@@ -236,7 +236,7 @@ func TestMuteFingerprint_RoundTrip(t *testing.T) {
 		t.Fatalf("IsFingerprintMuted() before mute = %v, %v, want false, nil", muted, err)
 	}
 
-	if err := s.MuteFingerprint(ctx, "fp-x", "operational", "UI-poller"); err != nil {
+	if err := s.MuteFingerprint(ctx, "fp-x", "operational", "UI-poller", "UI-poller repeated errors"); err != nil {
 		t.Fatalf("MuteFingerprint() error = %v", err)
 	}
 	if muted, err := s.IsFingerprintMuted(ctx, "fp-x"); err != nil || !muted {
@@ -247,13 +247,22 @@ func TestMuteFingerprint_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListMutedFingerprints() error = %v", err)
 	}
-	if len(list) != 1 || list[0].Fingerprint != "fp-x" || list[0].Category != "operational" || list[0].Programs != "UI-poller" {
+	if len(list) != 1 || list[0].Fingerprint != "fp-x" || list[0].Category != "operational" ||
+		list[0].Programs != "UI-poller" || list[0].ExampleTitle != "UI-poller repeated errors" {
 		t.Errorf("ListMutedFingerprints() = %+v, want one entry for fp-x", list)
 	}
 
-	// Muting again must not error (INSERT OR REPLACE), just refresh muted_at.
-	if err := s.MuteFingerprint(ctx, "fp-x", "operational", "UI-poller"); err != nil {
+	// Muting again must not error (INSERT OR REPLACE), and must refresh
+	// muted_at/example_title rather than leaving the first call's title stale.
+	if err := s.MuteFingerprint(ctx, "fp-x", "operational", "UI-poller", "UI-poller error fetching DHCP clients"); err != nil {
 		t.Fatalf("MuteFingerprint() [second call] error = %v", err)
+	}
+	list, err = s.ListMutedFingerprints(ctx)
+	if err != nil {
+		t.Fatalf("ListMutedFingerprints() [after second mute] error = %v", err)
+	}
+	if len(list) != 1 || list[0].ExampleTitle != "UI-poller error fetching DHCP clients" {
+		t.Errorf("ListMutedFingerprints() [after second mute] = %+v, want ExampleTitle refreshed", list)
 	}
 
 	if err := s.UnmuteFingerprint(ctx, "fp-x"); err != nil {

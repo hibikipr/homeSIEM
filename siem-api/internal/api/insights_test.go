@@ -357,8 +357,8 @@ func TestListAndUnmuteInsights_RoundTrip(t *testing.T) {
 	if err := json.Unmarshal(listRec.Body.Bytes(), &muted); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if len(muted) != 1 || muted[0].Fingerprint != fingerprint {
-		t.Fatalf("muted = %+v, want exactly one entry for fingerprint %q", muted, fingerprint)
+	if len(muted) != 1 || muted[0].Fingerprint != fingerprint || muted[0].ExampleTitle != "t" {
+		t.Fatalf("muted = %+v, want exactly one entry for fingerprint %q with ExampleTitle %q", muted, fingerprint, "t")
 	}
 
 	unmuteReq := httptest.NewRequest(http.MethodDelete, "/insights/muted/"+fingerprint, nil)
