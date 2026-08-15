@@ -49,7 +49,7 @@ func TestGetOllamaSettings_DefaultsAndNotConfigured(t *testing.T) {
 	if resp.DefaultSystemPrompt != insights.DefaultSystemPrompt {
 		t.Error("DefaultSystemPrompt does not match insights.DefaultSystemPrompt")
 	}
-	if resp.Temperature != 0.2 || resp.TopP != 0.9 || resp.NumPredict != 1024 || resp.NumCtx != 8192 {
+	if resp.Temperature != 0.2 || resp.TopP != 0.9 || resp.NumPredict != 2048 || resp.NumCtx != 8192 {
 		t.Errorf("generation options = %+v, want the migration's seeded defaults", resp)
 	}
 }
