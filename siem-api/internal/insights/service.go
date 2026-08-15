@@ -115,11 +115,15 @@ func (s *Service) GenerateNow(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("insights: chat: %w", err)
 	}
 
-	parsed, err := parseModelResponse(response)
+	parsed, truncated, err := parseModelResponse(response)
 	if err != nil {
 		s.Logger.Warn("insights: malformed model response, skipping this pass",
 			"error", err, "response", response)
 		return 0, nil
+	}
+	if truncated {
+		s.Logger.Warn("insights: model response was truncated before a clean closing bracket (likely hit num_predict), salvaged the complete insights and discarded the incomplete trailing one",
+			"salvaged_count", len(parsed))
 	}
 
 	processed := 0
@@ -185,15 +189,50 @@ func (s *Service) GenerateNow(ctx context.Context) (int, error) {
 // response before decoding - despite the system prompt's "ONLY a JSON
 // array, no prose, no markdown fence" instruction, real models sometimes
 // wrap output in exactly that anyway.
-func parseModelResponse(response string) ([]modelInsight, error) {
+//
+// Elements are decoded one at a time (json.Decoder, not json.Unmarshal on
+// the whole slice) so a response that got cut off mid-element - confirmed
+// in production as the actual cause of "unexpected end of JSON input":
+// Ollama hitting num_predict before finishing the array - still yields
+// whatever insights WERE fully generated, instead of discarding an entire
+// pass over the one trailing item that didn't finish.
+//
+// truncated reports whether decoding stopped before a clean closing ']',
+// true even when some items were salvaged, so the caller can still log
+// for visibility on a partial-success pass, not just a total failure. err
+// is only non-nil when NOT EVEN ONE element could be decoded - same
+// "give up on this pass" case as before, unchanged from the caller's
+// point of view.
+func parseModelResponse(response string) (items []modelInsight, truncated bool, err error) {
 	start := strings.Index(response, "[")
-	end := strings.LastIndex(response, "]")
-	if start == -1 || end == -1 || end < start {
-		return nil, fmt.Errorf("insights: no JSON array found in model response")
+	if start == -1 {
+		return nil, false, fmt.Errorf("insights: no JSON array found in model response")
 	}
-	var out []modelInsight
-	if err := json.Unmarshal([]byte(response[start:end+1]), &out); err != nil {
-		return nil, fmt.Errorf("insights: decode model response: %w", err)
+
+	dec := json.NewDecoder(strings.NewReader(response[start:]))
+	if _, tokErr := dec.Token(); tokErr != nil { // consume the opening '['
+		return nil, false, fmt.Errorf("insights: decode model response: %w", tokErr)
 	}
-	return out, nil
+
+	for dec.More() {
+		var mi modelInsight
+		if decErr := dec.Decode(&mi); decErr != nil {
+			if len(items) == 0 {
+				return nil, false, fmt.Errorf("insights: decode model response: %w", decErr)
+			}
+			return items, true, nil
+		}
+		items = append(items, mi)
+	}
+
+	// dec.More() being false means either a clean closing ']', or the
+	// input simply ran out between elements with no ']' at all - those
+	// look the same to More() (it treats a peek error as "no more"), so
+	// consume the closer explicitly to tell them apart. Doesn't change
+	// which items were already collected, only the truncated flag.
+	tok, tokErr := dec.Token()
+	if tokErr != nil || tok != json.Delim(']') {
+		return items, true, nil
+	}
+	return items, false, nil
 }

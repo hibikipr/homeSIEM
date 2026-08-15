@@ -21,8 +21,8 @@ func TestGetOllamaSettings_DefaultsAppliedByMigration(t *testing.T) {
 	if got.TopP != 0.9 {
 		t.Errorf("TopP = %v, want 0.9", got.TopP)
 	}
-	if got.NumPredict != 1024 {
-		t.Errorf("NumPredict = %d, want 1024", got.NumPredict)
+	if got.NumPredict != 2048 {
+		t.Errorf("NumPredict = %d, want 2048", got.NumPredict)
 	}
 	if got.NumCtx != 8192 {
 		t.Errorf("NumCtx = %d, want 8192", got.NumCtx)

@@ -49,12 +49,19 @@ CREATE TABLE IF NOT EXISTS muted_insight_fingerprints (
 -- generation time) independent of OLLAMA_TIMEOUT_SEC; num_ctx is set
 -- explicitly because Ollama's own runtime default (often 2048-4096) can
 -- otherwise silently truncate the rollup+samples data in the prompt.
+-- num_predict was 1024 until found in production that a genuinely eventful
+-- pass (several distinct insights, each with its own evidence table) can
+-- need more than that, and Ollama hitting the cap mid-array is exactly
+-- what "unexpected end of JSON input" in the logs turned out to be -
+-- doubled to 2048 for headroom; parseModelResponse also now salvages
+-- whatever complete insights a still-truncated response did finish,
+-- rather than discarding the whole pass, so this isn't the only mitigation.
 CREATE TABLE IF NOT EXISTS ollama_settings (
   id            INTEGER PRIMARY KEY CHECK (id = 1),
   system_prompt TEXT NOT NULL DEFAULT '',
   temperature   REAL NOT NULL DEFAULT 0.2,
   top_p         REAL NOT NULL DEFAULT 0.9,
-  num_predict   INTEGER NOT NULL DEFAULT 1024,
+  num_predict   INTEGER NOT NULL DEFAULT 2048,
   num_ctx       INTEGER NOT NULL DEFAULT 8192
 );
 INSERT OR IGNORE INTO ollama_settings (id) VALUES (1);

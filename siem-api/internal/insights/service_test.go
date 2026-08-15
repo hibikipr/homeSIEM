@@ -220,6 +220,57 @@ func TestGenerateNow_EmptyArrayResponse_InsertsNothingNoError(t *testing.T) {
 	}
 }
 
+func TestGenerateNow_TruncatedResponse_SalvagesCompleteInsightsAndWarns(t *testing.T) {
+	// Simulates the real production failure this was written against:
+	// Ollama hitting num_predict mid-generation, cutting the JSON array
+	// off partway through its last element - here, mid-way through the
+	// third object's "category" value, with no closing braces/brackets at
+	// all after that point.
+	truncated := `[
+		{"title":"a","detail":"d1","severity":"warning","category":"operational","evidence":[{"program":"UI-poller","sample_message":"x","count":1}]},
+		{"title":"b","detail":"d2","severity":"warning","category":"operational","evidence":[{"program":"tinyauth","sample_message":"y","count":1}]},
+		{"title":"c","detail":"d3","severity":"warning","cate`
+	var buf bytes.Buffer
+	chat := &fakeChatter{response: truncated}
+	ins := &fakeInsightStore{}
+	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&buf))
+
+	generated, err := svc.GenerateNow(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateNow() error = %v, want nil - a truncated tail must not fail the whole pass", err)
+	}
+	if generated != 2 {
+		t.Errorf("generated = %d, want 2 (the two complete insights, not the truncated third)", generated)
+	}
+	if len(ins.inserted) != 2 || ins.inserted[0].Title != "a" || ins.inserted[1].Title != "b" {
+		t.Fatalf("inserted = %+v, want insights titled a and b", ins.inserted)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("WARN")) {
+		t.Error("expected a warning to be logged even though the pass partially succeeded, for operational visibility into the truncation")
+	}
+}
+
+func TestGenerateNow_TruncatedResponse_EndsRightAfterLastCompleteElement_StillSalvages(t *testing.T) {
+	// Edge case for the truncation detector itself: the stream ends exactly
+	// after a complete element's closing '}' - no trailing comma, no
+	// partial next object, and no closing ']' either. dec.More() alone
+	// can't tell this apart from a clean close (both look like "nothing
+	// more to read"), which is why parseModelResponse explicitly consumes
+	// the closing token afterward rather than trusting More() alone.
+	truncated := `[{"title":"a","detail":"d1","severity":"warning","category":"operational","evidence":[]}`
+	chat := &fakeChatter{response: truncated}
+	ins := &fakeInsightStore{}
+	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
+
+	generated, err := svc.GenerateNow(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateNow() error = %v, want nil", err)
+	}
+	if generated != 1 || len(ins.inserted) != 1 || ins.inserted[0].Title != "a" {
+		t.Fatalf("generated=%d inserted=%+v, want the one complete insight salvaged", generated, ins.inserted)
+	}
+}
+
 func TestGenerateNow_InvalidSeverity_CoercedToInfo(t *testing.T) {
 	response := `[{"title":"t","detail":"d","severity":"bogus","category":"other","evidence":[]}]`
 	chat := &fakeChatter{response: response}
