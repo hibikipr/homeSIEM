@@ -189,6 +189,20 @@ describe('SiemApiClient', () => {
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
 	});
 
+	it('renameSource PUTs display_name as JSON to the rename endpoint', async () => {
+		const fetchFn = fakeFetch(null, 204);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.renameSource('token-123', 7, 'Home Assistant');
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/sources/7/rename');
+		expect(init?.method).toBe('PUT');
+		expect(init?.body).toBe(JSON.stringify({ display_name: 'Home Assistant' }));
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+		expect((init?.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+	});
+
 	it('search parses the volume field from the response', async () => {
 		const fetchFn = fakeFetch({
 			logql: '{job="siem"}',

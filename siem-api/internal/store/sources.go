@@ -3,12 +3,14 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 )
 
 type Source struct {
 	ID           int64
 	Name         string
+	DisplayName  string // operator-set label, shown in place of Name when non-empty; never matched against
 	Address      string
 	Transport    string
 	Parser       string
@@ -18,6 +20,21 @@ type Source struct {
 	CreatedAt    time.Time
 }
 
+const sourceColumnList = `id, name, display_name, address, transport, parser, claimed, heartbeat_sec, last_seen_at, created_at`
+
+func scanSource(row rowScanner) (Source, error) {
+	var src Source
+	if err := row.Scan(&src.ID, &src.Name, &src.DisplayName, &src.Address, &src.Transport, &src.Parser,
+		&src.Claimed, &src.HeartbeatSec, scanNullTime(&src.LastSeenAt), scanTime(&src.CreatedAt)); err != nil {
+		return Source{}, err
+	}
+	return src, nil
+}
+
+// UpsertSource deliberately never touches display_name - it's an operator
+// override (see RenameSource), and a heartbeat re-upsert (every claim's
+// worth of incoming events) must not clobber it back to blank, the same
+// reason `claimed` is left out of the ON CONFLICT SET below.
 func (s *Store) UpsertSource(ctx context.Context, src Source) (Source, error) {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO sources (name, address, transport, parser, heartbeat_sec)
@@ -32,19 +49,12 @@ func (s *Store) UpsertSource(ctx context.Context, src Source) (Source, error) {
 		return Source{}, err
 	}
 
-	var out Source
-	err = s.db.QueryRowContext(ctx,
-		`SELECT id, name, address, transport, parser, claimed, heartbeat_sec, last_seen_at, created_at
-		 FROM sources WHERE name = ?`, src.Name).
-		Scan(&out.ID, &out.Name, &out.Address, &out.Transport, &out.Parser,
-			&out.Claimed, &out.HeartbeatSec, scanNullTime(&out.LastSeenAt), scanTime(&out.CreatedAt))
-	return out, err
+	row := s.db.QueryRowContext(ctx, `SELECT `+sourceColumnList+` FROM sources WHERE name = ?`, src.Name)
+	return scanSource(row)
 }
 
 func (s *Store) ListSources(ctx context.Context) ([]Source, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, address, transport, parser, claimed, heartbeat_sec, last_seen_at, created_at
-		 FROM sources ORDER BY name`)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+sourceColumnList+` FROM sources ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -52,9 +62,8 @@ func (s *Store) ListSources(ctx context.Context) ([]Source, error) {
 
 	var out []Source
 	for rows.Next() {
-		var src Source
-		if err := rows.Scan(&src.ID, &src.Name, &src.Address, &src.Transport, &src.Parser,
-			&src.Claimed, &src.HeartbeatSec, scanNullTime(&src.LastSeenAt), scanTime(&src.CreatedAt)); err != nil {
+		src, err := scanSource(rows)
+		if err != nil {
 			return nil, err
 		}
 		out = append(out, src)
@@ -71,6 +80,25 @@ func (s *Store) TouchSourceLastSeen(ctx context.Context, name string, at time.Ti
 func (s *Store) ClaimSource(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE sources SET claimed = 1 WHERE id = ?`, id)
 	return err
+}
+
+// RenameSource sets display_name - purely cosmetic, never matched against
+// (see sourceColumns in store.go for why `name` itself can't just be
+// edited directly). An empty displayName clears the override, falling
+// back to showing `name` again.
+func (s *Store) RenameSource(ctx context.Context, id int64, displayName string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE sources SET display_name = ? WHERE id = ?`, displayName, id)
+	if err != nil {
+		return fmt.Errorf("store: rename source: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: rename source: %w", err)
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (s *Store) StaleSources(ctx context.Context, now time.Time) ([]Source, error) {
