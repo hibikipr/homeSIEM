@@ -94,6 +94,12 @@ func Migrate(db *sql.DB) error {
 		}
 	}
 
+	for _, col := range sourceColumns {
+		if err := addColumnIfMissing(db, "sources", col.name, col.ddl); err != nil {
+			return fmt.Errorf("store: add sources column: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -119,6 +125,20 @@ var insightColumns = []struct{ name, ddl string }{
 // display in the "Muted patterns" list - it plays no part in matching.
 var mutedFingerprintColumns = []struct{ name, ddl string }{
 	{"example_title", "ALTER TABLE muted_insight_fingerprints ADD COLUMN example_title TEXT NOT NULL DEFAULT ''"},
+}
+
+// sourceColumns: same addColumnIfMissing treatment as insightColumns.
+// display_name is deliberately a separate column from `name`, not a
+// rename of it - `name` is the natural key UpsertSource/TouchSourceLastSeen
+// match incoming heartbeats against (see sources.go), always whatever the
+// raw syslog HOSTNAME says (e.g. a bare IP, for senders that never set a
+// real hostname). Overwriting `name` itself to a friendly label would
+// desync it from every future heartbeat for that address, which would
+// either stop updating last_seen_at on the renamed row or spawn a second,
+// unclaimed row for the same address. display_name is purely a display
+// override, never matched against.
+var sourceColumns = []struct{ name, ddl string }{
+	{"display_name", "ALTER TABLE sources ADD COLUMN display_name TEXT NOT NULL DEFAULT ''"},
 }
 
 // addColumnIfMissing runs ddl only if table doesn't already have column -

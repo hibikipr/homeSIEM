@@ -10,7 +10,11 @@
 
 <div class="sources-screen">
 	<div class="main">
-		<SourcesTable sources={data.sources} selectedName={data.previewName} />
+		<SourcesTable
+			sources={data.sources}
+			selectedName={data.previewName}
+			canRename={data.userRole === 'admin'}
+		/>
 		<ParserPreview sourceName={data.previewName} sample={data.previewSample} />
 	</div>
 	<aside class="rail">

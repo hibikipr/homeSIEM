@@ -6,6 +6,7 @@ function fakeSource(overrides: Partial<SourceResponse> = {}): SourceResponse {
 	return {
 		id: 1,
 		name: 'udm-ultra',
+		display_name: '',
 		address: '10.0.0.1',
 		transport: 'udp/514',
 		parser: 'unifi-os',

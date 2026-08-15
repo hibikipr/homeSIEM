@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 type sourceResponse struct {
 	ID           int64      `json:"id"`
 	Name         string     `json:"name"`
+	DisplayName  string     `json:"display_name"`
 	Address      string     `json:"address"`
 	Transport    string     `json:"transport"`
 	Parser       string     `json:"parser"`
@@ -26,7 +29,7 @@ type sourceResponse struct {
 
 func toSourceResponse(src store.Source, now time.Time, eventsPerMin float64) sourceResponse {
 	return sourceResponse{
-		ID: src.ID, Name: src.Name, Address: src.Address, Transport: src.Transport,
+		ID: src.ID, Name: src.Name, DisplayName: src.DisplayName, Address: src.Address, Transport: src.Transport,
 		Parser: src.Parser, Claimed: src.Claimed, HeartbeatSec: src.HeartbeatSec, LastSeenAt: src.LastSeenAt,
 		Status:       sourceStatus(src, now),
 		EventsPerMin: eventsPerMin,
@@ -81,6 +84,36 @@ func (s *Server) handleClaimSource(w http.ResponseWriter, r *http.Request) {
 	if err := s.deps.Store.ClaimSource(r.Context(), id); err != nil {
 		s.deps.Logger.Error("claim source failed", "source_id", id, "error", err)
 		http.Error(w, "claim source failed", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type renameSourceRequest struct {
+	DisplayName string `json:"display_name"`
+}
+
+// handleRenameSource sets a source's display label - purely cosmetic (see
+// store.RenameSource), separate from the `name` field incoming heartbeats
+// are matched against. An empty display_name clears the override.
+func (s *Server) handleRenameSource(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid source id", http.StatusBadRequest)
+		return
+	}
+	var req renameSourceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	if err := s.deps.Store.RenameSource(r.Context(), id, req.DisplayName); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "source not found", http.StatusNotFound)
+			return
+		}
+		s.deps.Logger.Error("rename source failed", "source_id", id, "error", err)
+		http.Error(w, "rename source failed", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -117,6 +117,7 @@ export interface SearchResponse {
 export interface SourceResponse {
 	id: number;
 	name: string;
+	display_name: string;
 	address: string;
 	transport: string;
 	parser: string;
@@ -290,6 +291,17 @@ export class SiemApiClient {
 		return this.requestNoContent(`/sources/${id}/claim`, {
 			method: 'POST',
 			...this.authInit(sessionToken)
+		});
+	}
+
+	// Sets display_name only - the source's `name` (what incoming
+	// heartbeats match against, often just a bare IP for senders with no
+	// real hostname) never changes. Empty string clears the override.
+	async renameSource(sessionToken: string, id: number, displayName: string): Promise<void> {
+		return this.requestNoContent(`/sources/${id}/rename`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json', ...this.authInit(sessionToken).headers },
+			body: JSON.stringify({ display_name: displayName })
 		});
 	}
 

@@ -87,6 +87,7 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /sources", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleListSources)))
 	s.mux.Handle("GET /sources/ingest-health", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleIngestHealth)))
 	s.mux.Handle("POST /sources/{id}/claim", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleClaimSource)))
+	s.mux.Handle("PUT /sources/{id}/rename", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleRenameSource)))
 	s.mux.Handle("GET /settings/auth", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleGetAuthSettings)))
 	s.mux.Handle("PUT /settings/auth", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleUpdateAuthSettings)))
 	s.mux.Handle("GET /settings/notifications", protect(s.deps.Verifier, s.deps.Store, auth.RoleAdmin, http.HandlerFunc(s.handleGetNotificationSettings)))

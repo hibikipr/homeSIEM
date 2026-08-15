@@ -90,6 +90,98 @@ func TestClaimSource_AdminSucceeds(t *testing.T) {
 	}
 }
 
+func TestRenameSource_RequiresAdmin(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	src, err := st.UpsertSource(ctx, store.Source{
+		Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	token := authToken(t, st, "analyst", 50)
+	req := httptest.NewRequest(http.MethodPut, "/sources/"+itoa(src.ID)+"/rename",
+		strings.NewReader(`{"display_name":"Home Assistant"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestRenameSource_AdminSucceeds_AndShowsInListSources(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	src, err := st.UpsertSource(ctx, store.Source{
+		Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	adminToken := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodPut, "/sources/"+itoa(src.ID)+"/rename",
+		strings.NewReader(`{"display_name":"Home Assistant"}`))
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204, body=%s", rec.Code, rec.Body.String())
+	}
+
+	viewerToken := authToken(t, st, "viewer", 100)
+	listReq := httptest.NewRequest(http.MethodGet, "/sources", nil)
+	listReq.Header.Set("Authorization", "Bearer "+viewerToken)
+	listRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(listRec, listReq)
+
+	var got []sourceResponse
+	if err := json.Unmarshal(listRec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got) != 1 || got[0].DisplayName != "Home Assistant" || got[0].Name != "192.168.3.223" {
+		t.Fatalf("got = %+v, want DisplayName=Home Assistant with Name unchanged", got)
+	}
+}
+
+func TestRenameSource_UnknownID_Returns404(t *testing.T) {
+	s, st := newTestServer(t)
+	token := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodPut, "/sources/999/rename", strings.NewReader(`{"display_name":"x"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRenameSource_InvalidJSON(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	src, err := st.UpsertSource(ctx, store.Source{
+		Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	token := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodPut, "/sources/"+itoa(src.ID)+"/rename", strings.NewReader("not json"))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
 func TestSourceHeartbeat_InvalidToken(t *testing.T) {
 	s, _ := newTestServer(t)
 	body := strings.NewReader(`{"name":"udm-ultra","address":"10.0.0.1","transport":"udp/514","parser":"unifi-os"}`)
