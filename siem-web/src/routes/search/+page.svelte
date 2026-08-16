@@ -80,7 +80,7 @@
 	<div class="body">
 		<FacetRail
 			entries={data.entries}
-			claimedSourceNames={data.claimedSourceNames}
+			claimedSources={data.claimedSources}
 			onFacetClick={facetClick}
 		/>
 		<ResultTable

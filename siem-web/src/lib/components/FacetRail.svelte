@@ -1,19 +1,20 @@
 <script lang="ts">
 	import { deriveFacetCounts, deriveCountryFacet, mergeSourceFacet } from '$lib/search';
+	import type { KnownSource } from '$lib/search';
 	import { severityColor } from '$lib/tail';
 	import type { LogEntry } from '$lib/server/siemApiClient';
 
 	let {
 		entries,
-		claimedSourceNames,
+		claimedSources,
 		onFacetClick
 	}: {
 		entries: LogEntry[];
-		claimedSourceNames: string[];
+		claimedSources: KnownSource[];
 		onFacetClick: (field: string, value: string) => void;
 	} = $props();
 
-	let sources = $derived(mergeSourceFacet(entries, claimedSourceNames));
+	let sources = $derived(mergeSourceFacet(entries, claimedSources));
 	let severities = $derived(deriveFacetCounts(entries, 'severity'));
 	let programs = $derived(deriveFacetCounts(entries, 'program'));
 	let countries = $derived(deriveCountryFacet(entries));
@@ -29,7 +30,7 @@
 				title={facet.count === 0 ? 'Known source, not in the current results' : undefined}
 				onclick={() => onFacetClick('source', facet.value)}
 			>
-				<span class="name">{facet.value}</span>
+				<span class="name">{facet.label ?? facet.value}</span>
 				<span class="count mono">{facet.count}</span>
 			</button>
 		{/each}

@@ -85,11 +85,17 @@ describe('deriveFacetCounts', () => {
 });
 
 describe('mergeSourceFacet', () => {
+	function knownSource(name: string, displayName = '') {
+		return { name, displayName };
+	}
+
 	it('adds a known claimed source not present in the current results at count 0', () => {
 		const entries = [fakeEntry({ Labels: { source: 'udm-ultra' } })];
-		expect(mergeSourceFacet(entries, ['udm-ultra', 'homebridge'])).toEqual([
-			{ value: 'udm-ultra', count: 1 },
-			{ value: 'homebridge', count: 0 }
+		expect(
+			mergeSourceFacet(entries, [knownSource('udm-ultra'), knownSource('homebridge')])
+		).toEqual([
+			{ value: 'udm-ultra', label: 'udm-ultra', count: 1 },
+			{ value: 'homebridge', label: 'homebridge', count: 0 }
 		]);
 	});
 
@@ -98,15 +104,40 @@ describe('mergeSourceFacet', () => {
 			fakeEntry({ Labels: { source: 'udm-ultra' } }),
 			fakeEntry({ Labels: { source: 'udm-ultra' } })
 		];
-		expect(mergeSourceFacet(entries, ['udm-ultra'])).toEqual([{ value: 'udm-ultra', count: 2 }]);
+		expect(mergeSourceFacet(entries, [knownSource('udm-ultra')])).toEqual([
+			{ value: 'udm-ultra', label: 'udm-ultra', count: 2 }
+		]);
 	});
 
 	it('sorts multiple missing sources alphabetically', () => {
-		expect(mergeSourceFacet([], ['tower', 'homebridge', 'raspberrypi'])).toEqual([
-			{ value: 'homebridge', count: 0 },
-			{ value: 'raspberrypi', count: 0 },
-			{ value: 'tower', count: 0 }
+		expect(
+			mergeSourceFacet([], [knownSource('tower'), knownSource('homebridge'), knownSource('raspberrypi')])
+		).toEqual([
+			{ value: 'homebridge', label: 'homebridge', count: 0 },
+			{ value: 'raspberrypi', label: 'raspberrypi', count: 0 },
+			{ value: 'tower', label: 'tower', count: 0 }
 		]);
+	});
+
+	it('prefers displayName as the label while keeping value as the raw source name, for both present and missing rows', () => {
+		const entries = [fakeEntry({ Labels: { source: '192.168.3.223' } })];
+		expect(
+			mergeSourceFacet(entries, [
+				knownSource('192.168.3.223', 'Home Assistant'),
+				knownSource('192.168.3.68', 'Homebridge')
+			])
+		).toEqual([
+			{ value: '192.168.3.223', label: 'Home Assistant', count: 1 },
+			{ value: '192.168.3.68', label: 'Homebridge', count: 0 }
+		]);
+	});
+
+	it('sorts missing sources by displayName, not the raw name, when both are known', () => {
+		const result = mergeSourceFacet(
+			[],
+			[knownSource('192.168.3.223', 'Home Assistant'), knownSource('192.168.3.68', 'Homebridge')]
+		);
+		expect(result.map((f) => f.label)).toEqual(['Home Assistant', 'Homebridge']);
 	});
 });
 
