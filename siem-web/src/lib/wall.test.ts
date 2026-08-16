@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { heatTierColor, topTriageAlerts, deriveCountryBreakdown } from './wall';
+import { heatTierColor, topTriageAlerts, deriveCountryBreakdown, buildSourceLabels } from './wall';
 import type { AlertResponse, LogEntry } from './server/siemApiClient';
 
 describe('heatTierColor', () => {
@@ -14,6 +14,24 @@ describe('heatTierColor', () => {
 
 	it('falls back to the "none" color for an unrecognized tier', () => {
 		expect(heatTierColor('bogus')).toBe('var(--color-surface)');
+	});
+});
+
+describe('buildSourceLabels', () => {
+	it('maps a source name to its display_name when set', () => {
+		expect(
+			buildSourceLabels([{ name: '192.168.3.223', displayName: 'Home Assistant' }])
+		).toEqual({ '192.168.3.223': 'Home Assistant' });
+	});
+
+	it('falls back to the raw name when displayName is empty', () => {
+		expect(buildSourceLabels([{ name: 'udm-ultra', displayName: '' }])).toEqual({
+			'udm-ultra': 'udm-ultra'
+		});
+	});
+
+	it('returns an empty map for an empty input', () => {
+		expect(buildSourceLabels([])).toEqual({});
 	});
 });
 

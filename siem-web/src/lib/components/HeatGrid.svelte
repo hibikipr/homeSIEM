@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { heatTierColor } from '$lib/wall';
 
-	let { rows }: { rows: { source: string; hours: string[] }[] } = $props();
+	let {
+		rows,
+		sourceLabels = {}
+	}: { rows: { source: string; hours: string[] }[]; sourceLabels?: Record<string, string> } =
+		$props();
 
 	const LEGEND_TIERS = ['critical', 'warning', 'busy', 'light', 'quiet', 'none'] as const;
 
@@ -10,19 +14,26 @@
 	function ageLabel(hoursAgo: number): string {
 		return hoursAgo === 0 ? 'this hour' : `${hoursAgo}h ago`;
 	}
+
+	// row.source/hovered.source stay the raw name throughout (that's the
+	// data identity - the each-block key, the tooltip's keyed-off value) -
+	// only the rendered text prefers an operator-set display_name.
+	function labelFor(source: string): string {
+		return sourceLabels[source] ?? source;
+	}
 </script>
 
 <div class="heat-grid">
 	{#each rows as row (row.source)}
 		<div class="row">
-			<span class="label">{row.source}</span>
+			<span class="label">{labelFor(row.source)}</span>
 			<div class="cells">
 				{#each row.hours as tier, i (i)}
 					<span
 						class="cell"
 						style="background: {heatTierColor(tier)}"
 						role="img"
-						aria-label="{row.source}: {tier}, {ageLabel(row.hours.length - 1 - i)}"
+						aria-label="{labelFor(row.source)}: {tier}, {ageLabel(row.hours.length - 1 - i)}"
 						onpointerenter={() =>
 							(hovered = { source: row.source, tier, hoursAgo: row.hours.length - 1 - i })}
 						onpointerleave={() => (hovered = null)}
@@ -47,7 +58,7 @@
 	</div>
 	{#if hovered}
 		<div class="hover-tooltip">
-			<span class="tooltip-source">{hovered.source}</span>
+			<span class="tooltip-source">{labelFor(hovered.source)}</span>
 			<span class="tooltip-tier"
 				><span class="tier-name">{hovered.tier}</span> · {ageLabel(hovered.hoursAgo)}</span
 			>
