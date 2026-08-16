@@ -18,13 +18,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// see mergeSourceFacet's own comment for why. Supplementary, not gated
 	// content: started here so its round trip overlaps with the main
 	// search below rather than adding to it, and a failure here degrades to
-	// an empty list rather than breaking the page.
-	const claimedSourceNamesPromise = client
+	// an empty list rather than breaking the page. Carries display_name
+	// alongside name so the facet can show an operator-set rename (e.g.
+	// "Home Assistant" instead of a bare IP) without changing what
+	// onFacetClick actually filters on.
+	const claimedSourcesPromise = client
 		.getSources(token)
-		.then((sources) => sources.filter((s) => s.claimed).map((s) => s.name))
+		.then((sources) =>
+			sources
+				.filter((s) => s.claimed)
+				.map((s) => ({ name: s.name, displayName: s.display_name }))
+		)
 		.catch((err) => {
 			console.error('search: sources lookup failed', err);
-			return [] as string[];
+			return [] as { name: string; displayName: string }[];
 		});
 
 	const filters = parseFiltersFromURL(url);
@@ -91,7 +98,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
-	const claimedSourceNames = await claimedSourceNamesPromise;
+	const claimedSources = await claimedSourcesPromise;
 
 	return {
 		filters,
@@ -102,6 +109,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		previewIndex,
 		selectedEntry,
 		contextSummary,
-		claimedSourceNames
+		claimedSources
 	};
 };

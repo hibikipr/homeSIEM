@@ -22,8 +22,8 @@ function fakeSearchResult(overrides: Record<string, unknown> = {}) {
 
 function fakeGetSources() {
 	return vi.fn().mockResolvedValue([
-		{ id: 1, name: 'udm-ultra', claimed: true },
-		{ id: 2, name: 'unclaimed-host', claimed: false }
+		{ id: 1, name: 'udm-ultra', display_name: '', claimed: true },
+		{ id: 2, name: 'unclaimed-host', display_name: '', claimed: false }
 	]);
 }
 
@@ -45,11 +45,31 @@ describe('Search load', () => {
 			expect.objectContaining({ limit: '1000' })
 		);
 		// fakeGetSources() returns one claimed and one unclaimed source -
-		// only the claimed one's name should survive into page data.
-		expect(result.claimedSourceNames).toEqual(['udm-ultra']);
+		// only the claimed one should survive into page data.
+		expect(result.claimedSources).toEqual([{ name: 'udm-ultra', displayName: '' }]);
 	});
 
-	it('degrades to an empty claimedSourceNames list when the sources lookup fails', async () => {
+	it('carries display_name through as displayName for the Source facet to use', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				search: vi.fn().mockResolvedValue(fakeSearchResult()),
+				getSources: vi.fn().mockResolvedValue([
+					{ id: 7, name: '192.168.3.223', display_name: 'Home Assistant', claimed: true }
+				])
+			};
+		});
+
+		const result = (await load({
+			locals: { sessionToken: 'token-123' },
+			url: new URL('https://siem.townsville.cc/search')
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.claimedSources).toEqual([
+			{ name: '192.168.3.223', displayName: 'Home Assistant' }
+		]);
+	});
+
+	it('degrades to an empty claimedSources list when the sources lookup fails', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
 				search: vi.fn().mockResolvedValue(fakeSearchResult()),
@@ -62,7 +82,7 @@ describe('Search load', () => {
 			url: new URL('https://siem.townsville.cc/search')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
-		expect(result.claimedSourceNames).toEqual([]);
+		expect(result.claimedSources).toEqual([]);
 	});
 
 	it('has no selected entry or context summary when ?preview= is absent', async () => {

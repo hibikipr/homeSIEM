@@ -63,7 +63,18 @@ export function rangeToSeconds(range: SearchFilters['range']): number {
 
 export interface FacetCount {
 	value: string;
+	// Display override for `value` - unused (undefined) for every facet
+	// except Source, where `value` has to stay the raw source `name`
+	// (what onFacetClick pivots the search on, and what Loki's `source`
+	// label actually contains) while the visible text should prefer an
+	// operator-set display_name. See mergeSourceFacet.
+	label?: string;
 	count: number;
+}
+
+export interface KnownSource {
+	name: string;
+	displayName: string;
 }
 
 export function deriveFacetCounts(entries: LogEntry[], labelKey: string): FacetCount[] {
@@ -90,13 +101,24 @@ export function deriveFacetCounts(entries: LogEntry[], labelKey: string): FacetC
 // same onFacetClick as any other row) to pivot the search to it directly,
 // just visually distinguished as "known but not in this result set" by the
 // caller.
-export function mergeSourceFacet(entries: LogEntry[], knownSourceNames: string[]): FacetCount[] {
-	const counts = deriveFacetCounts(entries, 'source');
+//
+// Also found in production: entries[].Labels.source is always the raw
+// syslog-derived name (e.g. a bare IP for a sender with no real hostname)
+// - it has no way to know about a source's operator-set display_name (see
+// SourcesTable's rename feature), so EVERY row here, not just the merged
+// "known but absent" ones, needs its label filled in from knownSources.
+export function mergeSourceFacet(entries: LogEntry[], knownSources: KnownSource[]): FacetCount[] {
+	const labelByName = new Map(knownSources.map((s) => [s.name, s.displayName || s.name]));
+
+	const counts = deriveFacetCounts(entries, 'source').map((c) => ({
+		...c,
+		label: labelByName.get(c.value) ?? c.value
+	}));
 	const present = new Set(counts.map((c) => c.value));
-	const missing = knownSourceNames
-		.filter((name) => !present.has(name))
-		.sort((a, b) => a.localeCompare(b))
-		.map((name) => ({ value: name, count: 0 }));
+	const missing = knownSources
+		.filter((s) => !present.has(s.name))
+		.sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name))
+		.map((s) => ({ value: s.name, label: s.displayName || s.name, count: 0 }));
 	return [...counts, ...missing];
 }
 
