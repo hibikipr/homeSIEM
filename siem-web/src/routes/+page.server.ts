@@ -2,7 +2,7 @@ import { redirect, error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types';
 import { SiemApiClient, SiemApiError, type Insight } from '$lib/server/siemApiClient';
-import { topTriageAlerts, deriveCountryBreakdown } from '$lib/wall';
+import { topTriageAlerts, deriveCountryBreakdown, buildSourceLabels } from '$lib/wall';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
@@ -18,6 +18,22 @@ export const load: PageServerLoad = async ({ locals }) => {
 		console.error('wall: insights lookup failed', err);
 		return [];
 	});
+
+	// Same supplementary posture, for the same reason as search/+page.server.ts's
+	// claimedSourcesPromise: HeatGrid's rows only ever carry the raw source
+	// name (siem-api's /events/stats has no notion of display_name), so an
+	// operator-set rename needs this separate lookup to show up at all.
+	const sourceLabelsPromise = client
+		.getSources(token)
+		.then((sources) =>
+			buildSourceLabels(
+				sources.filter((s) => s.claimed).map((s) => ({ name: s.name, displayName: s.display_name }))
+			)
+		)
+		.catch((err) => {
+			console.error('wall: sources lookup failed', err);
+			return {} as Record<string, string>;
+		});
 
 	let stats, openAlerts, sample;
 	try {
@@ -47,10 +63,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const insights = await insightsPromise;
+	const sourceLabels = await sourceLabelsPromise;
 
 	return {
 		eventCount24h: stats.event_count_24h,
 		heatGrid: stats.heat_grid,
+		sourceLabels,
 		hourlyTotals: stats.hourly_totals ?? [],
 		openAlertCount: openAlerts.length,
 		triageAlerts: topTriageAlerts(openAlerts),

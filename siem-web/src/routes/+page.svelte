@@ -15,7 +15,7 @@
 	<div class="col-main">
 		<StatRow eventCount24h={data.eventCount24h} openAlertCount={data.openAlertCount} />
 		<EventsOverTime totals={data.hourlyTotals} />
-		<HeatGrid rows={data.heatGrid} />
+		<HeatGrid rows={data.heatGrid} sourceLabels={data.sourceLabels} />
 		<div class="triage-lane">
 			{#each data.triageAlerts as alert (alert.id)}
 				<TriageCard {alert} />

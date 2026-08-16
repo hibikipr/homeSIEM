@@ -40,6 +40,7 @@ describe('Wall load', () => {
 					}
 				]),
 				search: searchMock,
+				getSources: vi.fn().mockResolvedValue([]),
 				getInsights: vi.fn().mockResolvedValue([
 					{
 						id: 1,
@@ -72,6 +73,35 @@ describe('Wall load', () => {
 		});
 		expect(result.insights).toHaveLength(1);
 		expect(result.insights[0].title).toBe('Bambuddy errors look mistagged');
+		expect(result.sourceLabels).toEqual({});
+	});
+
+	it('builds sourceLabels from claimed sources so HeatGrid can show a rename', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getEventsStats: vi.fn().mockResolvedValue({
+					event_count_24h: 0,
+					heat_grid: [{ source: '192.168.3.223', hours: ['none'] }]
+				}),
+				getAlerts: vi.fn().mockResolvedValue([]),
+				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+				getSources: vi.fn().mockResolvedValue([
+					{ id: 7, name: '192.168.3.223', display_name: 'Home Assistant', claimed: true },
+					{ id: 8, name: 'unclaimed-host', display_name: '', claimed: false }
+				]),
+				getInsights: vi.fn().mockResolvedValue([])
+			};
+		});
+
+		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as Exclude<
+			Awaited<ReturnType<typeof load>>,
+			void
+		>;
+
+		// Only the claimed source contributes a label; an unclaimed one
+		// (not yet vetted by an admin) is deliberately left out, same as
+		// the Search page's claimedSources.
+		expect(result.sourceLabels).toEqual({ '192.168.3.223': 'Home Assistant' });
 	});
 
 	it('degrades to an empty insights array without throwing when the insights lookup fails', async () => {
@@ -80,6 +110,7 @@ describe('Wall load', () => {
 				getEventsStats: vi.fn().mockResolvedValue({ event_count_24h: 0, heat_grid: [] }),
 				getAlerts: vi.fn().mockResolvedValue([]),
 				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+				getSources: vi.fn().mockResolvedValue([]),
 				getInsights: vi.fn().mockRejectedValue(new SiemApiError(400, 'insights is not configured'))
 			};
 		});
@@ -98,6 +129,7 @@ describe('Wall load', () => {
 				getEventsStats: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
 				getAlerts: vi.fn().mockResolvedValue([]),
 				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+				getSources: vi.fn().mockResolvedValue([]),
 				getInsights: vi.fn().mockResolvedValue([])
 			};
 		});
@@ -114,6 +146,7 @@ describe('Wall load', () => {
 				getEventsStats: vi.fn().mockResolvedValue({ event_count_24h: 0, heat_grid: [] }),
 				getAlerts: vi.fn().mockRejectedValue(new SiemApiError(403, 'role no longer valid')),
 				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+				getSources: vi.fn().mockResolvedValue([]),
 				getInsights: vi.fn().mockResolvedValue([])
 			};
 		});
@@ -129,6 +162,7 @@ describe('Wall load', () => {
 				getEventsStats: vi.fn().mockResolvedValue({ event_count_24h: 0, heat_grid: [] }),
 				getAlerts: vi.fn().mockResolvedValue([]),
 				search: vi.fn().mockRejectedValue(new SiemApiError(500, 'boom')),
+				getSources: vi.fn().mockResolvedValue([]),
 				getInsights: vi.fn().mockResolvedValue([])
 			};
 		});
