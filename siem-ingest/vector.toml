@@ -362,12 +362,17 @@ source = '''
 
     ## Python's logging module, uvicorn's formatter (spoolman): a
     ## whitespace-padded "<logger name>   LEVEL   message" - e.g.
-    ## "uvicorn.access             INFO     127.0.0.1:...". Anchored to
-    ## message start with 2+ spaces on each side of the level word (matching
-    ## the padded column layout) to avoid matching an incidental level word
-    ## appearing elsewhere in a log line that isn't actually this format.
+    ## "uvicorn.access             INFO     127.0.0.1:...". Originally
+    ## required 2+ spaces on both sides of the level word, matching
+    ## uvicorn.access's own padding - but spoolman's real output only pads
+    ## a single space before the level ("spoolman.database.database INFO
+    ##     Scheduling...", confirmed via a captured raw message), so every
+    ## spoolman INFO line fell through to the PRI-based fallback and landed
+    ## as severity=err. Relaxed to 1+ leading space; kept the 2+ trailing
+    ## space as the real anchor (still avoids matching an incidental level
+    ## word elsewhere in an unrelated line).
     if is_null(reported_level) {
-      m = parse_regex(message_for_level, r'^\S+\s{2,}(?P<val>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL)\s').val ?? null
+      m = parse_regex(message_for_level, r'^\S+\s+(?P<val>DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL)\s{2,}').val ?? null
       if is_string(m) {
         reported_level = downcase!(m)
       }
