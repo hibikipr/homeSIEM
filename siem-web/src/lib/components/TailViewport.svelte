@@ -4,7 +4,7 @@
 	import type { LogEntry } from '$lib/server/siemApiClient';
 	import { filterBySeverity, severityColor } from '$lib/tail';
 	import { extractField, extractMessage, formatTimestampInZone } from '$lib/logline';
-	import { computeVisibleRange } from '$lib/search';
+	import { computeVisibleRange, isScrolledToBottom } from '$lib/search';
 
 	const MAX_BUFFER = 5000;
 	const ROW_HEIGHT = 28;
@@ -100,7 +100,11 @@
 	function handleScroll() {
 		if (!viewportEl) return;
 		scrollTop = viewportEl.scrollTop;
-		const atBottom = viewportEl.scrollHeight - viewportEl.scrollTop - viewportEl.clientHeight < 4;
+		const atBottom = isScrolledToBottom(
+			viewportEl.scrollTop,
+			viewportEl.clientHeight,
+			viewportEl.scrollHeight
+		);
 		if (atBottom) {
 			autoFollow = true;
 			newSinceDetach = 0;
@@ -191,8 +195,10 @@
 			</div>
 		{/if}
 	</div>
-	{#if !autoFollow && newSinceDetach > 0}
-		<button class="new-pill" onclick={reattach}>{newSinceDetach} new</button>
+	{#if !autoFollow}
+		<button class="new-pill" onclick={reattach}>
+			{newSinceDetach > 0 ? `${newSinceDetach} new` : 'Jump to now'}
+		</button>
 	{/if}
 </div>
 

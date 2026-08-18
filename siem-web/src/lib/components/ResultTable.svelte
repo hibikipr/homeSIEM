@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { LogEntry } from '$lib/server/siemApiClient';
-	import { computeVisibleRange, formatTimestamp } from '$lib/search';
+	import { computeVisibleRange, formatTimestamp, isScrolledToBottom } from '$lib/search';
 	import { severityColor } from '$lib/tail';
 	import { extractMessage, formatTimestampInZone } from '$lib/logline';
 
@@ -74,6 +74,19 @@
 
 	let range = $derived(computeVisibleRange(scrollTop, containerHeight, ROW_HEIGHT, entries.length));
 	let visibleEntries = $derived(entries.slice(range.startIndex, range.endIndex));
+	let atBottom = $derived(
+		isScrolledToBottom(scrollTop, containerHeight, entries.length * ROW_HEIGHT)
+	);
+
+	// Results are sorted oldest-first (see siem-api's Loki query), so the most
+	// recent matching event is always the last row — jump straight there
+	// instead of scrolling through a potentially long result set.
+	function jumpToLatest() {
+		if (!containerEl) return;
+		const target = entries.length * ROW_HEIGHT;
+		containerEl.scrollTop = target;
+		scrollTop = target;
+	}
 </script>
 
 <svelte:window onresize={measure} />
@@ -129,16 +142,35 @@
 			{/each}
 		</div>
 	</div>
+	{#if !atBottom && entries.length > 0}
+		<button class="jump-pill" onclick={jumpToLatest}>Jump to latest ↓</button>
+	{/if}
 </div>
 
 <style>
 	.table-wrap {
+		position: relative;
 		flex: 1 1 auto;
 		min-width: 0;
 		background: var(--color-surface-2);
 		border-radius: var(--radius-default);
 		box-shadow: inset var(--shadow-flat);
 		overflow: hidden;
+	}
+	.jump-pill {
+		position: absolute;
+		bottom: var(--space-4);
+		left: 50%;
+		transform: translateX(-50%);
+		background: var(--color-accent);
+		color: var(--color-bg);
+		border: none;
+		border-radius: 999px;
+		padding: var(--space-1) var(--space-4);
+		font-size: var(--text-label);
+		font-weight: 500;
+		cursor: pointer;
+		box-shadow: var(--shadow-raised);
 	}
 	.header-row {
 		display: flex;

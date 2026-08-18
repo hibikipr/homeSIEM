@@ -9,7 +9,8 @@ import {
 	formatTimestamp,
 	extractSrcIp,
 	computeVolumeTiers,
-	computeVisibleRange
+	computeVisibleRange,
+	isScrolledToBottom
 } from './search';
 import type { LogEntry } from './server/siemApiClient';
 
@@ -111,7 +112,10 @@ describe('mergeSourceFacet', () => {
 
 	it('sorts multiple missing sources alphabetically', () => {
 		expect(
-			mergeSourceFacet([], [knownSource('tower'), knownSource('homebridge'), knownSource('raspberrypi')])
+			mergeSourceFacet(
+				[],
+				[knownSource('tower'), knownSource('homebridge'), knownSource('raspberrypi')]
+			)
 		).toEqual([
 			{ value: 'homebridge', label: 'homebridge', count: 0 },
 			{ value: 'raspberrypi', label: 'raspberrypi', count: 0 },
@@ -249,5 +253,28 @@ describe('computeVisibleRange', () => {
 			endIndex: 0,
 			offsetTop: 0
 		});
+	});
+});
+
+describe('isScrolledToBottom', () => {
+	it('is true when the container is exactly at the bottom', () => {
+		expect(isScrolledToBottom(500, 300, 800)).toBe(true);
+	});
+
+	it('is true when within the default threshold of the bottom', () => {
+		expect(isScrolledToBottom(497, 300, 800)).toBe(true);
+	});
+
+	it('is false when scrolled away from the bottom', () => {
+		expect(isScrolledToBottom(0, 300, 800)).toBe(false);
+	});
+
+	it('honours a custom threshold', () => {
+		expect(isScrolledToBottom(480, 300, 800, 25)).toBe(true);
+		expect(isScrolledToBottom(470, 300, 800, 25)).toBe(false);
+	});
+
+	it('is true for content shorter than the container', () => {
+		expect(isScrolledToBottom(0, 500, 200)).toBe(true);
 	});
 });

@@ -205,3 +205,13 @@ export function computeVisibleRange(
 	const endIndex = Math.min(totalRows, firstVisible + visibleCount + VIRTUALIZATION_BUFFER_ROWS);
 	return { startIndex, endIndex, offsetTop: startIndex * rowHeight };
 }
+
+/** Whether a scroll container is within `threshold`px of its bottom. */
+export function isScrolledToBottom(
+	scrollTop: number,
+	containerHeight: number,
+	totalContentHeight: number,
+	threshold = 4
+): boolean {
+	return totalContentHeight - scrollTop - containerHeight < threshold;
+}
