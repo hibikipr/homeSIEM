@@ -203,6 +203,18 @@ describe('SiemApiClient', () => {
 		expect((init?.headers as Record<string, string>)['Content-Type']).toBe('application/json');
 	});
 
+	it('deleteSource DELETEs to /sources/{id} with Authorization', async () => {
+		const fetchFn = fakeFetch(null, 204);
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.deleteSource('token-123', 7);
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/sources/7');
+		expect(init?.method).toBe('DELETE');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
 	it('search parses the volume field from the response', async () => {
 		const fetchFn = fakeFetch({
 			logql: '{job="siem"}',

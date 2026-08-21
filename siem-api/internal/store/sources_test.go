@@ -135,6 +135,73 @@ func TestRenameSource_UnknownID_ReturnsErrNoRows(t *testing.T) {
 	}
 }
 
+func TestDeleteSource_RemovesRow(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	created, err := s.UpsertSource(ctx, Source{Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	if err := s.DeleteSource(ctx, created.ID); err != nil {
+		t.Fatalf("DeleteSource() error = %v", err)
+	}
+
+	sources, err := s.ListSources(ctx)
+	if err != nil {
+		t.Fatalf("ListSources() error = %v", err)
+	}
+	if len(sources) != 0 {
+		t.Errorf("ListSources() after delete = %d source(s), want 0", len(sources))
+	}
+}
+
+func TestDeleteSource_UnknownID_ReturnsErrNoRows(t *testing.T) {
+	s := newTestStore(t)
+	err := s.DeleteSource(context.Background(), 999)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Errorf("DeleteSource(unknown) error = %v, want sql.ErrNoRows", err)
+	}
+}
+
+// A source re-created by the next heartbeat after being deleted comes back
+// unclaimed with no display_name - deleting doesn't leave behind any
+// residue that a later UpsertSource by the same name could resurrect
+// claimed/renamed state from. (The row's `id` itself isn't asserted here:
+// sources.id is a plain `INTEGER PRIMARY KEY`, not `AUTOINCREMENT`, so
+// SQLite is free to reuse the deleted row's rowid - that's fine, since
+// nothing in this system treats id reuse as meaningful.)
+func TestDeleteSource_ThenReupsert_CreatesFreshUnclaimedRow(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	created, err := s.UpsertSource(ctx, Source{Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+	if err := s.RenameSource(ctx, created.ID, "Home Assistant"); err != nil {
+		t.Fatalf("RenameSource() error = %v", err)
+	}
+	if err := s.ClaimSource(ctx, created.ID); err != nil {
+		t.Fatalf("ClaimSource() error = %v", err)
+	}
+	if err := s.DeleteSource(ctx, created.ID); err != nil {
+		t.Fatalf("DeleteSource() error = %v", err)
+	}
+
+	recreated, err := s.UpsertSource(ctx, Source{Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900})
+	if err != nil {
+		t.Fatalf("UpsertSource() (re-heartbeat) error = %v", err)
+	}
+	if recreated.Claimed {
+		t.Errorf("recreated.Claimed = true, want false (a fresh row, not a resurrection of claimed state)")
+	}
+	if recreated.DisplayName != "" {
+		t.Errorf("recreated.DisplayName = %q, want empty (a fresh row, not a resurrection of the old display_name)", recreated.DisplayName)
+	}
+}
+
 // TestUpsertSource_PreservesDisplayNameAcrossHeartbeats guards the exact
 // bug a naive "just UPDATE the name column" rename would hit: every
 // incoming heartbeat re-upserts by the natural `name` key, and must not

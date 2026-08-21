@@ -101,6 +101,28 @@ func (s *Store) RenameSource(ctx context.Context, id int64, displayName string) 
 	return nil
 }
 
+// DeleteSource removes a source row entirely. Note it isn't a permanent
+// ban: the next heartbeat from a still-actively-sending sender re-creates
+// it via UpsertSource's ON CONFLICT(name) upsert, as a fresh unclaimed row
+// (new ID, no display_name) - the same behavior a device sending its very
+// first heartbeat ever gets. That's expected for the real use case, which
+// is clearing out silent/decommissioned sources, not preventing a live one
+// from ever appearing again.
+func (s *Store) DeleteSource(ctx context.Context, id int64) error {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM sources WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("store: delete source: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: delete source: %w", err)
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func (s *Store) StaleSources(ctx context.Context, now time.Time) ([]Source, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, name, address, transport, parser, claimed, heartbeat_sec, last_seen_at, created_at

@@ -119,6 +119,26 @@ func (s *Server) handleRenameSource(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleDeleteSource removes a source row entirely - see store.DeleteSource
+// for why this isn't a permanent ban on a still-actively-sending sender.
+func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid source id", http.StatusBadRequest)
+		return
+	}
+	if err := s.deps.Store.DeleteSource(r.Context(), id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "source not found", http.StatusNotFound)
+			return
+		}
+		s.deps.Logger.Error("delete source failed", "source_id", id, "error", err)
+		http.Error(w, "delete source failed", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type sourceHeartbeatRequest struct {
 	Name      string `json:"name"`
 	Address   string `json:"address"`
