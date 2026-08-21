@@ -182,6 +182,82 @@ func TestRenameSource_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestDeleteSource_RequiresAdmin(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	src, err := st.UpsertSource(ctx, store.Source{
+		Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	token := authToken(t, st, "analyst", 50)
+	req := httptest.NewRequest(http.MethodDelete, "/sources/"+itoa(src.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestDeleteSource_AdminSucceeds_AndRemovesFromListSources(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	src, err := st.UpsertSource(ctx, store.Source{
+		Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	adminToken := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodDelete, "/sources/"+itoa(src.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204, body=%s", rec.Code, rec.Body.String())
+	}
+
+	sources, err := st.ListSources(ctx)
+	if err != nil {
+		t.Fatalf("ListSources() error = %v", err)
+	}
+	if len(sources) != 0 {
+		t.Fatalf("ListSources() after delete = %+v, want empty", sources)
+	}
+}
+
+func TestDeleteSource_UnknownID_Returns404(t *testing.T) {
+	s, st := newTestServer(t)
+	token := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodDelete, "/sources/999", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeleteSource_InvalidID(t *testing.T) {
+	s, st := newTestServer(t)
+	token := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodDelete, "/sources/not-a-number", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
 func TestSourceHeartbeat_InvalidToken(t *testing.T) {
 	s, _ := newTestServer(t)
 	body := strings.NewReader(`{"name":"udm-ultra","address":"10.0.0.1","transport":"udp/514","parser":"unifi-os"}`)

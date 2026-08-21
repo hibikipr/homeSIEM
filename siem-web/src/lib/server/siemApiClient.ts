@@ -305,6 +305,16 @@ export class SiemApiClient {
 		});
 	}
 
+	// Removes the source row entirely. Not a permanent ban - a source still
+	// actively sending logs re-creates itself, unclaimed, on its next
+	// heartbeat. See siem-api's store.DeleteSource for the full reasoning.
+	async deleteSource(sessionToken: string, id: number): Promise<void> {
+		return this.requestNoContent(`/sources/${id}`, {
+			method: 'DELETE',
+			...this.authInit(sessionToken)
+		});
+	}
+
 	async search(sessionToken: string, params: Record<string, string>): Promise<SearchResponse> {
 		const qs = new URLSearchParams(params).toString();
 		const path = qs ? `/events/search?${qs}` : '/events/search';

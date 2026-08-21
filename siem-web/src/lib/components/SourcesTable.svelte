@@ -13,6 +13,7 @@
 	let renamingId = $state<number | null>(null);
 	let renameValue = $state('');
 	let saving = $state(false);
+	let deletingId = $state<number | null>(null);
 
 	function startRename(source: SourceResponse) {
 		renamingId = source.id;
@@ -37,6 +38,30 @@
 			}
 		} finally {
 			saving = false;
+		}
+	}
+
+	// A source that's still actively sending logs re-creates itself,
+	// unclaimed, on its next heartbeat - forgetting it is a cleanup action
+	// for silent/decommissioned devices, not a permanent ban. Warn when
+	// deleting one that's currently healthy, since it'll likely come right
+	// back.
+	async function forgetSource(source: SourceResponse) {
+		const label = source.display_name || source.name;
+		const message =
+			source.status === 'healthy'
+				? `"${label}" is still actively sending logs - it'll likely reappear (unclaimed, unrenamed) the next time it logs. Forget it anyway?`
+				: `Forget "${label}"? This removes it from the list; if it starts logging again, it'll come back as a new, unclaimed source.`;
+		if (!confirm(message)) return;
+
+		deletingId = source.id;
+		try {
+			const response = await fetch(`/api/sources/${source.id}`, { method: 'DELETE' });
+			if (response.ok) {
+				await invalidateAll();
+			}
+		} finally {
+			deletingId = null;
 		}
 	}
 </script>
@@ -83,6 +108,13 @@
 						>
 						{#if canRename}
 							<button class="rename-trigger" onclick={() => startRename(source)}>Rename</button>
+							<button
+								class="rename-trigger"
+								onclick={() => forgetSource(source)}
+								disabled={deletingId === source.id}
+							>
+								{deletingId === source.id ? '…' : 'Forget'}
+							</button>
 						{/if}
 					{/if}
 				</td>
