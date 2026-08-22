@@ -30,7 +30,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		if (err instanceof SiemApiError && (err.status === 401 || err.status === 403)) {
 			redirect(302, '/auth/logout');
 		}
-		health = { received_events_per_source: {}, loki_sent_events_total: 0, degraded: true };
+		health = {
+			received_events_per_source: {},
+			loki_sent_events_total: 0,
+			blank_messages_filtered_total: 0,
+			degraded: true
+		};
 	}
 
 	const previewName = url.searchParams.get('preview') ?? sources[0]?.name ?? null;

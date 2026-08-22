@@ -141,6 +141,10 @@ export interface SourceResponse {
 export interface IngestHealthResponse {
 	received_events_per_source: Record<string, number>;
 	loki_sent_events_total: number;
+	// The precise, named cause of most/all of the gap between total
+	// received and loki_sent_events_total - see ingest_health.go's doc on
+	// the matching backend field.
+	blank_messages_filtered_total: number;
 	degraded: boolean;
 }
 

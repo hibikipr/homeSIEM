@@ -26,7 +26,12 @@ function fakeSource(overrides: Record<string, unknown> = {}) {
 }
 
 function fakeHealth() {
-	return { received_events_per_source: {}, loki_sent_events_total: 0, degraded: false };
+	return {
+		received_events_per_source: {},
+		loki_sent_events_total: 0,
+		blank_messages_filtered_total: 0,
+		degraded: false
+	};
 }
 
 describe('Sources load', () => {
@@ -152,6 +157,7 @@ describe('Sources load', () => {
 		expect(result.health).toEqual({
 			received_events_per_source: {},
 			loki_sent_events_total: 0,
+			blank_messages_filtered_total: 0,
 			degraded: true
 		});
 	});
