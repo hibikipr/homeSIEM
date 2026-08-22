@@ -87,6 +87,9 @@ func Migrate(db *sql.DB) error {
 	if err := backfillInsightFingerprints(db); err != nil {
 		return fmt.Errorf("store: backfill insight fingerprints: %w", err)
 	}
+	if err := reconcileFingerprintsDroppingCategory(db); err != nil {
+		return fmt.Errorf("store: reconcile insight fingerprints: %w", err)
+	}
 
 	for _, col := range mutedFingerprintColumns {
 		if err := addColumnIfMissing(db, "muted_insight_fingerprints", col.name, col.ddl); err != nil {
