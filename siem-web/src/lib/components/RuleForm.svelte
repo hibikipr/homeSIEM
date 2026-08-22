@@ -46,7 +46,9 @@
 		absence:
 			"Alerts when a source that's normally sending logs stops - no matching events for a full heartbeat period.",
 		first_seen:
-			'Alerts the first time a value (e.g. a new source or host) shows up that was never seen before.'
+			'Alerts the first time a value (e.g. a new source or host) shows up that was never seen before.',
+		insight:
+			"Alerts when Ollama's Insights pass finds something new at or above the severity below - lets you opt in to a phone notification for insights instead of only seeing them on the Insights tab. Only fires for a finding's first occurrence, never for a recurrence of one already surfaced."
 	};
 
 	let name = $state(initial?.name ?? defaultName);
@@ -161,17 +163,18 @@
 				<option value="threshold">Threshold — repeated events</option>
 				<option value="absence">Absence — a source goes quiet</option>
 				<option value="first_seen">First seen — a new value appears</option>
+				<option value="insight">Insight — Ollama finds something</option>
 			</select>
 		</label>
 		<p class="hint">{SHAPE_DESCRIPTIONS[shape]}</p>
-		{#if shape !== 'absence'}
+		{#if shape !== 'absence' && shape !== 'insight'}
 			<label>
 				LogQL query
 				<textarea bind:value={logql} required></textarea>
 			</label>
 			<p class="hint">The Loki query this rule watches - same syntax as Search's query bar.</p>
 		{/if}
-		{#if shape !== 'absence'}
+		{#if shape !== 'absence' && shape !== 'insight'}
 			<MinutesPicker
 				bind:seconds={windowSec}
 				presetsMinutes={WINDOW_PRESETS_MIN}
@@ -186,7 +189,7 @@
 			</label>
 			<p class="hint">Alert once this many matching events happen within the time window above.</p>
 		{/if}
-		{#if shape !== 'absence'}
+		{#if shape !== 'absence' && shape !== 'insight'}
 			<label>
 				Group by (comma-separated)
 				<input bind:value={groupBy} placeholder="source, host" />
@@ -205,7 +208,11 @@
 				<option value="info">Info</option>
 			</select>
 		</label>
-		<p class="hint">How urgent the resulting alert is.</p>
+		<p class="hint">
+			{shape === 'insight'
+				? "The minimum severity Ollama assigned an insight for it to raise an alert here - the alert itself still shows the insight's own severity, this is only a floor."
+				: 'How urgent the resulting alert is.'}
+		</p>
 		<MinutesPicker
 			bind:seconds={cooldownSec}
 			presetsMinutes={COOLDOWN_PRESETS_MIN}

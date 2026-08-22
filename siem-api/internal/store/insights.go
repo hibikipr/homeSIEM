@@ -168,6 +168,58 @@ func (s *Store) ListInsights(ctx context.Context, includeDismissed bool, limit i
 	return out, rows.Err()
 }
 
+// ListInsightsCreatedSince returns insights first created strictly after
+// `since` (i.e. brand-new fingerprints - a row InsertInsight created, not
+// one BumpInsight merely refreshed) whose severity is at or above
+// minSeverity. Deliberately excludes bumps of an already-existing insight:
+// this backs rules.InsightEvaluator, which lets a user opt in to ntfy
+// notifications when Ollama finds something severe enough to matter (see
+// that evaluator's doc) - notifying again every time a persistent,
+// already-surfaced condition gets re-confirmed (as often as every 30
+// minutes) would turn a UI annoyance into actual phone spam, the opposite
+// of the point.
+func (s *Store) ListInsightsCreatedSince(ctx context.Context, since time.Time, minSeverity string) ([]Insight, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+insightColumnList+`
+		FROM insights
+		WHERE created_at > ?
+		ORDER BY created_at ASC
+	`, formatTime(since))
+	if err != nil {
+		return nil, fmt.Errorf("store: list insights created since: %w", err)
+	}
+	defer rows.Close()
+
+	minRank := insightSeverityRank(minSeverity)
+	var out []Insight
+	for rows.Next() {
+		in, err := scanInsight(rows)
+		if err != nil {
+			return nil, fmt.Errorf("store: list insights created since: %w", err)
+		}
+		if insightSeverityRank(in.Severity) < minRank {
+			continue
+		}
+		out = append(out, in)
+	}
+	return out, rows.Err()
+}
+
+// insightSeverityRank mirrors alerts.severityRank (kept as a separate copy,
+// not imported, since alerts already imports store - importing back would
+// cycle). "info" and anything unrecognized rank lowest, matching every
+// other severity-coercion in this codebase (see insights.validSeverities).
+func insightSeverityRank(severity string) int {
+	switch severity {
+	case "critical":
+		return 2
+	case "warning":
+		return 1
+	default:
+		return 0
+	}
+}
+
 func (s *Store) DismissInsight(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx, `UPDATE insights SET dismissed = 1 WHERE id = ?`, id)
 	if err != nil {

@@ -1,6 +1,6 @@
 import type { AlertSeverity } from './severity';
 
-export type RuleShape = 'threshold' | 'absence' | 'first_seen';
+export type RuleShape = 'threshold' | 'absence' | 'first_seen' | 'insight';
 
 export type RuleTemplate = {
 	label: string;
@@ -63,6 +63,22 @@ export const RULE_TEMPLATES: RuleTemplate[] = [
 		threshold: 1,
 		groupBy: 'source',
 		severity: 'info'
+	},
+	{
+		label: 'Insight found by Ollama',
+		name: 'insight-alert',
+		shape: 'insight',
+		logql: '',
+		windowSec: 60,
+		threshold: 1,
+		groupBy: '',
+		// warning, not info: Insights already runs on its own 30-minute
+		// cadence and covers plenty of low-stakes operational chatter (see
+		// insights/prompt.go) - defaulting to "notify on literally
+		// anything Ollama writes down" would make this rule noisy from the
+		// moment it's turned on. Still fully editable like every other
+		// template.
+		severity: 'warning'
 	}
 ];
 

@@ -325,3 +325,82 @@ func TestMigrate_BackfillsFingerprintForPreExistingRows(t *testing.T) {
 		t.Error("LastSeenAt after backfill is zero, want it backfilled from created_at")
 	}
 }
+
+func insertRawInsight(t *testing.T, s *Store, createdAt, severity, title string) {
+	t.Helper()
+	_, err := s.db.ExecContext(t.Context(), `
+		INSERT INTO insights (created_at, title, detail, severity, category, evidence_json, dismissed, fingerprint, occurrence_count, last_seen_at)
+		VALUES (?, ?, 'd', ?, 'operational', '[]', 0, '', 1, ?)
+	`, createdAt, title, severity, createdAt)
+	if err != nil {
+		t.Fatalf("raw insert error = %v", err)
+	}
+}
+
+func TestListInsightsCreatedSince_ExcludesRowsCreatedAtOrBeforeSince(t *testing.T) {
+	s := newTestStore(t)
+	insertRawInsight(t, s, "2026-01-01 00:00:00", "warning", "before")
+	insertRawInsight(t, s, "2026-01-02 00:00:00", "warning", "exactly-at-since")
+	insertRawInsight(t, s, "2026-01-03 00:00:00", "warning", "after")
+
+	since, _ := time.Parse(time.DateTime, "2026-01-02 00:00:00")
+	got, err := s.ListInsightsCreatedSince(t.Context(), since, "info")
+	if err != nil {
+		t.Fatalf("ListInsightsCreatedSince() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Title != "after" {
+		t.Fatalf("got = %+v, want exactly one row titled \"after\"", got)
+	}
+}
+
+func TestListInsightsCreatedSince_FiltersBySeverityFloor(t *testing.T) {
+	s := newTestStore(t)
+	insertRawInsight(t, s, "2026-01-02 00:00:00", "info", "info-row")
+	insertRawInsight(t, s, "2026-01-02 00:01:00", "warning", "warning-row")
+	insertRawInsight(t, s, "2026-01-02 00:02:00", "critical", "critical-row")
+
+	since, _ := time.Parse(time.DateTime, "2026-01-01 00:00:00")
+	got, err := s.ListInsightsCreatedSince(t.Context(), since, "warning")
+	if err != nil {
+		t.Fatalf("ListInsightsCreatedSince() error = %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len(got) = %d, want 2 (warning and critical, not info)", len(got))
+	}
+	for _, in := range got {
+		if in.Severity == "info" {
+			t.Errorf("got an info-severity row %+v, want it excluded by the warning floor", in)
+		}
+	}
+}
+
+func TestListInsightsCreatedSince_ExcludesBumpsOfAnOlderInsight(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+
+	inserted, err := s.InsertInsight(ctx, fakeInsight(func(in *Insight) {
+		in.Fingerprint = "abc123"
+	}))
+	if err != nil {
+		t.Fatalf("InsertInsight() error = %v", err)
+	}
+
+	// Back-date created_at as if this insight first appeared well before
+	// the window this test cares about - only last_seen_at (via
+	// BumpInsight below) should move, created_at must not.
+	if _, err := s.db.ExecContext(ctx, `UPDATE insights SET created_at = '2026-01-01 00:00:00' WHERE id = ?`, inserted.ID); err != nil {
+		t.Fatalf("backdate created_at error = %v", err)
+	}
+	if _, err := s.BumpInsight(ctx, inserted.ID, "recurred", "critical", "[]", ""); err != nil {
+		t.Fatalf("BumpInsight() error = %v", err)
+	}
+
+	since, _ := time.Parse(time.DateTime, "2026-01-01 12:00:00") // after the backdated created_at, before "now"
+	got, err := s.ListInsightsCreatedSince(ctx, since, "info")
+	if err != nil {
+		t.Fatalf("ListInsightsCreatedSince() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("got = %+v, want none - a bump must not count as a new creation regardless of the recurrence's own severity", got)
+	}
+}
