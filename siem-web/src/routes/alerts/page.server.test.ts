@@ -31,7 +31,12 @@ describe('Alerts load', () => {
 		const getAlertsMock = vi.fn().mockResolvedValue([fakeAlert()]);
 		const getRulesMock = vi.fn().mockResolvedValue([]);
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { getAlerts: getAlertsMock, getRules: getRulesMock, getAlertSamples: vi.fn() };
+			return {
+				getAlerts: getAlertsMock,
+				getRules: getRulesMock,
+				getSources: vi.fn().mockResolvedValue([]),
+				getAlertSamples: vi.fn()
+			};
 		});
 
 		const result = (await load({
@@ -63,7 +68,12 @@ describe('Alerts load', () => {
 			}
 		]);
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { getAlerts: getAlertsMock, getRules: getRulesMock, getAlertSamples: vi.fn() };
+			return {
+				getAlerts: getAlertsMock,
+				getRules: getRulesMock,
+				getSources: vi.fn().mockResolvedValue([]),
+				getAlertSamples: vi.fn()
+			};
 		});
 
 		const result = (await load({
@@ -95,6 +105,7 @@ describe('Alerts load', () => {
 			return {
 				getAlerts: vi.fn(),
 				getRules: vi.fn().mockResolvedValue([rule]),
+				getSources: vi.fn().mockResolvedValue([]),
 				getAlertSamples: vi.fn()
 			};
 		});
@@ -119,6 +130,7 @@ describe('Alerts load', () => {
 			return {
 				getAlerts: vi.fn().mockResolvedValue([alert]),
 				getRules: vi.fn().mockResolvedValue([]),
+				getSources: vi.fn().mockResolvedValue([]),
 				getAlertSamples: getAlertSamplesMock
 			};
 		});
@@ -139,6 +151,7 @@ describe('Alerts load', () => {
 			return {
 				getAlerts: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
 				getRules: vi.fn().mockResolvedValue([]),
+				getSources: vi.fn().mockResolvedValue([]),
 				getAlertSamples: vi.fn()
 			};
 		});
@@ -156,6 +169,7 @@ describe('Alerts load', () => {
 			return {
 				getAlerts: vi.fn().mockRejectedValue(new SiemApiError(500, 'boom')),
 				getRules: vi.fn().mockResolvedValue([]),
+				getSources: vi.fn().mockResolvedValue([]),
 				getAlertSamples: vi.fn()
 			};
 		});
@@ -166,5 +180,48 @@ describe('Alerts load', () => {
 				url: new URL('https://siem.townsville.cc/alerts')
 			} as never)
 		).rejects.toMatchObject({ status: 502 });
+	});
+
+	it('returns a name lookup keyed by raw source name, from live Sources data', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getAlerts: vi.fn().mockResolvedValue([fakeAlert()]),
+				getRules: vi.fn().mockResolvedValue([]),
+				getSources: vi.fn().mockResolvedValue([
+					{ id: 1, name: '192.168.3.223', display_name: 'Home Assistant', claimed: true },
+					{ id: 2, name: 'udm-ultra', display_name: '', claimed: true }
+				]),
+				getAlertSamples: vi.fn()
+			};
+		});
+
+		const result = (await load({
+			locals: { sessionToken: 'token-123' },
+			url: new URL('https://siem.townsville.cc/alerts')
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.sourceDisplayNames).toEqual({
+			'192.168.3.223': 'Home Assistant',
+			'udm-ultra': ''
+		});
+	});
+
+	it('degrades to an empty name lookup if the Sources fetch fails, without failing the page', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getAlerts: vi.fn().mockResolvedValue([fakeAlert()]),
+				getRules: vi.fn().mockResolvedValue([]),
+				getSources: vi.fn().mockRejectedValue(new Error('boom')),
+				getAlertSamples: vi.fn()
+			};
+		});
+
+		const result = (await load({
+			locals: { sessionToken: 'token-123' },
+			url: new URL('https://siem.townsville.cc/alerts')
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.sourceDisplayNames).toEqual({});
+		expect(result.alerts).toHaveLength(1);
 	});
 });

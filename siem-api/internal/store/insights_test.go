@@ -142,28 +142,25 @@ func TestDismissInsight_UnknownID_ReturnsErrNoRows(t *testing.T) {
 	}
 }
 
-func TestComputeFingerprint_SameCategoryAndPrograms_SameFingerprint(t *testing.T) {
-	a := ComputeFingerprint("operational", []string{"UI-poller"})
-	b := ComputeFingerprint("operational", []string{"UI-poller"})
+func TestComputeFingerprint_SamePrograms_SameFingerprint(t *testing.T) {
+	a := ComputeFingerprint([]string{"UI-poller"})
+	b := ComputeFingerprint([]string{"UI-poller"})
 	if a != b {
 		t.Errorf("ComputeFingerprint() = %q and %q, want identical for identical input", a, b)
 	}
 }
 
 func TestComputeFingerprint_OrderIndependent(t *testing.T) {
-	a := ComputeFingerprint("operational", []string{"tinyauth", "nginx-proxy-manager"})
-	b := ComputeFingerprint("operational", []string{"nginx-proxy-manager", "tinyauth"})
+	a := ComputeFingerprint([]string{"tinyauth", "nginx-proxy-manager"})
+	b := ComputeFingerprint([]string{"nginx-proxy-manager", "tinyauth"})
 	if a != b {
 		t.Errorf("ComputeFingerprint() = %q and %q, want order-independent", a, b)
 	}
 }
 
-func TestComputeFingerprint_DifferentCategoryOrPrograms_DifferentFingerprint(t *testing.T) {
-	base := ComputeFingerprint("operational", []string{"UI-poller"})
-	if got := ComputeFingerprint("security", []string{"UI-poller"}); got == base {
-		t.Error("different category produced the same fingerprint")
-	}
-	if got := ComputeFingerprint("operational", []string{"tinyauth"}); got == base {
+func TestComputeFingerprint_DifferentPrograms_DifferentFingerprint(t *testing.T) {
+	base := ComputeFingerprint([]string{"UI-poller"})
+	if got := ComputeFingerprint([]string{"tinyauth"}); got == base {
 		t.Error("different program produced the same fingerprint")
 	}
 }
@@ -317,11 +314,206 @@ func TestMigrate_BackfillsFingerprintForPreExistingRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetInsight() error = %v", err)
 	}
-	want := ComputeFingerprint("operational", []string{"UI-poller"})
+	want := ComputeFingerprint([]string{"UI-poller"})
 	if got.Fingerprint != want {
 		t.Errorf("Fingerprint after backfill = %q, want %q", got.Fingerprint, want)
 	}
 	if got.LastSeenAt.IsZero() {
 		t.Error("LastSeenAt after backfill is zero, want it backfilled from created_at")
+	}
+}
+
+func insertRawInsight(t *testing.T, s *Store, createdAt, severity, title string) {
+	t.Helper()
+	_, err := s.db.ExecContext(t.Context(), `
+		INSERT INTO insights (created_at, title, detail, severity, category, evidence_json, dismissed, fingerprint, occurrence_count, last_seen_at)
+		VALUES (?, ?, 'd', ?, 'operational', '[]', 0, '', 1, ?)
+	`, createdAt, title, severity, createdAt)
+	if err != nil {
+		t.Fatalf("raw insert error = %v", err)
+	}
+}
+
+func TestListInsightsCreatedSince_ExcludesRowsCreatedAtOrBeforeSince(t *testing.T) {
+	s := newTestStore(t)
+	insertRawInsight(t, s, "2026-01-01 00:00:00", "warning", "before")
+	insertRawInsight(t, s, "2026-01-02 00:00:00", "warning", "exactly-at-since")
+	insertRawInsight(t, s, "2026-01-03 00:00:00", "warning", "after")
+
+	since, _ := time.Parse(time.DateTime, "2026-01-02 00:00:00")
+	got, err := s.ListInsightsCreatedSince(t.Context(), since, "info")
+	if err != nil {
+		t.Fatalf("ListInsightsCreatedSince() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Title != "after" {
+		t.Fatalf("got = %+v, want exactly one row titled \"after\"", got)
+	}
+}
+
+func TestListInsightsCreatedSince_FiltersBySeverityFloor(t *testing.T) {
+	s := newTestStore(t)
+	insertRawInsight(t, s, "2026-01-02 00:00:00", "info", "info-row")
+	insertRawInsight(t, s, "2026-01-02 00:01:00", "warning", "warning-row")
+	insertRawInsight(t, s, "2026-01-02 00:02:00", "critical", "critical-row")
+
+	since, _ := time.Parse(time.DateTime, "2026-01-01 00:00:00")
+	got, err := s.ListInsightsCreatedSince(t.Context(), since, "warning")
+	if err != nil {
+		t.Fatalf("ListInsightsCreatedSince() error = %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len(got) = %d, want 2 (warning and critical, not info)", len(got))
+	}
+	for _, in := range got {
+		if in.Severity == "info" {
+			t.Errorf("got an info-severity row %+v, want it excluded by the warning floor", in)
+		}
+	}
+}
+
+func TestListInsightsCreatedSince_ExcludesBumpsOfAnOlderInsight(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+
+	inserted, err := s.InsertInsight(ctx, fakeInsight(func(in *Insight) {
+		in.Fingerprint = "abc123"
+	}))
+	if err != nil {
+		t.Fatalf("InsertInsight() error = %v", err)
+	}
+
+	// Back-date created_at as if this insight first appeared well before
+	// the window this test cares about - only last_seen_at (via
+	// BumpInsight below) should move, created_at must not.
+	if _, err := s.db.ExecContext(ctx, `UPDATE insights SET created_at = '2026-01-01 00:00:00' WHERE id = ?`, inserted.ID); err != nil {
+		t.Fatalf("backdate created_at error = %v", err)
+	}
+	if _, err := s.BumpInsight(ctx, inserted.ID, "recurred", "critical", "[]", ""); err != nil {
+		t.Fatalf("BumpInsight() error = %v", err)
+	}
+
+	since, _ := time.Parse(time.DateTime, "2026-01-01 12:00:00") // after the backdated created_at, before "now"
+	got, err := s.ListInsightsCreatedSince(ctx, since, "info")
+	if err != nil {
+		t.Fatalf("ListInsightsCreatedSince() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("got = %+v, want none - a bump must not count as a new creation regardless of the recurrence's own severity", got)
+	}
+}
+
+func TestMigrate_ReconcilesInsightFingerprintFromOldCategoryInclusiveFormula(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+
+	oldFingerprint := "old-category-inclusive-fp"
+	res, err := s.db.ExecContext(ctx, `
+		INSERT INTO insights (created_at, title, detail, severity, category, evidence_json, dismissed, fingerprint, occurrence_count, last_seen_at)
+		VALUES ('2026-01-01 00:00:00', 'Blocked by Firewall alert', 'd', 'warning', 'security',
+		        '[{"program":"Blocked by Firewall","sample_message":"m","count":1}]', 0, ?, 1, '2026-01-01 00:00:00')
+	`, oldFingerprint)
+	if err != nil {
+		t.Fatalf("raw insert error = %v", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("LastInsertId() error = %v", err)
+	}
+
+	if err := Migrate(s.db); err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+
+	got, err := s.GetInsight(ctx, id)
+	if err != nil {
+		t.Fatalf("GetInsight() error = %v", err)
+	}
+	want := ComputeFingerprint([]string{"Blocked by Firewall"})
+	if got.Fingerprint != want {
+		t.Errorf("Fingerprint after reconciliation = %q, want the current programs-only formula's %q", got.Fingerprint, want)
+	}
+	if got.Fingerprint == oldFingerprint {
+		t.Error("Fingerprint unchanged - reconciliation did not run")
+	}
+}
+
+func TestMigrate_CollapsesMutedFingerprintCollisionsFromOldFormula(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+
+	// Three old mutes for what's now the same real condition under the new
+	// (programs-only) formula - the exact production scenario that made a
+	// user mute "Blocked by Firewall" three separate times.
+	rows := []struct {
+		fingerprint, category, mutedAt, exampleTitle string
+	}{
+		{"old-fp-security", "security", "2026-08-14 19:03:30", "Blocked by Firewall Alert"},
+		{"old-fp-misclass", "severity-misclassification", "2026-08-16 22:04:25", "Blocked by Firewall warnings"},
+		{"old-fp-operational", "operational", "2026-08-20 11:46:29", "Blocked by Firewall warning"},
+	}
+	for _, r := range rows {
+		if _, err := s.db.ExecContext(ctx, `
+			INSERT INTO muted_insight_fingerprints (fingerprint, category, programs, muted_at, example_title)
+			VALUES (?, ?, 'Blocked by Firewall', ?, ?)
+		`, r.fingerprint, r.category, r.mutedAt, r.exampleTitle); err != nil {
+			t.Fatalf("raw insert %q error = %v", r.fingerprint, err)
+		}
+	}
+
+	if err := Migrate(s.db); err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+
+	muted, err := s.ListMutedFingerprints(ctx)
+	if err != nil {
+		t.Fatalf("ListMutedFingerprints() error = %v", err)
+	}
+	if len(muted) != 1 {
+		t.Fatalf("len(muted) = %d, want exactly 1 - all three old rows converge on the same new fingerprint: %+v", len(muted), muted)
+	}
+
+	want := ComputeFingerprint([]string{"Blocked by Firewall"})
+	if muted[0].Fingerprint != want {
+		t.Errorf("Fingerprint = %q, want the current programs-only formula's %q", muted[0].Fingerprint, want)
+	}
+	// The most recently muted row (2026-08-20) survives, so its
+	// example_title is what's shown.
+	if muted[0].ExampleTitle != "Blocked by Firewall warning" {
+		t.Errorf("ExampleTitle = %q, want the most-recently-muted row's title %q", muted[0].ExampleTitle, "Blocked by Firewall warning")
+	}
+
+	isMuted, err := s.IsFingerprintMuted(ctx, want)
+	if err != nil {
+		t.Fatalf("IsFingerprintMuted() error = %v", err)
+	}
+	if !isMuted {
+		t.Error("IsFingerprintMuted(new fingerprint) = false, want true - the collapsed mute must still take effect")
+	}
+}
+
+func TestMigrate_ReconciliationIsIdempotent(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+
+	if _, err := s.db.ExecContext(ctx, `
+		INSERT INTO muted_insight_fingerprints (fingerprint, category, programs, muted_at, example_title)
+		VALUES ('old-fp', 'security', 'Blocked by Firewall', '2026-08-14 19:03:30', 'Blocked by Firewall Alert')
+	`); err != nil {
+		t.Fatalf("raw insert error = %v", err)
+	}
+
+	if err := Migrate(s.db); err != nil {
+		t.Fatalf("Migrate() [pass 1] error = %v", err)
+	}
+	if err := Migrate(s.db); err != nil {
+		t.Fatalf("Migrate() [pass 2] error = %v", err)
+	}
+
+	muted, err := s.ListMutedFingerprints(ctx)
+	if err != nil {
+		t.Fatalf("ListMutedFingerprints() error = %v", err)
+	}
+	if len(muted) != 1 {
+		t.Fatalf("len(muted) = %d after two Migrate() passes, want still 1", len(muted))
 	}
 }

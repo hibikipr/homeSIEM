@@ -476,6 +476,44 @@ func TestGenerateNow_RecurringFingerprint_BumpsInsteadOfDuplicating(t *testing.T
 	}
 }
 
+// TestGenerateNow_SameProgramsDifferentCategory_StillBumps is the
+// regression test for the actual production bug: a UniFi "Blocked by
+// Firewall" condition got fingerprinted differently every time Ollama
+// picked a different (individually valid) category for it across passes -
+// security, then operational, then severity-misclassification - so the
+// same real condition kept re-inserting as a "new" finding, and muting one
+// phrasing did nothing for the next. category is no longer part of
+// ComputeFingerprint at all (see its doc) specifically so this converges.
+func TestGenerateNow_SameProgramsDifferentCategory_StillBumps(t *testing.T) {
+	securityResponse := `[{"title": "Blocked by Firewall alert", "detail": "d1", "severity": "warning", "category": "security",
+		"evidence": [{"program": "Blocked by Firewall", "sample_message": "m1", "count": 1}]}]`
+	operationalResponse := `[{"title": "Blocked by Firewall warning", "detail": "d2", "severity": "warning", "category": "operational",
+		"evidence": [{"program": "Blocked by Firewall", "sample_message": "m2", "count": 42}]}]`
+
+	chat := &fakeChatter{response: securityResponse}
+	ins := &fakeInsightStore{}
+	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
+
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
+		t.Fatalf("GenerateNow() [pass 1, category=security] error = %v", err)
+	}
+	if len(ins.inserted) != 1 {
+		t.Fatalf("len(inserted) after pass 1 = %d, want 1", len(ins.inserted))
+	}
+	firstID := ins.inserted[0].ID
+
+	chat.response = operationalResponse
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
+		t.Fatalf("GenerateNow() [pass 2, category=operational] error = %v", err)
+	}
+	if len(ins.inserted) != 1 {
+		t.Fatalf("len(inserted) after pass 2 = %d, want still 1 - a category change alone must not create a second row for the same programs", len(ins.inserted))
+	}
+	if len(ins.bumped) != 1 || ins.bumped[0] != firstID {
+		t.Fatalf("bumped = %v, want exactly [%d]", ins.bumped, firstID)
+	}
+}
+
 func TestGenerateNow_RecurringFingerprint_UndismissesOnBump(t *testing.T) {
 	chat := &fakeChatter{response: validResponse}
 	ins := &fakeInsightStore{}
@@ -497,7 +535,7 @@ func TestGenerateNow_RecurringFingerprint_UndismissesOnBump(t *testing.T) {
 func TestGenerateNow_MutedFingerprint_SkippedEntirely(t *testing.T) {
 	chat := &fakeChatter{response: validResponse}
 	ins := &fakeInsightStore{muted: map[string]bool{
-		store.ComputeFingerprint("severity-misclassification", []string{"Bambuddy"}): true,
+		store.ComputeFingerprint([]string{"Bambuddy"}): true,
 	}}
 	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
 

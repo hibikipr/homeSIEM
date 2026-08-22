@@ -39,6 +39,7 @@
 			samples={data.selectedSamples}
 			stats={data.stats}
 			rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
+			sourceDisplayNames={data.sourceDisplayNames}
 		/>
 	{:else if data.selectedRule}
 		<RuleDetail

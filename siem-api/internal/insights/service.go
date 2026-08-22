@@ -79,8 +79,8 @@ var validSeverities = map[string]bool{"info": true, "warning": true, "critical":
 // from "ran fine, found three things", regardless of whether those three
 // are new rows or bumped occurrences of rows already on screen.
 //
-// Each parsed finding is deduped by fingerprint (category + the set of
-// programs in its evidence - see store.ComputeFingerprint) rather than
+// Each parsed finding is deduped by fingerprint (the set of programs in
+// its evidence - see store.ComputeFingerprint) rather than
 // inserted unconditionally: a muted fingerprint is dropped entirely: a
 // fingerprint matching an existing row bumps that row's occurrence_count/
 // last_seen_at/detail/evidence instead of creating a duplicate (and
@@ -142,7 +142,7 @@ func (s *Service) GenerateNow(ctx context.Context) (int, error) {
 		for _, e := range mi.Evidence {
 			programs = append(programs, e.Program)
 		}
-		fingerprint := store.ComputeFingerprint(mi.Category, programs)
+		fingerprint := store.ComputeFingerprint(programs)
 
 		muted, err := s.Store.IsFingerprintMuted(ctx, fingerprint)
 		if err != nil {

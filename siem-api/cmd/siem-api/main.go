@@ -61,6 +61,7 @@ func main() {
 		"threshold":  &rules.ThresholdEvaluator{Querier: lokiClient},
 		"first_seen": &rules.FirstSeenEvaluator{Querier: lokiClient, Seen: st},
 		"absence":    &rules.AbsenceEvaluator{Sources: st},
+		"insight":    &rules.InsightEvaluator{Store: st},
 	}
 	scheduler := rules.NewScheduler(st, evaluators, alertsSvc, logger)
 

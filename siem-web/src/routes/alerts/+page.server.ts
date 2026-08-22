@@ -13,6 +13,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		tabParam === 'acked' || tabParam === 'rules' ? tabParam : 'open';
 	const selectedId = url.searchParams.get('id');
 
+	// A source-quiet/first-seen alert's title/body is a static string
+	// baked in at the moment it was raised (e.g. "source \"192.168.3.223\"
+	// has gone silent") - renaming the source afterwards, in Sources,
+	// never touches that already-stored text. Rather than rewrite raw
+	// title/body strings (fragile - the same alert can be touched/reopened
+	// many times without ever regenerating its text) or thread a fixed
+	// display name through by re-raising, resolve it live at render time
+	// instead: fetch the current name map and let AlertDetail show
+	// whatever Sources currently calls this alert's group_key, alongside
+	// the (possibly stale) historical title. Supplementary, same
+	// degrade-to-empty-on-failure posture as Search's identical fetch.
+	const sourceDisplayNamesPromise = client
+		.getSources(token)
+		.then((sources) => Object.fromEntries(sources.map((s) => [s.name, s.display_name])))
+		.catch((err) => {
+			console.error('alerts: sources lookup failed', err);
+			return {} as Record<string, string>;
+		});
+
 	let alerts, rules;
 	try {
 		[alerts, rules] = await Promise.all([
@@ -57,6 +76,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		selectedSamples,
 		stats: selectedAlert ? deriveAlertStats(selectedSamples) : null,
 		selectedRule,
+		sourceDisplayNames: await sourceDisplayNamesPromise,
 		userRole: locals.user?.role
 	};
 };

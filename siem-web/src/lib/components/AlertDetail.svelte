@@ -8,13 +8,28 @@
 		alert,
 		samples,
 		stats,
-		rule
+		rule,
+		sourceDisplayNames
 	}: {
 		alert: AlertResponse;
 		samples: AlertSample[];
 		stats: AlertStats;
 		rule: RuleResponse | undefined;
+		// Current Sources display_name, keyed by raw source name - see
+		// +page.server.ts's fetch for why this is resolved live rather
+		// than trusting alert.title/body, which are static text baked in
+		// at raise time and never rewritten by a later rename.
+		sourceDisplayNames: Record<string, string>;
 	} = $props();
+
+	// alert.group_key IS the raw source name for source-quiet/first-seen
+	// alerts (see rules.AbsenceEvaluator/FirstSeenEvaluator - GroupKey:
+	// src.Name / value respectively), but for a threshold alert it can be
+	// any grouped field value at all (a port, a username, whatever
+	// group_by named) - only show a resolved name when group_key actually
+	// matches a known source, never claim an arbitrary group_key IS a
+	// source.
+	let resolvedSourceName = $derived(sourceDisplayNames[alert.group_key]);
 
 	let acking = $state(false);
 	let muting = $state(false);
@@ -62,6 +77,12 @@
 			</div>
 			<h1>{alert.title}</h1>
 			<p class="body">{alert.body}</p>
+			{#if resolvedSourceName && resolvedSourceName !== alert.group_key}
+				<p class="renamed-note">
+					This alert's source ({alert.group_key}) is now named <strong>{resolvedSourceName}</strong> in
+					Sources - the text above is unchanged from when the alert was raised.
+				</p>
+			{/if}
 		</div>
 		<div class="actions">
 			<button class="primary" onclick={acknowledge} disabled={acking || alert.state !== 'open'}>
@@ -188,6 +209,12 @@
 		max-width: 68ch;
 		color: var(--color-muted);
 		margin-top: var(--space-2);
+	}
+	.renamed-note {
+		max-width: 68ch;
+		color: var(--color-muted-2);
+		font-size: var(--text-label);
+		margin-top: var(--space-1);
 	}
 	.actions {
 		display: flex;

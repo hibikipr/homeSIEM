@@ -42,13 +42,27 @@ func scanInsight(row rowScanner) (Insight, error) {
 const insightColumnList = `id, created_at, title, detail, severity, category, evidence_json, dismissed, fingerprint, occurrence_count, last_seen_at, recommended_fix`
 
 // ComputeFingerprint derives a stable identity for "the same underlying
-// finding recurring" from category plus the set of programs in its
-// evidence - the parts of an insight the model didn't freely author, unlike
-// title/detail text, which can vary pass to pass (even at the low
-// temperature configured for this task) for what a human would call the
-// same finding. Programs are deduped and sorted so evidence ordering
-// doesn't change the result.
-func ComputeFingerprint(category string, programs []string) string {
+// finding recurring" from the set of programs in its evidence - the part of
+// an insight the model didn't freely author, unlike title/detail text,
+// which can vary pass to pass (even at the low temperature configured for
+// this task) for what a human would call the same finding. Programs are
+// deduped and sorted so evidence ordering doesn't change the result.
+//
+// category used to be folded in here too (see this function's git
+// history), on the theory that it was equally "not freely authored" since
+// the system prompt constrains it to a fixed four-value vocabulary
+// (severity-misclassification|operational|security|other - see
+// insights/prompt.go). Confirmed in production that theory doesn't hold: a
+// single recurring UniFi "Blocked by Firewall" condition got categorized
+// as all three of security, operational, and severity-misclassification
+// across different passes - three different (and all individually valid)
+// judgment calls about the same event, each producing a different
+// fingerprint. The user had to mute the same real condition three separate
+// times because muting one category-variant did nothing for the next.
+// Constraining the vocabulary further wouldn't fix this - the model was
+// already picking from the constrained set, just inconsistently - so
+// category was dropped from the formula entirely rather than tightened.
+func ComputeFingerprint(programs []string) string {
 	uniq := make(map[string]struct{}, len(programs))
 	for _, p := range programs {
 		if p != "" {
@@ -60,7 +74,7 @@ func ComputeFingerprint(category string, programs []string) string {
 		sorted = append(sorted, p)
 	}
 	sort.Strings(sorted)
-	sum := sha256.Sum256([]byte(category + "|" + strings.Join(sorted, ",")))
+	sum := sha256.Sum256([]byte(strings.Join(sorted, ",")))
 	return hex.EncodeToString(sum[:])[:16]
 }
 
@@ -166,6 +180,58 @@ func (s *Store) ListInsights(ctx context.Context, includeDismissed bool, limit i
 		out = append(out, in)
 	}
 	return out, rows.Err()
+}
+
+// ListInsightsCreatedSince returns insights first created strictly after
+// `since` (i.e. brand-new fingerprints - a row InsertInsight created, not
+// one BumpInsight merely refreshed) whose severity is at or above
+// minSeverity. Deliberately excludes bumps of an already-existing insight:
+// this backs rules.InsightEvaluator, which lets a user opt in to ntfy
+// notifications when Ollama finds something severe enough to matter (see
+// that evaluator's doc) - notifying again every time a persistent,
+// already-surfaced condition gets re-confirmed (as often as every 30
+// minutes) would turn a UI annoyance into actual phone spam, the opposite
+// of the point.
+func (s *Store) ListInsightsCreatedSince(ctx context.Context, since time.Time, minSeverity string) ([]Insight, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+insightColumnList+`
+		FROM insights
+		WHERE created_at > ?
+		ORDER BY created_at ASC
+	`, formatTime(since))
+	if err != nil {
+		return nil, fmt.Errorf("store: list insights created since: %w", err)
+	}
+	defer rows.Close()
+
+	minRank := insightSeverityRank(minSeverity)
+	var out []Insight
+	for rows.Next() {
+		in, err := scanInsight(rows)
+		if err != nil {
+			return nil, fmt.Errorf("store: list insights created since: %w", err)
+		}
+		if insightSeverityRank(in.Severity) < minRank {
+			continue
+		}
+		out = append(out, in)
+	}
+	return out, rows.Err()
+}
+
+// insightSeverityRank mirrors alerts.severityRank (kept as a separate copy,
+// not imported, since alerts already imports store - importing back would
+// cycle). "info" and anything unrecognized rank lowest, matching every
+// other severity-coercion in this codebase (see insights.validSeverities).
+func insightSeverityRank(severity string) int {
+	switch severity {
+	case "critical":
+		return 2
+	case "warning":
+		return 1
+	default:
+		return 0
+	}
 }
 
 func (s *Store) DismissInsight(ctx context.Context, id int64) error {
@@ -276,7 +342,7 @@ type evidenceProgram struct {
 // backfilled fingerprint into one - that's a one-time data cleanup, not a
 // migration concern, and out of scope here.
 func backfillInsightFingerprints(db *sql.DB) error {
-	rows, err := db.Query(`SELECT id, category, evidence_json, created_at FROM insights WHERE fingerprint = '' OR last_seen_at = ''`)
+	rows, err := db.Query(`SELECT id, evidence_json, created_at FROM insights WHERE fingerprint = '' OR last_seen_at = ''`)
 	if err != nil {
 		return fmt.Errorf("select unbackfilled insights: %w", err)
 	}
@@ -287,8 +353,8 @@ func backfillInsightFingerprints(db *sql.DB) error {
 	var toUpdate []pending
 	for rows.Next() {
 		var id int64
-		var category, evidenceJSON, createdAt string
-		if err := rows.Scan(&id, &category, &evidenceJSON, &createdAt); err != nil {
+		var evidenceJSON, createdAt string
+		if err := rows.Scan(&id, &evidenceJSON, &createdAt); err != nil {
 			rows.Close()
 			return fmt.Errorf("scan unbackfilled insight: %w", err)
 		}
@@ -298,7 +364,7 @@ func backfillInsightFingerprints(db *sql.DB) error {
 		for _, e := range evidence {
 			programs = append(programs, e.Program)
 		}
-		toUpdate = append(toUpdate, pending{id, ComputeFingerprint(category, programs), createdAt})
+		toUpdate = append(toUpdate, pending{id, ComputeFingerprint(programs), createdAt})
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -312,6 +378,122 @@ func backfillInsightFingerprints(db *sql.DB) error {
 			p.fingerprint, p.createdAt, p.id,
 		); err != nil {
 			return fmt.Errorf("backfill insight %d: %w", p.id, err)
+		}
+	}
+	return nil
+}
+
+// reconcileFingerprintsDroppingCategory recomputes every insight's and
+// every muted fingerprint's identity under the current (programs-only)
+// ComputeFingerprint, superseding whatever an older build computed when
+// category was still part of the formula - see ComputeFingerprint's doc
+// for the production evidence that made category unreliable. Unlike
+// backfillInsightFingerprints (which only ever touches rows with no
+// fingerprint yet), this unconditionally recomputes every row every startup
+// - cheap at this table's realistic size, and it's what lets rows that
+// already had a (now-stale) category-inclusive fingerprint converge onto
+// the same identity as a fresh occurrence of the same real condition,
+// rather than staying permanently split. Deterministic recomputation makes
+// re-running a no-op once every row already matches, same idempotency the
+// rest of this file relies on.
+func reconcileFingerprintsDroppingCategory(db *sql.DB) error {
+	insightRows, err := db.Query(`SELECT id, evidence_json FROM insights`)
+	if err != nil {
+		return fmt.Errorf("select insights for fingerprint reconciliation: %w", err)
+	}
+	type insightUpdate struct {
+		id          int64
+		fingerprint string
+	}
+	var insightUpdates []insightUpdate
+	for insightRows.Next() {
+		var id int64
+		var evidenceJSON string
+		if err := insightRows.Scan(&id, &evidenceJSON); err != nil {
+			insightRows.Close()
+			return fmt.Errorf("scan insight for fingerprint reconciliation: %w", err)
+		}
+		var evidence []evidenceProgram
+		_ = json.Unmarshal([]byte(evidenceJSON), &evidence)
+		programs := make([]string, 0, len(evidence))
+		for _, e := range evidence {
+			programs = append(programs, e.Program)
+		}
+		insightUpdates = append(insightUpdates, insightUpdate{id, ComputeFingerprint(programs)})
+	}
+	if err := insightRows.Err(); err != nil {
+		insightRows.Close()
+		return fmt.Errorf("iterate insights for fingerprint reconciliation: %w", err)
+	}
+	insightRows.Close()
+
+	for _, u := range insightUpdates {
+		if _, err := db.Exec(`UPDATE insights SET fingerprint = ? WHERE id = ?`, u.fingerprint, u.id); err != nil {
+			return fmt.Errorf("reconcile insight %d fingerprint: %w", u.id, err)
+		}
+	}
+
+	// muted_insight_fingerprints has fingerprint as its PRIMARY KEY, and
+	// dropping category can collapse rows that used to be distinct (three
+	// separate mutes for "security"/"operational"/"severity-
+	// misclassification" variants of the same "Blocked by Firewall"
+	// condition, all sharing programs="Blocked by Firewall", all now
+	// wanting the same new fingerprint) - keep exactly one row per new
+	// fingerprint (the most recently muted, so the newest example_title
+	// wins) and delete the rest, then it's safe to UPDATE the survivor's
+	// fingerprint in place.
+	mutedRows, err := db.Query(`SELECT fingerprint, programs, muted_at FROM muted_insight_fingerprints`)
+	if err != nil {
+		return fmt.Errorf("select muted fingerprints for reconciliation: %w", err)
+	}
+	type oldRow struct {
+		oldFingerprint, mutedAt string
+	}
+	groups := map[string][]oldRow{} // new fingerprint -> every old row that now maps to it
+	for mutedRows.Next() {
+		var oldFingerprint, programsCSV, mutedAt string
+		if err := mutedRows.Scan(&oldFingerprint, &programsCSV, &mutedAt); err != nil {
+			mutedRows.Close()
+			return fmt.Errorf("scan muted fingerprint for reconciliation: %w", err)
+		}
+		programs := strings.Split(programsCSV, ",")
+		newFingerprint := ComputeFingerprint(programs)
+		groups[newFingerprint] = append(groups[newFingerprint], oldRow{oldFingerprint, mutedAt})
+	}
+	if err := mutedRows.Err(); err != nil {
+		mutedRows.Close()
+		return fmt.Errorf("iterate muted fingerprints for reconciliation: %w", err)
+	}
+	mutedRows.Close()
+
+	for newFingerprint, rows := range groups {
+		// The most recently muted old row survives (its example_title is
+		// the freshest); every other old row in this group is a collapsed
+		// duplicate and gets deleted outright before the survivor is
+		// promoted, so two old fingerprints converging on the same new one
+		// never collide against the PRIMARY KEY.
+		winner := rows[0]
+		for _, r := range rows[1:] {
+			if r.mutedAt > winner.mutedAt {
+				winner = r
+			}
+		}
+		for _, r := range rows {
+			if r.oldFingerprint == winner.oldFingerprint {
+				continue
+			}
+			if _, err := db.Exec(`DELETE FROM muted_insight_fingerprints WHERE fingerprint = ?`, r.oldFingerprint); err != nil {
+				return fmt.Errorf("delete superseded muted fingerprint %q: %w", r.oldFingerprint, err)
+			}
+		}
+		if winner.oldFingerprint == newFingerprint {
+			continue
+		}
+		if _, err := db.Exec(
+			`UPDATE muted_insight_fingerprints SET fingerprint = ? WHERE fingerprint = ?`,
+			newFingerprint, winner.oldFingerprint,
+		); err != nil {
+			return fmt.Errorf("promote muted fingerprint %q: %w", winner.oldFingerprint, err)
 		}
 	}
 	return nil
