@@ -91,21 +91,18 @@ describe('mergeSourceFacet', () => {
 	}
 
 	it('adds a known claimed source not present in the current results at count 0', () => {
-		const entries = [fakeEntry({ Labels: { source: 'udm-ultra' } })];
+		const apiFacets = [{ value: 'udm-ultra', count: 1 }];
 		expect(
-			mergeSourceFacet(entries, [knownSource('udm-ultra'), knownSource('homebridge')])
+			mergeSourceFacet(apiFacets, [knownSource('udm-ultra'), knownSource('homebridge')])
 		).toEqual([
 			{ value: 'udm-ultra', label: 'udm-ultra', count: 1 },
 			{ value: 'homebridge', label: 'homebridge', count: 0 }
 		]);
 	});
 
-	it('does not duplicate a source already present in the derived counts', () => {
-		const entries = [
-			fakeEntry({ Labels: { source: 'udm-ultra' } }),
-			fakeEntry({ Labels: { source: 'udm-ultra' } })
-		];
-		expect(mergeSourceFacet(entries, [knownSource('udm-ultra')])).toEqual([
+	it('does not duplicate a source already present in the aggregate counts', () => {
+		const apiFacets = [{ value: 'udm-ultra', count: 2 }];
+		expect(mergeSourceFacet(apiFacets, [knownSource('udm-ultra')])).toEqual([
 			{ value: 'udm-ultra', label: 'udm-ultra', count: 2 }
 		]);
 	});
@@ -124,9 +121,9 @@ describe('mergeSourceFacet', () => {
 	});
 
 	it('prefers displayName as the label while keeping value as the raw source name, for both present and missing rows', () => {
-		const entries = [fakeEntry({ Labels: { source: '192.168.3.223' } })];
+		const apiFacets = [{ value: '192.168.3.223', count: 1 }];
 		expect(
-			mergeSourceFacet(entries, [
+			mergeSourceFacet(apiFacets, [
 				knownSource('192.168.3.223', 'Home Assistant'),
 				knownSource('192.168.3.68', 'Homebridge')
 			])

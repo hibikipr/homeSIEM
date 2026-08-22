@@ -1,22 +1,37 @@
 <script lang="ts">
 	import { deriveFacetCounts, deriveCountryFacet, mergeSourceFacet } from '$lib/search';
-	import type { KnownSource } from '$lib/search';
+	import type { KnownSource, FacetCount } from '$lib/search';
 	import { severityColor } from '$lib/tail';
-	import type { LogEntry } from '$lib/server/siemApiClient';
+	import type { LogEntry, ApiFacetCount } from '$lib/server/siemApiClient';
 
 	let {
 		entries,
 		claimedSources,
+		facets,
 		onFacetClick
 	}: {
 		entries: LogEntry[];
 		claimedSources: KnownSource[];
+		// Real Loki-side aggregate counts from siem-api (see the Facets
+		// field doc on searchResponse) - undefined only if the backend
+		// omitted them (facets=false, or an older siem-api build), in
+		// which case each facet below falls back to deriving from `entries`
+		// alone, same as this component did before backend aggregates
+		// existed. That fallback is capped at whatever page of entries the
+		// caller fetched (1000 by default) and can badly undercount a rare
+		// severity/program/source drowned out by a noisy one in the same
+		// window - see deriveFacetCounts' own doc.
+		facets?: Record<string, ApiFacetCount[]>;
 		onFacetClick: (field: string, value: string) => void;
 	} = $props();
 
-	let sources = $derived(mergeSourceFacet(entries, claimedSources));
-	let severities = $derived(deriveFacetCounts(entries, 'severity'));
-	let programs = $derived(deriveFacetCounts(entries, 'program'));
+	function facetOrFallback(label: string): FacetCount[] {
+		return facets?.[label] ?? deriveFacetCounts(entries, label);
+	}
+
+	let sources = $derived(mergeSourceFacet(facetOrFallback('source'), claimedSources));
+	let severities = $derived(facetOrFallback('severity'));
+	let programs = $derived(facetOrFallback('program'));
 	let countries = $derived(deriveCountryFacet(entries));
 </script>
 

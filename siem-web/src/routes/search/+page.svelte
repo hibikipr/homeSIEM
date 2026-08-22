@@ -70,6 +70,7 @@
 			filters={data.filters}
 			logql={data.logql}
 			count={data.count}
+			shown={data.entries.length}
 			onAlertOnThis={alertOnThis}
 		/>
 	{/key}
@@ -81,6 +82,7 @@
 		<FacetRail
 			entries={data.entries}
 			claimedSources={data.claimedSources}
+			facets={data.facets}
 			onFacetClick={facetClick}
 		/>
 		<ResultTable

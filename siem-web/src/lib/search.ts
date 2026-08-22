@@ -77,6 +77,13 @@ export interface KnownSource {
 	displayName: string;
 }
 
+// Derives facet counts purely from a page of already-fetched entries.
+// Prefer the real Loki-side aggregate siem-api now returns (searchResponse.
+// Facets) wherever one is available - this is capped at however many
+// entries were fetched (1000 by default), so a rare value can be badly
+// undercounted whenever a noisier one shares the same window (see
+// FacetRail's facetOrFallback for why this exists only as a fallback for
+// when the backend aggregate isn't available at all).
 export function deriveFacetCounts(entries: LogEntry[], labelKey: string): FacetCount[] {
 	const counts = new Map<string, number>();
 	for (const entry of entries) {
@@ -89,28 +96,38 @@ export function deriveFacetCounts(entries: LogEntry[], labelKey: string): FacetC
 		.sort((a, b) => b.count - a.count);
 }
 
-// Found in production: the Source facet is derived purely from the current
-// (filtered, limit-capped) result set - a claimed, actively-logging source
-// (e.g. a low-volume one like Homebridge) can be completely absent from it
-// with no filters applied, simply because a handful of high-volume sources
-// (this host's own containers logging about themselves) exhaust the whole
-// 1000-entry cap within a couple of minutes of real time. That reads as
-// "this source isn't being ingested" when it's actually just crowded out
-// of the current page. Merges in every known claimed source not already
-// present in the derived counts, at count 0 - still clickable (via the
-// same onFacetClick as any other row) to pivot the search to it directly,
-// just visually distinguished as "known but not in this result set" by the
-// caller.
+// Takes the Source facet's counts as computed server-side (a real Loki
+// aggregate over the full time range - see siem-api's queryFacets/
+// handleEventsSearch, and the Facets field doc on searchResponse) rather
+// than deriving them from `entries` itself.
 //
-// Also found in production: entries[].Labels.source is always the raw
-// syslog-derived name (e.g. a bare IP for a sender with no real hostname)
-// - it has no way to know about a source's operator-set display_name (see
-// SourcesTable's rename feature), so EVERY row here, not just the merged
-// "known but absent" ones, needs its label filled in from knownSources.
-export function mergeSourceFacet(entries: LogEntry[], knownSources: KnownSource[]): FacetCount[] {
+// Found in production, back when this derived from entries: a claimed,
+// actively-logging source (e.g. a low-volume one like Homebridge) could be
+// completely absent from the facet with no filters applied, simply because
+// a handful of high-volume sources (this host's own containers logging
+// about themselves) exhaust the whole 1000-entry page within a couple of
+// minutes of real time. That read as "this source isn't being ingested"
+// when it was actually just crowded out of the current page - the same
+// class of bug as the severity undercount, just for the Source facet.
+// Real backend aggregate counts fix that the same way. Still merges in
+// every known claimed source not already present in the counts, at count
+// 0 - still clickable (via the same onFacetClick as any other row) to
+// pivot the search to it directly, just visually distinguished as "known
+// but zero matches in this window" by the caller.
+//
+// Also found in production: the backend's source facet value is always the
+// raw syslog-derived name (e.g. a bare IP for a sender with no real
+// hostname) - it has no way to know about a source's operator-set
+// display_name (see SourcesTable's rename feature), so EVERY row here, not
+// just the merged "known but absent" ones, needs its label filled in from
+// knownSources.
+export function mergeSourceFacet(
+	apiFacets: FacetCount[],
+	knownSources: KnownSource[]
+): FacetCount[] {
 	const labelByName = new Map(knownSources.map((s) => [s.name, s.displayName || s.name]));
 
-	const counts = deriveFacetCounts(entries, 'source').map((c) => ({
+	const counts = apiFacets.map((c) => ({
 		...c,
 		label: labelByName.get(c.value) ?? c.value
 	}));

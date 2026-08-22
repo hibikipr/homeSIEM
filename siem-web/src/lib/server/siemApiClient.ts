@@ -107,11 +107,21 @@ export interface VolumeBucket {
 	count: number;
 }
 
+export interface ApiFacetCount {
+	value: string;
+	count: number;
+}
+
 export interface SearchResponse {
 	logql: string;
 	count: number;
 	entries: LogEntry[];
 	volume: VolumeBucket[];
+	// Real Loki-side aggregate counts per label ("severity", "program",
+	// "source"), not derived from `entries` - see events.go's Facets field
+	// doc. Optional because older siem-api builds (or a request made with
+	// facets=false) won't send it.
+	facets?: Record<string, ApiFacetCount[]>;
 }
 
 export interface SourceResponse {
