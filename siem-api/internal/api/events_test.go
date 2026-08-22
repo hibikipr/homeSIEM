@@ -12,13 +12,50 @@ import (
 	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
 )
 
-func TestEventsSearch_ReturnsCompiledQueryAndEntries(t *testing.T) {
-	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// fakeLokiSearchServer is the shared fake Loki backend for the search
+// endpoint's tests: it discriminates real Loki's three request shapes by
+// HTTP path and query text, the same way a real deployment would receive
+// distinct requests for entries, the total count, volume buckets, and
+// per-label facet counts, all of which the search handler now issues
+// concurrently on every request.
+//
+//   - GET /loki/api/v1/query_range with a raw (non-aggregate) LogQL query
+//     is the entries request.
+//   - GET /loki/api/v1/query_range with a `count_over_time` aggregate is
+//     the volume-bucket matrix request.
+//   - GET /loki/api/v1/query with `sum(count_over_time(...))` (no `by`) is
+//     the total-count instant request.
+//   - GET /loki/api/v1/query with `sum by (...) (count_over_time(...))` is
+//     a per-label facet instant request.
+func fakeLokiSearchServer(t *testing.T, entriesJSON, countJSON, volumeJSON, facetJSON string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"success","data":{"result":[
-            {"stream":{"job":"siem","source":"udm-ultra"},"values":[["1700000000000000000","hello"]]}
-        ]}}`))
+		switch {
+		case r.URL.Path == "/loki/api/v1/query" && strings.Contains(query, "sum by ("):
+			w.Write([]byte(facetJSON))
+		case r.URL.Path == "/loki/api/v1/query" && strings.HasPrefix(query, "sum(count_over_time"):
+			w.Write([]byte(countJSON))
+		case r.URL.Path == "/loki/api/v1/query_range" && strings.Contains(query, "count_over_time"):
+			w.Write([]byte(volumeJSON))
+		default:
+			w.Write([]byte(entriesJSON))
+		}
 	}))
+}
+
+const emptyInstantResult = `{"status":"success","data":{"result":[]}}`
+const emptyMatrixResult = `{"status":"success","data":{"resultType":"matrix","result":[]}}`
+
+func TestEventsSearch_ReturnsCompiledQueryAndEntries(t *testing.T) {
+	entriesJSON := `{"status":"success","data":{"result":[
+            {"stream":{"job":"siem","source":"udm-ultra"},"values":[["1700000000000000000","hello"]]}
+        ]}}`
+	countJSON := `{"status":"success","data":{"result":[
+			{"metric":{},"value":[1700000000,"1"]}
+		]}}`
+	fakeLoki := fakeLokiSearchServer(t, entriesJSON, countJSON, emptyMatrixResult, emptyInstantResult)
 	defer fakeLoki.Close()
 
 	s, st := newTestServer(t)
@@ -91,6 +128,11 @@ func TestEventsSearch_IncludesVolumeBuckets(t *testing.T) {
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case r.URL.Path == "/loki/api/v1/query":
+			// The total-count and facet instant queries this test doesn't
+			// care about - respond with an empty (but validly-shaped)
+			// instant vector either way.
+			w.Write([]byte(emptyInstantResult))
 		case strings.Contains(query, "sum(count_over_time"):
 			// Loki already aggregated server-side: exactly one series.
 			w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[
@@ -140,9 +182,17 @@ func TestEventsSearch_VolumeFalse_SkipsTheVolumeQueryEntirely(t *testing.T) {
 	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
-		if strings.Contains(query, "count_over_time") {
+		// Volume buckets are the only thing that queries count_over_time via
+		// query_range (matrix) - the total-count and facet queries also
+		// contain "count_over_time" but go through the instant /query
+		// endpoint instead, so path is what actually distinguishes them.
+		if r.URL.Path == "/loki/api/v1/query_range" && strings.Contains(query, "count_over_time") {
 			sawVolumeQuery = true
-			w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+			w.Write([]byte(emptyMatrixResult))
+			return
+		}
+		if r.URL.Path == "/loki/api/v1/query" {
+			w.Write([]byte(emptyInstantResult))
 			return
 		}
 		w.Write([]byte(`{"status":"success","data":{"result":[
@@ -234,8 +284,21 @@ func TestEventsSearch_SucceedsWhenVolumeQueryFails(t *testing.T) {
 	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
-		if strings.Contains(query, "count_over_time") {
+		// Only the volume (matrix, query_range) request fails - the total
+		// count and facets (both instant, /query) must keep working, same
+		// as this test's sibling below for facets.
+		if r.URL.Path == "/loki/api/v1/query_range" && strings.Contains(query, "count_over_time") {
 			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if r.URL.Path == "/loki/api/v1/query" {
+			if strings.HasPrefix(query, "sum(count_over_time") {
+				w.Write([]byte(`{"status":"success","data":{"result":[
+					{"metric":{},"value":[1700000000,"1"]}
+				]}}`))
+				return
+			}
+			w.Write([]byte(emptyInstantResult))
 			return
 		}
 		w.Write([]byte(`{"status":"success","data":{"result":[
@@ -265,6 +328,167 @@ func TestEventsSearch_SucceedsWhenVolumeQueryFails(t *testing.T) {
 	}
 	if resp.Volume == nil || len(resp.Volume) != 0 {
 		t.Fatalf("Volume = %+v, want a non-nil empty slice", resp.Volume)
+	}
+}
+
+func TestEventsSearch_SucceedsWhenFacetsQueryFails(t *testing.T) {
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/loki/api/v1/query" && strings.Contains(query, "sum by (") {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if r.URL.Path == "/loki/api/v1/query" {
+			w.Write([]byte(`{"status":"success","data":{"result":[
+				{"metric":{},"value":[1700000000,"1"]}
+			]}}`))
+			return
+		}
+		if r.URL.Path == "/loki/api/v1/query_range" && strings.Contains(query, "count_over_time") {
+			w.Write([]byte(emptyMatrixResult))
+			return
+		}
+		w.Write([]byte(`{"status":"success","data":{"result":[
+			{"stream":{"job":"siem"},"values":[["1700000000000000000","hello"]]}
+		]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (facets failure must not fail the whole request), body=%s", rec.Code, rec.Body.String())
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if resp.Count != 1 {
+		t.Fatalf("Count = %d, want 1", resp.Count)
+	}
+	if resp.Facets == nil || len(resp.Facets) != 0 {
+		t.Fatalf("Facets = %+v, want a non-nil empty map", resp.Facets)
+	}
+}
+
+func TestEventsSearch_FacetsFalse_SkipsFacetQueriesEntirely(t *testing.T) {
+	var sawFacetQuery bool
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/loki/api/v1/query" && strings.Contains(query, "sum by (") {
+			sawFacetQuery = true
+			w.Write([]byte(emptyInstantResult))
+			return
+		}
+		if r.URL.Path == "/loki/api/v1/query" {
+			w.Write([]byte(`{"status":"success","data":{"result":[
+				{"metric":{},"value":[1700000000,"1"]}
+			]}}`))
+			return
+		}
+		if r.URL.Path == "/loki/api/v1/query_range" && strings.Contains(query, "count_over_time") {
+			w.Write([]byte(emptyMatrixResult))
+			return
+		}
+		w.Write([]byte(`{"status":"success","data":{"result":[
+			{"stream":{"job":"siem"},"values":[["1700000000000000000","hello"]]}
+		]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search?facets=false", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if sawFacetQuery {
+		t.Error("expected no sum by (...) (facet) query to be made when facets=false")
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if resp.Facets == nil || len(resp.Facets) != 0 {
+		t.Errorf("Facets = %+v, want a non-nil empty map", resp.Facets)
+	}
+}
+
+func TestEventsSearch_ReturnsRealFacetCountsNotCappedByEntriesLimit(t *testing.T) {
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/loki/api/v1/query" && strings.HasPrefix(query, "sum by (severity)"):
+			// The bug this exists to catch: entries capped at `limit` (here
+			// 1) would only ever "see" one severity value. The real
+			// aggregate must be able to report every severity's true count
+			// regardless of what the (unrelated) entries limit is.
+			w.Write([]byte(`{"status":"success","data":{"result":[
+				{"metric":{"severity":"info"},"value":[1700000000,"932"]},
+				{"metric":{"severity":"err"},"value":[1700000000,"57"]},
+				{"metric":{"severity":"warning"},"value":[1700000000,"1000"]}
+			]}}`))
+		case r.URL.Path == "/loki/api/v1/query" && strings.Contains(query, "sum by ("):
+			w.Write([]byte(emptyInstantResult))
+		case r.URL.Path == "/loki/api/v1/query":
+			w.Write([]byte(`{"status":"success","data":{"result":[
+				{"metric":{},"value":[1700000000,"1989"]}
+			]}}`))
+		case r.URL.Path == "/loki/api/v1/query_range" && strings.Contains(query, "count_over_time"):
+			w.Write([]byte(emptyMatrixResult))
+		default:
+			w.Write([]byte(`{"status":"success","data":{"result":[
+				{"stream":{"job":"siem","severity":"info"},"values":[["1700000000000000000","hello"]]}
+			]}}`))
+		}
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search?limit=1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	severities := resp.Facets["severity"]
+	if len(severities) != 3 {
+		t.Fatalf("Facets[severity] = %+v, want 3 entries even though limit=1", severities)
+	}
+	// Sorted descending by count.
+	if severities[0].Value != "warning" || severities[0].Count != 1000 {
+		t.Errorf("severities[0] = %+v, want warning:1000", severities[0])
+	}
+	if severities[1].Value != "info" || severities[1].Count != 932 {
+		t.Errorf("severities[1] = %+v, want info:932", severities[1])
+	}
+	if severities[2].Value != "err" || severities[2].Count != 57 {
+		t.Errorf("severities[2] = %+v, want err:57", severities[2])
 	}
 }
 

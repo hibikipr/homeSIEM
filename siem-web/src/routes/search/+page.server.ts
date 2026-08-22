@@ -25,9 +25,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const claimedSourcesPromise = client
 		.getSources(token)
 		.then((sources) =>
-			sources
-				.filter((s) => s.claimed)
-				.map((s) => ({ name: s.name, displayName: s.display_name }))
+			sources.filter((s) => s.claimed).map((s) => ({ name: s.name, displayName: s.display_name }))
 		)
 		.catch((err) => {
 			console.error('search: sources lookup failed', err);
@@ -106,6 +104,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		count: result.count,
 		entries: result.entries,
 		volume: result.volume,
+		facets: result.facets,
 		previewIndex,
 		selectedEntry,
 		contextSummary,

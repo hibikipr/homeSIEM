@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -18,11 +19,33 @@ type volumeBucket struct {
 	Count       int64     `json:"count"`
 }
 
+type facetCount struct {
+	Value string `json:"value"`
+	Count int64  `json:"count"`
+}
+
 type searchResponse struct {
 	LogQL   string          `json:"logql"`
 	Count   int             `json:"count"`
 	Entries []loki.LogEntry `json:"entries"`
 	Volume  []volumeBucket  `json:"volume"`
+	// Facets holds real Loki-side aggregate counts per label (currently
+	// "severity", "program", "source" - the three that are genuine Loki
+	// stream labels, see loki.BuildQuery), keyed by that label name. Each
+	// facet's own filter is excluded from the query it's computed with (so
+	// the severity facet, for example, shows counts across all severities
+	// given the other active filters, not just whichever one is currently
+	// selected) - see queryFacetCounts.
+	//
+	// Added because the frontend used to derive these entirely from
+	// `entries`, which is capped at `limit` (1000 by default): a 24h
+	// window with 932 info-level lines and 11 real warnings would exhaust
+	// the whole cap on info alone, showing "warning: 11" when the true
+	// count over that window was actually >1000 - a two-orders-of-
+	// magnitude undercount that could hide a real incident. These are
+	// separate real aggregate queries specifically so they aren't subject
+	// to that cap.
+	Facets map[string][]facetCount `json:"facets"`
 }
 
 func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
@@ -67,15 +90,23 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	// "N events from this IP in the last 24h" context callout, found
 	// fetching up to 5000 full log entries - each the complete enriched
 	// event JSON - over the network just to read len(entries)) skip the
-	// entries query and get a real Loki-side aggregate count instead, which
-	// is also not silently capped at `limit` the way len(entries) is.
-	// Defaults to true - the actual Search screen always wants entries.
+	// entries query. Defaults to true - the actual Search screen always
+	// wants entries. Count itself is always the real Loki-side aggregate
+	// (see totalCount below), never derived from len(entries) - that used
+	// to silently cap Count at `limit` too, presenting e.g. "1,000 events"
+	// as if it were a total rather than a page size.
 	includeEntries := q.Get("entries") != "false"
 
-	// The entries query, the count-only query, and the volume-bucket query
-	// are all independent Loki requests over the same LogQL/time range - run
-	// whichever of them are needed concurrently rather than one after
-	// another, since none depends on another's result.
+	// includeFacets computes real per-label aggregate counts (severity,
+	// program, source) alongside the main query - see queryFacetCounts and
+	// the Facets field doc. Skippable for callers (the context-summary
+	// lookup) that only want a total count, same reasoning as includeVolume.
+	includeFacets := q.Get("facets") != "false"
+
+	// The entries query, the count query, the volume-bucket query, and each
+	// facet query are all independent Loki requests over the same
+	// LogQL/time range - run whichever are needed concurrently rather than
+	// one after another, since none depends on another's result.
 	var (
 		wg         sync.WaitGroup
 		result     loki.QueryResult
@@ -84,6 +115,8 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 		countErr   error
 		volume     []volumeBucket
 		volumeErr  error
+		facets     map[string][]facetCount
+		facetsErr  error
 	)
 
 	if includeEntries {
@@ -92,13 +125,13 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 			defer wg.Done()
 			result, resultErr = s.deps.Loki.QueryRange(r.Context(), logql, start, end, limit)
 		}()
-	} else {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			totalCount, countErr = s.queryTotalCount(r.Context(), logql, start, end)
-		}()
 	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		totalCount, countErr = s.queryTotalCount(r.Context(), logql, start, end)
+	}()
 
 	if includeVolume {
 		wg.Add(1)
@@ -108,15 +141,22 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
+	if includeFacets {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			facets, facetsErr = s.queryFacets(r.Context(), filters, start, end)
+		}()
+	}
+
 	wg.Wait()
 
-	if includeEntries {
-		if resultErr != nil {
-			s.deps.Logger.Error("events search: query failed", "error", resultErr)
-			http.Error(w, "query failed", http.StatusBadGateway)
-			return
-		}
-	} else if countErr != nil {
+	if includeEntries && resultErr != nil {
+		s.deps.Logger.Error("events search: query failed", "error", resultErr)
+		http.Error(w, "query failed", http.StatusBadGateway)
+		return
+	}
+	if countErr != nil {
 		s.deps.Logger.Error("events search: count query failed", "error", countErr)
 		http.Error(w, "query failed", http.StatusBadGateway)
 		return
@@ -128,18 +168,27 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	if volume == nil {
 		volume = []volumeBucket{}
 	}
-
-	count := len(result.Entries)
-	if !includeEntries {
-		count = totalCount
+	if facetsErr != nil {
+		s.deps.Logger.Error("events search: facets query failed", "error", facetsErr)
+		facets = nil
 	}
+	if facets == nil {
+		facets = map[string][]facetCount{}
+	}
+
 	entries := result.Entries
 	if entries == nil {
 		entries = []loki.LogEntry{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(searchResponse{LogQL: logql, Count: count, Entries: entries, Volume: volume})
+	json.NewEncoder(w).Encode(searchResponse{
+		LogQL:   logql,
+		Count:   totalCount,
+		Entries: entries,
+		Volume:  volume,
+		Facets:  facets,
+	})
 }
 
 func (s *Server) handleEventsTail(w http.ResponseWriter, r *http.Request) {
@@ -165,6 +214,96 @@ func (s *Server) queryTotalCount(ctx context.Context, logql string, start, end t
 		return 0, nil
 	}
 	return int(result.Series[0].Samples[0].Value), nil
+}
+
+// facetLabels are the Filters fields that correspond to real Loki stream
+// labels (see loki.BuildQuery) - only these can be aggregated with a LogQL
+// `sum by (...)`. Facility and free text are deliberately excluded: facility
+// only exists inside each line's JSON body (never promoted to a label, see
+// the comment on Filters.Facility), and free text isn't a facet at all.
+var facetLabels = []string{"severity", "program", "source"}
+
+// queryFacets runs one real Loki-side aggregate query per entry in
+// facetLabels, concurrently, each with that facet's own filter excluded
+// from the query it's computed with - so e.g. the severity facet reports
+// counts across every severity given the other active filters, not just
+// whichever severity happens to already be selected. A single facet's
+// failure doesn't fail the others; it's simply omitted from the result.
+func (s *Server) queryFacets(ctx context.Context, filters loki.Filters, start, end time.Time) (map[string][]facetCount, error) {
+	type facetResult struct {
+		label  string
+		counts []facetCount
+		err    error
+	}
+
+	results := make(chan facetResult, len(facetLabels))
+	var wg sync.WaitGroup
+	for _, label := range facetLabels {
+		wg.Add(1)
+		go func(label string) {
+			defer wg.Done()
+			counts, err := s.queryFacetCounts(ctx, filters, label, start, end)
+			results <- facetResult{label: label, counts: counts, err: err}
+		}(label)
+	}
+	wg.Wait()
+	close(results)
+
+	out := make(map[string][]facetCount, len(facetLabels))
+	var firstErr error
+	for res := range results {
+		if res.err != nil {
+			s.deps.Logger.Error("events search: facet query failed", "label", res.label, "error", res.err)
+			if firstErr == nil {
+				firstErr = res.err
+			}
+			continue
+		}
+		out[res.label] = res.counts
+	}
+	if len(out) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
+	return out, nil
+}
+
+// queryFacetCounts returns a real Loki-side count per distinct value of
+// `label`, via a single instant `sum by (label) (count_over_time(...))`
+// query - the same technique queryTotalCount uses for the overall total,
+// grouped instead of summed to one series.
+func (s *Server) queryFacetCounts(ctx context.Context, filters loki.Filters, label string, start, end time.Time) ([]facetCount, error) {
+	facetFilters := filters
+	switch label {
+	case "severity":
+		facetFilters.Severity = ""
+	case "program":
+		facetFilters.Program = ""
+	case "source":
+		facetFilters.Source = ""
+	}
+	logql := loki.BuildQuery(s.deps.JobLabel, facetFilters)
+
+	window := end.Sub(start)
+	if window <= 0 {
+		return []facetCount{}, nil
+	}
+	aggLogQL := fmt.Sprintf("sum by (%s) (count_over_time(%s[%ds]))", label, logql, int64(math.Ceil(window.Seconds())))
+
+	result, err := s.deps.Loki.QueryInstant(ctx, aggLogQL, end)
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make([]facetCount, 0, len(result.Series))
+	for _, series := range result.Series {
+		value := series.Labels[label]
+		if value == "" || len(series.Samples) == 0 {
+			continue
+		}
+		counts = append(counts, facetCount{Value: value, Count: int64(series.Samples[0].Value)})
+	}
+	sort.Slice(counts, func(i, j int) bool { return counts[i].Count > counts[j].Count })
+	return counts, nil
 }
 
 const volumeBucketCount = 72

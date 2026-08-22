@@ -8,11 +8,21 @@
 		filters,
 		logql,
 		count,
+		shown,
 		onAlertOnThis
 	}: {
 		filters: SearchFilters;
 		logql: string;
+		// The real total over the full time range (a Loki-side aggregate,
+		// not derived from how many entries were fetched - see
+		// searchResponse.Count's doc in siem-api).
 		count: number;
+		// How many of those `count` events are actually in the current
+		// page of entries (capped at `limit`, 1000 by default). Shown
+		// separately from `count` whenever they differ so a capped page
+		// never gets presented as if it were the whole result - see the
+		// Search facet-undercount bug this was added alongside.
+		shown: number;
 		onAlertOnThis: () => void;
 	} = $props();
 
@@ -90,7 +100,13 @@
 </form>
 
 <div class="meta">
-	<span class="mono count">{count.toLocaleString()} events</span>
+	<span class="mono count">
+		{#if shown < count}
+			showing {shown.toLocaleString()} of {count.toLocaleString()} events
+		{:else}
+			{count.toLocaleString()} events
+		{/if}
+	</span>
 	<span class="logql mono">{logql}</span>
 </div>
 
