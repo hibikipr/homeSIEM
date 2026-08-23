@@ -547,6 +547,70 @@ func TestEventsSearch_ReturnsRealFacetCountsNotCappedByEntriesLimit(t *testing.T
 	}
 }
 
+// TestEventsSearch_ReturnsCountryFacetCounts is the regression test for a
+// real production report: the Search page's "Source country" panel was
+// always empty. Root cause was the frontend deriving it purely from a page
+// of fetched entries (deriveCountryFacet), which almost never contains a
+// geoip-bearing line even when plenty exist over the full window - the same
+// class of undercount severity/program/source already had a real backend
+// aggregate fix for. This covers that fix's LogQL and response shape for
+// country specifically: grouped on the JSON-extracted `cc` field (never a
+// stream label, see queryCountryFacetCounts), not any of facetLabels.
+func TestEventsSearch_ReturnsCountryFacetCounts(t *testing.T) {
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/loki/api/v1/query" && strings.HasPrefix(query, "sum by (cc)"):
+			if !strings.Contains(query, `json cc="geoip.country_code"`) || !strings.Contains(query, `cc != ""`) {
+				t.Errorf("country facet query = %q, want the geoip json-extraction filter", query)
+			}
+			w.Write([]byte(`{"status":"success","data":{"result":[
+				{"metric":{"cc":"US"},"value":[1700000000,"14"]},
+				{"metric":{"cc":"CN"},"value":[1700000000,"3"]}
+			]}}`))
+		case r.URL.Path == "/loki/api/v1/query" && strings.Contains(query, "sum by ("):
+			w.Write([]byte(emptyInstantResult))
+		case r.URL.Path == "/loki/api/v1/query":
+			w.Write([]byte(`{"status":"success","data":{"result":[
+				{"metric":{},"value":[1700000000,"17"]}
+			]}}`))
+		case r.URL.Path == "/loki/api/v1/query_range" && strings.Contains(query, "count_over_time"):
+			w.Write([]byte(emptyMatrixResult))
+		default:
+			w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+		}
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	countries := resp.Facets["country"]
+	if len(countries) != 2 {
+		t.Fatalf("Facets[country] = %+v, want 2 entries", countries)
+	}
+	if countries[0].Value != "US" || countries[0].Count != 14 {
+		t.Errorf("countries[0] = %+v, want US:14", countries[0])
+	}
+	if countries[1].Value != "CN" || countries[1].Count != 3 {
+		t.Errorf("countries[1] = %+v, want CN:3", countries[1])
+	}
+}
+
 func TestEventsSearch_RequiresAuth(t *testing.T) {
 	s, _ := newTestServer(t)
 

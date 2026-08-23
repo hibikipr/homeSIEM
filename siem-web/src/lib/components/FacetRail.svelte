@@ -32,7 +32,12 @@
 	let sources = $derived(mergeSourceFacet(facetOrFallback('source'), claimedSources));
 	let severities = $derived(facetOrFallback('severity'));
 	let programs = $derived(facetOrFallback('program'));
-	let countries = $derived(deriveCountryFacet(entries));
+	// Prefer the backend's real Loki-side aggregate (see queryCountryFacetCounts)
+	// over deriveCountryFacet's page-of-entries derivation - geoip-bearing
+	// events are a small fraction of any default search's results, so that
+	// derivation came back empty in ordinary use even when countries were
+	// genuinely present over the full time range.
+	let countries = $derived(facets?.['country'] ?? deriveCountryFacet(entries));
 </script>
 
 <aside class="facets">

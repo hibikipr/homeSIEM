@@ -147,6 +147,15 @@ export function mergeSourceFacet(
 	return [...counts, ...missing];
 }
 
+// Fallback only - prefer the backend's real Loki-side aggregate
+// (searchResponse.Facets['country'], see siem-api's queryCountryFacetCounts)
+// wherever it's available. This derives purely from a page of already-
+// fetched entries, and geoip-bearing events (a UniFi CEF threat/block with a
+// public src or dst IP) are a small fraction of any default search's
+// results - in ordinary use this came back empty even when countries were
+// genuinely present over the full time range, the same class of undercount
+// deriveFacetCounts' own doc describes for severity/program/source before
+// their backend aggregates existed.
 export function deriveCountryFacet(entries: LogEntry[]): FacetCount[] {
 	const counts = new Map<string, number>();
 	for (const entry of entries) {
