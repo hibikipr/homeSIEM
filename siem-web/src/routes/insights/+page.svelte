@@ -120,7 +120,8 @@
 								{/if}
 								<span class="category">{insight.category}</span>
 								{#if insight.recommended_fix}
-									<span class="fix-badge" title="A recommended fix is available">Fix available</span>
+									<span class="fix-badge" title="A recommended fix is available">Fix available</span
+									>
 								{/if}
 								{#if insight.dismissed}
 									<span class="dismissed-badge">Dismissed</span>
@@ -164,24 +165,26 @@
 							</div>
 						{/if}
 						{#if insight.evidence.length > 0}
-							<table class="evidence">
-								<thead>
-									<tr>
-										<th>Program</th>
-										<th>Sample message</th>
-										<th>Count</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each insight.evidence as ev, i (i)}
+							<div class="evidence-wrap">
+								<table class="evidence">
+									<thead>
 										<tr>
-											<td>{ev.program}</td>
-											<td class="sample">{ev.sample_message}</td>
-											<td>{ev.count}</td>
+											<th>Program</th>
+											<th>Sample message</th>
+											<th>Count</th>
 										</tr>
-									{/each}
-								</tbody>
-							</table>
+									</thead>
+									<tbody>
+										{#each insight.evidence as ev, i (i)}
+											<tr>
+												<td>{ev.program}</td>
+												<td class="sample">{ev.sample_message}</td>
+												<td>{ev.count}</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
 						{/if}
 					</li>
 				{/if}
@@ -203,9 +206,7 @@
 							<div class="text">
 								<span class="row-title">{m.example_title || '(untitled insight)'}</span>
 								<span class="muted-meta">
-									{m.category} · {m.programs} · muted {new Date(
-										m.muted_at
-									).toLocaleString()}
+									{m.category} · {m.programs} · muted {new Date(m.muted_at).toLocaleString()}
 								</span>
 							</div>
 							<button
@@ -451,5 +452,24 @@
 	.muted-meta {
 		font-size: 11px;
 		color: var(--color-muted);
+	}
+
+	/* Mobile: let row content wrap instead of squeezing/clipping against the
+	   action buttons, and let the wide evidence table scroll horizontally
+	   rather than overflowing the page. */
+	@media (max-width: 768px) {
+		.insights-screen {
+			padding: var(--space-4);
+		}
+		.row {
+			flex-wrap: wrap;
+		}
+		.row-title-line {
+			flex-wrap: wrap;
+			row-gap: 4px;
+		}
+		.evidence-wrap {
+			overflow-x: auto;
+		}
 	}
 </style>
