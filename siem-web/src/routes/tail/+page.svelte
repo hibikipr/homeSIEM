@@ -216,4 +216,10 @@
 	.mono {
 		font-family: var(--font-mono);
 	}
+
+	@media (max-width: 768px) {
+		.tail-screen {
+			padding: var(--space-5);
+		}
+	}
 </style>

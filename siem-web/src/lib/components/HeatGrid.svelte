@@ -162,6 +162,23 @@
 	.legend-swatch .glyph {
 		font-size: 7px;
 	}
+
+	/* Mobile: .cells is flex:1 (fluid), which on a phone squashes 24 hourly
+	   cells down to ~11px slivers - too small to read the glyph or tap
+	   accurately. Give cells a real minimum width instead and let the grid
+	   scroll horizontally (the .axis start/now labels get the same
+	   min-width as .cells so "now" still lines up with the last cell). */
+	@media (max-width: 768px) {
+		.heat-grid {
+			overflow-x: auto;
+		}
+		.cells {
+			min-width: 480px;
+		}
+		.axis {
+			min-width: 480px;
+		}
+	}
 	.hover-tooltip {
 		/* Anchored to the TOP-right corner, not bottom-right: the legend is
 		   always the last flex child of .heat-grid, so its block-level box

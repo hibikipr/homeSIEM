@@ -131,4 +131,10 @@
 	.mono {
 		font-family: var(--font-mono);
 	}
+
+	@media (max-width: 768px) {
+		.inspector {
+			width: 100%;
+		}
+	}
 </style>

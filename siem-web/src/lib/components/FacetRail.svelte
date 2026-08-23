@@ -136,4 +136,10 @@
 		border-radius: 50%;
 		flex-shrink: 0;
 	}
+
+	@media (max-width: 768px) {
+		.facets {
+			width: 100%;
+		}
+	}
 </style>

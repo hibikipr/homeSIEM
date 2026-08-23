@@ -285,6 +285,23 @@
 		white-space: nowrap;
 		color: var(--color-text-2);
 	}
+
+	/* Mobile: the fixed-width columns alone (time/severity/host/program)
+	   already exceed a phone's width, leaving no room for the message
+	   column - let the whole table scroll horizontally instead. .row uses
+	   left:0/right:0 to stretch to its containing block, so giving
+	   .header-row and .viewport the same min-width keeps columns aligned
+	   as both scroll together (they're both descendants of the one
+	   overflow-x container below, .viewport-wrap). */
+	@media (max-width: 768px) {
+		.viewport-wrap {
+			overflow-x: auto;
+		}
+		.header-row,
+		.viewport {
+			min-width: 640px;
+		}
+	}
 	.dot {
 		display: inline-block;
 		width: 8px;

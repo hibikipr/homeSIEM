@@ -49,4 +49,14 @@
 		gap: var(--space-4);
 		align-items: start;
 	}
+
+	@media (max-width: 768px) {
+		.wall {
+			grid-template-columns: 1fr;
+			padding: var(--space-5);
+		}
+		.triage-lane {
+			grid-template-columns: 1fr;
+		}
+	}
 </style>
