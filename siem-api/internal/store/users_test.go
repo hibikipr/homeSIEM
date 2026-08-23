@@ -120,7 +120,7 @@ func TestResolveRole_FirstMatchWinsAndDeny(t *testing.T) {
 
 	role, ok = s.ResolveRole(ctx, []string{"unmapped-group"})
 	if ok {
-		t.Errorf("ResolveRole(unmapped-group) ok = true, want false (deny)", )
+		t.Errorf("ResolveRole(unmapped-group) ok = true, want false (deny)")
 	}
 	_ = role
 }
