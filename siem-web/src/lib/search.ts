@@ -23,6 +23,12 @@ export interface SearchFilters {
 	facility: string;
 	q: string;
 	range: '15m' | '24h' | '7d';
+	// Opts into this stack's own operational chatter (Loki's own
+	// query-engine debug output, docker-socket-proxy polling, etc.) -
+	// excluded by default server-side (see siem-api's
+	// loki.Filters.IncludeInternal doc). Off unless the URL says
+	// otherwise, same default-excluded posture as the backend.
+	includeInternal: boolean;
 }
 
 export function parseFiltersFromURL(url: URL): SearchFilters {
@@ -35,7 +41,8 @@ export function parseFiltersFromURL(url: URL): SearchFilters {
 		severity: params.get('severity') ?? '',
 		facility: params.get('facility') ?? '',
 		q: params.get('q') ?? '',
-		range: range === '15m' || range === '7d' ? range : '24h'
+		range: range === '15m' || range === '7d' ? range : '24h',
+		includeInternal: params.get('internal') === 'true'
 	};
 }
 
@@ -47,6 +54,7 @@ export function filtersToSearchParams(filters: SearchFilters): Record<string, st
 	if (filters.severity) params.severity = filters.severity;
 	if (filters.facility) params.facility = filters.facility;
 	if (filters.q) params.q = filters.q;
+	if (filters.includeInternal) params.internal = 'true';
 	return params;
 }
 

@@ -75,7 +75,7 @@ func TestEventsSearch_ReturnsCompiledQueryAndEntries(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if resp.LogQL != `{job="siem",source="udm-ultra"}` {
+	if resp.LogQL != `{job="siem",source="udm-ultra",internal_noise!="true"}` {
 		t.Errorf("LogQL = %q", resp.LogQL)
 	}
 	if resp.Count != 1 || len(resp.Entries) != 1 || resp.Entries[0].Line != "hello" {
@@ -117,9 +117,64 @@ func TestEventsSearch_GeoipTrue_AddsTheGeoipFilterToTheCompiledQuery(t *testing.
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	want := `{job="siem"} | json cc="geoip.country_code" | cc != ""`
+	want := `{job="siem",internal_noise!="true"} | json cc="geoip.country_code" | cc != ""`
 	if resp.LogQL != want {
 		t.Errorf("LogQL = %q, want %q", resp.LogQL, want)
+	}
+}
+
+// TestEventsSearch_ExcludesInternalNoiseByDefault and its sibling below are
+// the regression coverage for the actual production finding: Loki's own
+// query-engine debug output alone accounted for the large majority of
+// ingested volume in a live sample, burying real signal in Search's
+// default view (see loki.BuildQuery's IncludeInternal doc).
+func TestEventsSearch_ExcludesInternalNoiseByDefault(t *testing.T) {
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+	token := authToken(t, st, "viewer", 100)
+
+	req := httptest.NewRequest(http.MethodGet, "/events/search", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !strings.Contains(resp.LogQL, `internal_noise!="true"`) {
+		t.Errorf("LogQL = %q, want internal_noise excluded by default", resp.LogQL)
+	}
+}
+
+func TestEventsSearch_InternalTrue_OptsIntoPlatformNoise(t *testing.T) {
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+	token := authToken(t, st, "viewer", 100)
+
+	req := httptest.NewRequest(http.MethodGet, "/events/search?internal=true", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if strings.Contains(resp.LogQL, "internal_noise") {
+		t.Errorf("LogQL = %q, want no internal_noise term at all when explicitly opted in", resp.LogQL)
 	}
 }
 

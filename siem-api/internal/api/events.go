@@ -51,13 +51,18 @@ type searchResponse struct {
 func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filters := loki.Filters{
-		Source:       q.Get("source"),
-		Host:         q.Get("host"),
-		Program:      q.Get("program"),
-		Severity:     q.Get("severity"),
-		Facility:     q.Get("facility"),
-		FreeText:     q.Get("q"),
-		RequireGeoIP: q.Get("geoip") == "true",
+		Source:   q.Get("source"),
+		Host:     q.Get("host"),
+		Program:  q.Get("program"),
+		Severity: q.Get("severity"),
+		Facility: q.Get("facility"),
+		FreeText: q.Get("q"),
+		// Excluded by default (Filters' zero value) - see IncludeInternal's
+		// doc. A user who actually wants to see this stack's own
+		// operational chatter (debugging Loki/Docker directly, say) can
+		// still opt back in explicitly.
+		IncludeInternal: q.Get("internal") == "true",
+		RequireGeoIP:    q.Get("geoip") == "true",
 	}
 	logql := loki.BuildQuery(s.deps.JobLabel, filters)
 

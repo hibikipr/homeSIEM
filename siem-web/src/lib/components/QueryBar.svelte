@@ -32,6 +32,7 @@
 	let severity = $state(filters.severity);
 	let facility = $state(filters.facility);
 	let q = $state(filters.q);
+	let includeInternal = $state(filters.includeInternal);
 
 	const RANGES: SearchFilters['range'][] = ['15m', '24h', '7d'];
 
@@ -49,12 +50,18 @@
 		if (severity) params.set('severity', severity);
 		if (facility) params.set('facility', facility);
 		if (q) params.set('q', q);
+		if (includeInternal) params.set('internal', 'true');
 		params.set('range', filters.range);
 		goto(resolve(`/search?${params.toString()}`));
 	}
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
+		applyFilters();
+	}
+
+	function toggleIncludeInternal() {
+		includeInternal = !includeInternal;
 		applyFilters();
 	}
 
@@ -88,6 +95,14 @@
 			</button>
 		{/each}
 	</div>
+
+	<label
+		class="internal-toggle"
+		title="This stack's own operational chatter (Loki internals, docker-socket-proxy polling, etc.) is excluded by default so real signal doesn't get buried under it - check this to include it anyway."
+	>
+		<input type="checkbox" checked={includeInternal} onchange={toggleIncludeInternal} />
+		Include platform's own logs
+	</label>
 
 	<button
 		type="button"
@@ -159,6 +174,15 @@
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--text-label);
 		cursor: pointer;
+	}
+	.internal-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		font-size: var(--text-label);
+		color: var(--color-muted);
+		cursor: pointer;
+		white-space: nowrap;
 	}
 	.meta {
 		display: flex;

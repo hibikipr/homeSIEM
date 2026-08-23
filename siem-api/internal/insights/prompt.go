@@ -115,7 +115,15 @@ func (b *PromptBuilder) buildRollup(ctx context.Context, lookback time.Duration,
 
 	window := fmt.Sprintf("%dm", int(lookback.Minutes()))
 	for _, sev := range []string{"err", "warning"} {
-		logql := fmt.Sprintf(`sum by (program) (count_over_time({job=%q, severity=%q}[%s]))`, b.JobLabel, sev, window)
+		// internal_noise!="true": excludes this stack's own operational
+		// chatter (Loki's own query-engine debug output, docker-socket-
+		// proxy polling, etc. - see enrich_geo's .internal_noise doc in
+		// vector.toml) from the model's input, same default as
+		// loki.BuildQuery's Filters.IncludeInternal. Found in production:
+		// without this, the rollup - and so the model's attention - was
+		// dominated by Loki reviewing its own internals instead of the
+		// network this tool exists to watch.
+		logql := fmt.Sprintf(`sum by (program) (count_over_time({job=%q, severity=%q, internal_noise!="true"}[%s]))`, b.JobLabel, sev, window)
 		result, err := b.Loki.QueryInstant(ctx, logql, at)
 		if err != nil {
 			return nil, fmt.Errorf("insights: severity rollup query (%s): %w", sev, err)
@@ -242,7 +250,10 @@ func (b *PromptBuilder) Build(ctx context.Context, lookback time.Duration) (user
 		return "", err
 	}
 
-	logql := fmt.Sprintf(`{job=%q, severity=~"err|warning"}`, b.JobLabel)
+	// internal_noise!="true": see buildRollup's identical exclusion above -
+	// same reasoning, applied to the raw samples fed to the model as to
+	// the aggregate rollup.
+	logql := fmt.Sprintf(`{job=%q, severity=~"err|warning", internal_noise!="true"}`, b.JobLabel)
 	result, err := b.Loki.QueryRange(ctx, logql, start, end, 5000)
 	if err != nil {
 		return "", fmt.Errorf("insights: query err/warning samples: %w", err)
