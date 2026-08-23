@@ -23,9 +23,10 @@ func TestUpsertAndListSources(t *testing.T) {
 		t.Error("UpsertSource() ID = 0, want nonzero")
 	}
 
-	// Upsert again with same name should update, not duplicate.
+	// Upsert again with same name should update address/transport/parser,
+	// not duplicate the row.
 	_, err = s.UpsertSource(ctx, Source{
-		Name: "udm-ultra", Address: "10.0.0.1", Transport: "udp/514",
+		Name: "udm-ultra", Address: "10.0.0.2", Transport: "udp/514",
 		Parser: "unifi-os", HeartbeatSec: 600,
 	})
 	if err != nil {
@@ -39,8 +40,15 @@ func TestUpsertAndListSources(t *testing.T) {
 	if len(sources) != 1 {
 		t.Fatalf("len(sources) = %d, want 1", len(sources))
 	}
-	if sources[0].HeartbeatSec != 600 {
-		t.Errorf("HeartbeatSec = %d, want 600 (upsert should update)", sources[0].HeartbeatSec)
+	if sources[0].Address != "10.0.0.2" {
+		t.Errorf("Address = %q, want 10.0.0.2 (upsert should update)", sources[0].Address)
+	}
+	// heartbeat_sec is NOT overwritten by a re-upsert - see
+	// TestUpsertSource_PreservesHeartbeatAcrossHeartbeats for why (an
+	// admin-set value must survive the source's own next heartbeat, which
+	// always re-upserts with the ingest-side default).
+	if sources[0].HeartbeatSec != 900 {
+		t.Errorf("HeartbeatSec = %d, want 900 (unchanged by re-upsert)", sources[0].HeartbeatSec)
 	}
 }
 
@@ -132,6 +140,35 @@ func TestRenameSource_UnknownID_ReturnsErrNoRows(t *testing.T) {
 	err := s.RenameSource(context.Background(), 999, "Anything")
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Errorf("RenameSource(unknown) error = %v, want sql.ErrNoRows", err)
+	}
+}
+
+func TestUpdateHeartbeat_SetsValue(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	created, err := s.UpsertSource(ctx, Source{Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	if err := s.UpdateHeartbeat(ctx, created.ID, 3600); err != nil {
+		t.Fatalf("UpdateHeartbeat() error = %v", err)
+	}
+	sources, err := s.ListSources(ctx)
+	if err != nil {
+		t.Fatalf("ListSources() error = %v", err)
+	}
+	if sources[0].HeartbeatSec != 3600 {
+		t.Errorf("HeartbeatSec = %d, want 3600", sources[0].HeartbeatSec)
+	}
+}
+
+func TestUpdateHeartbeat_UnknownID_ReturnsErrNoRows(t *testing.T) {
+	s := newTestStore(t)
+	err := s.UpdateHeartbeat(context.Background(), 999, 3600)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Errorf("UpdateHeartbeat(unknown) error = %v, want sql.ErrNoRows", err)
 	}
 }
 
@@ -232,6 +269,37 @@ func TestUpsertSource_PreservesDisplayNameAcrossHeartbeats(t *testing.T) {
 	}
 	if sources[0].DisplayName != "Home Assistant" {
 		t.Errorf("DisplayName after re-upsert = %q, want it preserved as %q", sources[0].DisplayName, "Home Assistant")
+	}
+}
+
+func TestUpsertSource_PreservesHeartbeatAcrossHeartbeats(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	created, err := s.UpsertSource(ctx, Source{Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+	if err := s.UpdateHeartbeat(ctx, created.ID, 3600); err != nil {
+		t.Fatalf("UpdateHeartbeat() error = %v", err)
+	}
+
+	// Simulate the next heartbeat for the same address - the ingest fastpath
+	// always upserts with the schema's own default (900), which must not
+	// clobber the admin-set value above.
+	if _, err := s.UpsertSource(ctx, Source{Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900}); err != nil {
+		t.Fatalf("second UpsertSource() error = %v", err)
+	}
+
+	sources, err := s.ListSources(ctx)
+	if err != nil {
+		t.Fatalf("ListSources() error = %v", err)
+	}
+	if len(sources) != 1 {
+		t.Fatalf("len(sources) = %d, want 1 (re-upsert must match the existing row, not create a second one)", len(sources))
+	}
+	if sources[0].HeartbeatSec != 3600 {
+		t.Errorf("HeartbeatSec after re-upsert = %d, want it preserved as 3600", sources[0].HeartbeatSec)
 	}
 }
 

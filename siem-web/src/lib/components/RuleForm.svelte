@@ -36,7 +36,7 @@
 	// Minute presets shown in each dropdown - a rule whose existing value
 	// (edit mode) doesn't match one of these falls through to "Custom"
 	// automatically, see MinutesPicker.
-	const WINDOW_PRESETS_MIN = [1, 5, 15, 30, 60, 360, 1440];
+	const WINDOW_PRESETS_MIN = [1, 5, 15, 30, 60, 240, 360, 1440];
 	const COOLDOWN_PRESETS_MIN = [5, 15, 30, 60, 360, 1440];
 	const INTERVAL_PRESETS_MIN = [1, 5, 15, 30, 60];
 

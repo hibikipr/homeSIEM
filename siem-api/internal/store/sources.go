@@ -36,14 +36,20 @@ func scanSource(row rowScanner) (Source, error) {
 // worth of incoming events) must not clobber it back to blank, the same
 // reason `claimed` is left out of the ON CONFLICT SET below.
 func (s *Store) UpsertSource(ctx context.Context, src Source) (Source, error) {
+	// heartbeat_sec is intentionally absent from the ON CONFLICT SET clause
+	// below - the only production caller of UpsertSource is the ingest
+	// fastpath, which fires on every incoming log line and always passes
+	// the schema default (see handleSourceHeartbeat), so overwriting it
+	// here would silently undo any value an admin sets via UpdateHeartbeat
+	// the moment the source's next log line arrives. It's still used on
+	// the initial INSERT so a brand-new source gets the default.
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO sources (name, address, transport, parser, heartbeat_sec)
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET
 			address = excluded.address,
 			transport = excluded.transport,
-			parser = excluded.parser,
-			heartbeat_sec = excluded.heartbeat_sec
+			parser = excluded.parser
 	`, src.Name, src.Address, src.Transport, src.Parser, src.HeartbeatSec)
 	if err != nil {
 		return Source{}, err
@@ -94,6 +100,25 @@ func (s *Store) RenameSource(ctx context.Context, id int64, displayName string) 
 	n, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("store: rename source: %w", err)
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// UpdateHeartbeat sets how often, in seconds, this source is expected to
+// check in - AbsenceEvaluator/StaleSources flag it silent once that long
+// has passed since its last event. Distinct per source since different
+// devices have different natural check-in cadences.
+func (s *Store) UpdateHeartbeat(ctx context.Context, id int64, heartbeatSec int) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE sources SET heartbeat_sec = ? WHERE id = ?`, heartbeatSec, id)
+	if err != nil {
+		return fmt.Errorf("store: update heartbeat: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: update heartbeat: %w", err)
 	}
 	if n == 0 {
 		return sql.ErrNoRows

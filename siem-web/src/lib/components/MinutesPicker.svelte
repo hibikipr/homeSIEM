@@ -18,18 +18,22 @@
 		description?: string;
 	} = $props();
 
-	// Fully derived from `seconds`, never tracked separately - there's no
-	// risk of the dropdown and the real value drifting apart, and an
-	// existing rule's value that doesn't match any preset (e.g. one set
-	// before this UI existed, or via the API directly) correctly falls
-	// through to "Custom" and shows its real value rather than silently
-	// snapping to the nearest preset.
-	let selectedPreset = $derived(
+	// Initialized once from `seconds` (not $derived) - an existing rule's
+	// value that doesn't match any preset (e.g. one set before this UI
+	// existed, or via the API directly) still correctly falls through to
+	// "Custom" and shows its real value on mount. But it has to be its own
+	// state after that: selecting "Custom" alone doesn't change `seconds`
+	// (nothing's been typed yet), so if this stayed purely derived from
+	// `seconds`, it would immediately recompute back to whatever preset
+	// `seconds` still equals, snapping the dropdown back before the input
+	// could ever appear.
+	let selectedPreset = $state(
 		presetsMinutes.includes(seconds / 60) ? String(seconds / 60) : CUSTOM
 	);
 
 	function onPresetChange(event: Event) {
 		const value = (event.target as HTMLSelectElement).value;
+		selectedPreset = value;
 		if (value !== CUSTOM) {
 			seconds = Number(value) * 60;
 		}

@@ -97,8 +97,6 @@ the app no longer ships SvelteKit's default scaffold favicon.
 - There's no "dropped UDP" metric on the Sources screen — Vector doesn't expose one,
   and component-error counts aren't queryable over one-shot HTTP (only Subscription is),
   so this isn't currently obtainable at all.
-- `heartbeat_sec` still isn't editable per-source; it's shown but not configurable from
-  the Sources screen yet.
 - The ingest-health panel will show as degraded unless `siem-ingest` is actually
   running — it's an optional/profiled service in the deployment compose file, not
   started by default.
