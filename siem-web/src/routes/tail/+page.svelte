@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { SvelteSet } from 'svelte/reactivity';
 	import TailViewport from '$lib/components/TailViewport.svelte';
 	import ColumnToggle from '$lib/components/ColumnToggle.svelte';
@@ -57,6 +59,21 @@
 		a.click();
 		URL.revokeObjectURL(url);
 	}
+
+	// Search's severity filter is single-valued (see SearchFilters in
+	// $lib/search), but Live tail's chips are a multi-select set - only
+	// carry a severity over when the user has actually narrowed down to
+	// exactly one, otherwise there's no single value that represents
+	// "these N severities" and an unfiltered Search is the honest result.
+	function searchThis() {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
+		const params = new URLSearchParams();
+		if (activeSeverities.size === 1) {
+			params.set('severity', [...activeSeverities][0]);
+		}
+		const query = params.toString();
+		goto(resolve(query ? `/search?${query}` : '/search'));
+	}
 </script>
 
 <div class="tail-screen">
@@ -84,7 +101,15 @@
 				{paused ? 'Resume' : 'Pause'}
 			</button>
 			<button class="action" onclick={exportBuffer}>Export</button>
-			<button class="action" disabled title="Search screen isn't built yet">Search this</button>
+			<button
+				class="action"
+				onclick={searchThis}
+				title={activeSeverities.size === 1
+					? `Open Search filtered to severity=${[...activeSeverities][0]}`
+					: 'Open Search (severity filter only carries over when exactly one is selected here)'}
+			>
+				Search this
+			</button>
 			<ColumnToggle columns={TAIL_COLUMNS} hidden={hiddenColumns} onToggle={toggleColumn} />
 		</div>
 	</header>

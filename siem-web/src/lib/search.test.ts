@@ -25,13 +25,24 @@ describe('parseFiltersFromURL', () => {
 			severity: 'critical',
 			facility: '',
 			q: '',
-			range: '24h'
+			range: '24h',
+			includeInternal: false
 		});
 	});
 
 	it('accepts a valid range value and rejects an invalid one', () => {
 		expect(parseFiltersFromURL(new URL('https://x/search?range=15m')).range).toBe('15m');
 		expect(parseFiltersFromURL(new URL('https://x/search?range=bogus')).range).toBe('24h');
+	});
+
+	it('reads includeInternal from ?internal=true, defaulting to false', () => {
+		expect(parseFiltersFromURL(new URL('https://x/search')).includeInternal).toBe(false);
+		expect(parseFiltersFromURL(new URL('https://x/search?internal=true')).includeInternal).toBe(
+			true
+		);
+		expect(parseFiltersFromURL(new URL('https://x/search?internal=bogus')).includeInternal).toBe(
+			false
+		);
 	});
 });
 
@@ -44,9 +55,24 @@ describe('filtersToSearchParams', () => {
 			severity: '',
 			facility: '',
 			q: '',
-			range: '24h'
+			range: '24h',
+			includeInternal: false
 		});
 		expect(params).toEqual({ source: 'udm-ultra' });
+	});
+
+	it('includes internal=true only when includeInternal is set', () => {
+		const params = filtersToSearchParams({
+			source: '',
+			host: '',
+			program: '',
+			severity: '',
+			facility: '',
+			q: '',
+			range: '24h',
+			includeInternal: true
+		});
+		expect(params).toEqual({ internal: 'true' });
 	});
 });
 

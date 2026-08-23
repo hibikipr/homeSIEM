@@ -20,6 +20,10 @@ func TestIngestHealth_ReturnsMetricsFromVector(t *testing.T) {
 			"sinks":{"nodes":[
 				{"componentId":"loki","metrics":{"sentEventsTotal":{"sentEventsTotal":1290}}},
 				{"componentId":"siem_api","metrics":{"sentEventsTotal":null}}
+			]},
+			"transforms":{"nodes":[
+				{"componentId":"enrich_geo","metrics":{"receivedEventsTotal":{"receivedEventsTotal":1300},"sentEventsTotal":{"sentEventsTotal":1300}}},
+				{"componentId":"drop_blank_messages","metrics":{"receivedEventsTotal":{"receivedEventsTotal":1300},"sentEventsTotal":{"sentEventsTotal":1290}}}
 			]}
 		}}`))
 	}))
@@ -49,6 +53,38 @@ func TestIngestHealth_ReturnsMetricsFromVector(t *testing.T) {
 	}
 	if got.LokiSentEventsTotal != 1290 {
 		t.Fatalf("LokiSentEventsTotal = %v, want 1290", got.LokiSentEventsTotal)
+	}
+	if got.BlankMessagesFilteredTotal != 10 {
+		t.Fatalf("BlankMessagesFilteredTotal = %v, want 10 (drop_blank_messages' own received-1300 minus sent-1290)", got.BlankMessagesFilteredTotal)
+	}
+}
+
+func TestIngestHealth_ZeroBlankMessagesFilteredWhenTransformAbsent(t *testing.T) {
+	fakeVector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data":{
+			"sources":{"nodes":[]},
+			"sinks":{"nodes":[]},
+			"transforms":{"nodes":[]}
+		}}`))
+	}))
+	defer fakeVector.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Vector = vector.New(fakeVector.URL, fakeVector.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/sources/ingest-health", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	var got ingestHealthResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.BlankMessagesFilteredTotal != 0 {
+		t.Fatalf("BlankMessagesFilteredTotal = %v, want 0 when the transform doesn't appear in Vector's response", got.BlankMessagesFilteredTotal)
 	}
 }
 

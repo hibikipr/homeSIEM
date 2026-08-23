@@ -7,7 +7,7 @@ import (
 
 func TestBuildQuery_JobLabelOnly(t *testing.T) {
 	got := BuildQuery("siem", Filters{})
-	want := `{job="siem"}`
+	want := `{job="siem",internal_noise!="true"}`
 	if got != want {
 		t.Errorf("BuildQuery() = %q, want %q", got, want)
 	}
@@ -15,7 +15,7 @@ func TestBuildQuery_JobLabelOnly(t *testing.T) {
 
 func TestBuildQuery_MandatedLabels(t *testing.T) {
 	got := BuildQuery("siem", Filters{Source: "udm-ultra", Severity: "critical"})
-	want := `{job="siem",source="udm-ultra",severity="critical"}`
+	want := `{job="siem",source="udm-ultra",severity="critical",internal_noise!="true"}`
 	if got != want {
 		t.Errorf("BuildQuery() = %q, want %q", got, want)
 	}
@@ -72,7 +72,7 @@ func TestBuildQuery_ExtraFieldsSortedDeterministically(t *testing.T) {
 
 func TestBuildQuery_FreeText(t *testing.T) {
 	got := BuildQuery("siem", Filters{FreeText: "timeout"})
-	want := `{job="siem"} |= "timeout"`
+	want := `{job="siem",internal_noise!="true"} |= "timeout"`
 	if got != want {
 		t.Errorf("BuildQuery() = %q, want %q", got, want)
 	}
@@ -80,7 +80,7 @@ func TestBuildQuery_FreeText(t *testing.T) {
 
 func TestBuildQuery_RequireGeoIP(t *testing.T) {
 	got := BuildQuery("siem", Filters{RequireGeoIP: true})
-	want := `{job="siem"} | json cc="geoip.country_code" | cc != ""`
+	want := `{job="siem",internal_noise!="true"} | json cc="geoip.country_code" | cc != ""`
 	if got != want {
 		t.Errorf("BuildQuery() = %q, want %q", got, want)
 	}
@@ -88,7 +88,7 @@ func TestBuildQuery_RequireGeoIP(t *testing.T) {
 
 func TestBuildQuery_RequireGeoIP_ComposesAfterOtherFilters(t *testing.T) {
 	got := BuildQuery("siem", Filters{Source: "udm-ultra", FreeText: "blocked", RequireGeoIP: true})
-	want := `{job="siem",source="udm-ultra"} |= "blocked" | json cc="geoip.country_code" | cc != ""`
+	want := `{job="siem",source="udm-ultra",internal_noise!="true"} |= "blocked" | json cc="geoip.country_code" | cc != ""`
 	if got != want {
 		t.Errorf("BuildQuery() = %q, want %q", got, want)
 	}
@@ -104,5 +104,27 @@ func TestBuildQuery_ExtraFieldsRejectInvalidKeyNames(t *testing.T) {
 	}
 	if !strings.Contains(got, `dst_port="22"`) {
 		t.Errorf("BuildQuery() = %q, want the valid key still present", got)
+	}
+}
+
+// TestBuildQuery_ExcludesInternalNoiseByDefault is the regression test for
+// the actual production finding: Loki's own query-engine debug output
+// alone accounted for the large majority of ingested volume in a live
+// sample, burying real signal from monitored infrastructure in every
+// caller that builds a query via Filters without explicitly opting in -
+// Search, the Wall/Live-tail poller, and the Insights prompt builder all
+// get this exclusion "for free" from Filters' zero value.
+func TestBuildQuery_ExcludesInternalNoiseByDefault(t *testing.T) {
+	got := BuildQuery("siem", Filters{})
+	if !strings.Contains(got, `internal_noise!="true"`) {
+		t.Errorf("BuildQuery() = %q, want internal_noise excluded by default", got)
+	}
+}
+
+func TestBuildQuery_IncludeInternal_OmitsTheExclusion(t *testing.T) {
+	got := BuildQuery("siem", Filters{IncludeInternal: true})
+	want := `{job="siem"}`
+	if got != want {
+		t.Errorf("BuildQuery() = %q, want %q (no internal_noise term at all)", got, want)
 	}
 }

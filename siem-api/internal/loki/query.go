@@ -35,6 +35,17 @@ type Filters struct {
 	// means the sample only ever spends its cap on entries that can
 	// actually contribute a country.
 	RequireGeoIP bool
+	// IncludeInternal opts into this stack's own operational chatter and
+	// other routine internal polling (Loki's own query-engine debug
+	// output, docker-socket-proxy's container polling, homarr's Redis
+	// background-save noise - see enrich_geo's .internal_noise doc in
+	// vector.toml) - excluded by default (the Go zero value is false)
+	// everywhere a Filters gets built, not just here. Found in production:
+	// Loki's own internals alone accounted for the large majority of
+	// ingested volume, burying real signal from actual monitored
+	// infrastructure in Search's default view, the Wall ticker, and the
+	// Insights LLM's own input.
+	IncludeInternal bool
 }
 
 func BuildQuery(jobLabel string, f Filters) string {
@@ -48,6 +59,9 @@ func BuildQuery(jobLabel string, f Filters) string {
 		if pair.value != "" {
 			labels = append(labels, fmt.Sprintf("%s=%q", pair.name, pair.value))
 		}
+	}
+	if !f.IncludeInternal {
+		labels = append(labels, `internal_noise!="true"`)
 	}
 	query := "{" + strings.Join(labels, ",") + "}"
 

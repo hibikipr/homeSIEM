@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { heatTierColor } from '$lib/wall';
+	import { heatTierColor, heatTierGlyph } from '$lib/wall';
 
 	let {
 		rows,
@@ -30,14 +30,21 @@
 			<div class="cells">
 				{#each row.hours as tier, i (i)}
 					<span
-						class="cell"
+						class="cell tier-{tier}"
 						style="background: {heatTierColor(tier)}"
 						role="img"
 						aria-label="{labelFor(row.source)}: {tier}, {ageLabel(row.hours.length - 1 - i)}"
 						onpointerenter={() =>
 							(hovered = { source: row.source, tier, hoursAgo: row.hours.length - 1 - i })}
 						onpointerleave={() => (hovered = null)}
-					></span>
+					>
+						<!-- aria-hidden: the glyph is a redundant visual-only cue for
+						     sighted users who can't rely on color (see wall.ts's
+						     heatTierGlyph doc) - the cell's own aria-label above
+						     already says the tier in words for anyone using a screen
+						     reader, so exposing this text too would just repeat it. -->
+						<span class="glyph" aria-hidden="true">{heatTierGlyph(tier)}</span>
+					</span>
 				{/each}
 			</div>
 		</div>
@@ -51,7 +58,9 @@
 	<div class="legend">
 		{#each LEGEND_TIERS as tier (tier)}
 			<span class="legend-item">
-				<span class="legend-swatch" style="background: {heatTierColor(tier)}"></span>
+				<span class="legend-swatch" style="background: {heatTierColor(tier)}"
+					><span class="glyph" aria-hidden="true">{heatTierGlyph(tier)}</span></span
+				>
 				{tier}
 			</span>
 		{/each}
@@ -97,6 +106,25 @@
 		flex: 1;
 		height: 19px;
 		border-radius: 3px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+	}
+	.glyph {
+		font-size: 10px;
+		line-height: 1;
+		/* White with a dark outline in every direction, rather than a
+		   per-tier color keyed to each token's exact lightness (unknown
+		   without rendering it) - readable against light or dark cell
+		   backgrounds either way. Same reasoning as a map pin or video
+		   caption needing to stay legible over an arbitrary background. */
+		color: #fff;
+		text-shadow:
+			-1px -1px 0 rgba(0, 0, 0, 0.65),
+			1px -1px 0 rgba(0, 0, 0, 0.65),
+			-1px 1px 0 rgba(0, 0, 0, 0.65),
+			1px 1px 0 rgba(0, 0, 0, 0.65);
 	}
 	.axis {
 		display: flex;
@@ -126,6 +154,13 @@
 		border-radius: 2px;
 		flex-shrink: 0;
 		box-shadow: inset 0 0 0 1px var(--color-line-2);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+	}
+	.legend-swatch .glyph {
+		font-size: 7px;
 	}
 	.hover-tooltip {
 		/* Anchored to the TOP-right corner, not bottom-right: the legend is

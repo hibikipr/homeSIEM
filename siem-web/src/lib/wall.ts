@@ -14,6 +14,27 @@ export function heatTierColor(tier: string): string {
 	return HEAT_TIER_COLORS[tier] ?? HEAT_TIER_COLORS.none;
 }
 
+// WCAG 1.4.1 (use of color): the heatmap's tiers used to be distinguishable
+// by hue alone, and critical-vs-warning (red vs. amber) is exactly the pair
+// hardest to tell apart under red-green color blindness, the most common
+// form. Each tier gets its own glyph too - shape/fill degree conveys the
+// same "how busy" gradient color did, but survives grayscale or a color
+// vision deficiency. "critical"/"warning" get an attention glyph rather
+// than a dot on the fill scale, since those two specifically need to read
+// as qualitatively different from "just busy," not merely more filled.
+const HEAT_TIER_GLYPHS: Record<string, string> = {
+	critical: '✕',
+	warning: '!',
+	busy: '●',
+	light: '◐',
+	quiet: '○',
+	none: ''
+};
+
+export function heatTierGlyph(tier: string): string {
+	return HEAT_TIER_GLYPHS[tier] ?? '';
+}
+
 // HeatGrid's rows come from siem-api's /events/stats (heat_grid[].source),
 // which - like every other place a raw source name reaches the frontend
 // (see search.ts's FacetCount.label) - only ever has the raw name, never

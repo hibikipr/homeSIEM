@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { heatTierColor, topTriageAlerts, deriveCountryBreakdown, buildSourceLabels } from './wall';
+import {
+	heatTierColor,
+	heatTierGlyph,
+	topTriageAlerts,
+	deriveCountryBreakdown,
+	buildSourceLabels
+} from './wall';
 import type { AlertResponse, LogEntry } from './server/siemApiClient';
 
 describe('heatTierColor', () => {
@@ -17,11 +23,34 @@ describe('heatTierColor', () => {
 	});
 });
 
+describe('heatTierGlyph', () => {
+	it('gives every known tier a distinct, non-empty glyph except "none"', () => {
+		const tiers = ['critical', 'warning', 'busy', 'light', 'quiet'];
+		const glyphs = tiers.map(heatTierGlyph);
+		for (const g of glyphs) {
+			expect(g.length).toBeGreaterThan(0);
+		}
+		// WCAG 1.4.1 (use of color): the whole point is that these must not
+		// rely on color to tell apart, so no two tiers can share a glyph -
+		// most importantly critical vs. warning, the pair hardest to
+		// distinguish by hue under red-green color blindness.
+		expect(new Set(glyphs).size).toBe(glyphs.length);
+	});
+
+	it('gives "none" an empty glyph - nothing to distinguish when there is no data', () => {
+		expect(heatTierGlyph('none')).toBe('');
+	});
+
+	it('falls back to an empty glyph for an unrecognized tier', () => {
+		expect(heatTierGlyph('bogus')).toBe('');
+	});
+});
+
 describe('buildSourceLabels', () => {
 	it('maps a source name to its display_name when set', () => {
-		expect(
-			buildSourceLabels([{ name: '192.168.3.223', displayName: 'Home Assistant' }])
-		).toEqual({ '192.168.3.223': 'Home Assistant' });
+		expect(buildSourceLabels([{ name: '192.168.3.223', displayName: 'Home Assistant' }])).toEqual({
+			'192.168.3.223': 'Home Assistant'
+		});
 	});
 
 	it('falls back to the raw name when displayName is empty', () => {
