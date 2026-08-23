@@ -206,6 +206,30 @@ describe('Alerts load', () => {
 		});
 	});
 
+	it('also returns the full live Sources rows keyed by name, for AlertDetail context fallback', async () => {
+		const homeAssistant = {
+			id: 1,
+			name: '192.168.3.223',
+			display_name: 'Home Assistant',
+			claimed: true
+		};
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getAlerts: vi.fn().mockResolvedValue([fakeAlert()]),
+				getRules: vi.fn().mockResolvedValue([]),
+				getSources: vi.fn().mockResolvedValue([homeAssistant]),
+				getAlertSamples: vi.fn()
+			};
+		});
+
+		const result = (await load({
+			locals: { sessionToken: 'token-123' },
+			url: new URL('https://siem.townsville.cc/alerts')
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.liveSourcesByName).toEqual({ '192.168.3.223': homeAssistant });
+	});
+
 	it('degrades to an empty name lookup if the Sources fetch fails, without failing the page', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
@@ -222,6 +246,7 @@ describe('Alerts load', () => {
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		expect(result.sourceDisplayNames).toEqual({});
+		expect(result.liveSourcesByName).toEqual({});
 		expect(result.alerts).toHaveLength(1);
 	});
 });

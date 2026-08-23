@@ -20,16 +20,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// title/body strings (fragile - the same alert can be touched/reopened
 	// many times without ever regenerating its text) or thread a fixed
 	// display name through by re-raising, resolve it live at render time
-	// instead: fetch the current name map and let AlertDetail show
+	// instead: fetch the current source list once and let AlertDetail show
 	// whatever Sources currently calls this alert's group_key, alongside
 	// the (possibly stale) historical title. Supplementary, same
 	// degrade-to-empty-on-failure posture as Search's identical fetch.
-	const sourceDisplayNamesPromise = client
+	//
+	// The same live fetch also backs AlertDetail's fallback for an
+	// absence-shaped alert whose stored `context` has no per-source detail
+	// - either raised before AbsenceEvaluator started attaching Context at
+	// all (an already-open alert from before that shipped, which won't
+	// get backfilled unless it happens to touch/reopen again under the
+	// exact same source or source-combination), or one whose source has
+	// since been deleted from a stored context that did have it. See
+	// AlertDetail's liveSources prop.
+	const sourcesByNamePromise = client
 		.getSources(token)
-		.then((sources) => Object.fromEntries(sources.map((s) => [s.name, s.display_name])))
+		.then((sources) => Object.fromEntries(sources.map((s) => [s.name, s])))
 		.catch((err) => {
 			console.error('alerts: sources lookup failed', err);
-			return {} as Record<string, string>;
+			return {} as Record<string, Awaited<ReturnType<typeof client.getSources>>[number]>;
 		});
 
 	let alerts, rules;
@@ -68,6 +77,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		throw err;
 	}
 
+	const sourcesByName = await sourcesByNamePromise;
+
 	return {
 		tab,
 		alerts,
@@ -76,7 +87,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		selectedSamples,
 		stats: selectedAlert ? deriveAlertStats(selectedSamples) : null,
 		selectedRule,
-		sourceDisplayNames: await sourceDisplayNamesPromise,
+		sourceDisplayNames: Object.fromEntries(
+			Object.entries(sourcesByName).map(([name, s]) => [name, s.display_name])
+		),
+		liveSourcesByName: sourcesByName,
 		userRole: locals.user?.role
 	};
 };
