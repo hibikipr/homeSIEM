@@ -655,6 +655,36 @@ source = '''
       }
     }
 
+    ## Portainer's own docker-cli passthrough: its zerolog writer prints the
+    ## literal 3-char "???" in place of a level word for these - confirmed
+    ## empirically these are the ONLY portainer lines that do; every genuine
+    ## portainer-level error observed in this deployment ("unable to
+    ## snapshot Edge environment", "error when fetch remote digest for
+    ## image") uses its normal #033[31mERR#033[0m zerolog format instead,
+    ## already caught by the zerolog branch above. These "???" lines are
+    ## docker-cli step-table rows relayed from the `docker compose
+    ## pull/build/up` subprocess Portainer shells out to for every scheduled
+    ## GitOps stack sync - one row per container per stack, e.g.
+    ## "isponsorblocktv Pulling", "Container siem-web  Running". Found in
+    ## production: every one of these was landing as severity=err (falling
+    ## through to the PRI-derived default, since none of the branches above
+    ## find a level word here), even though it's routine periodic sync
+    ## activity across every stack, not a failure - Portainer's own "Stack
+    ## pull successful" summary line right after this table already confirms
+    ## success and is correctly tagged info via the zerolog branch. Anchored
+    ## on the docker-cli passthrough's own source marker plus the
+    ## step-table's trailing " |" spinner column (present on every progress
+    ## row observed: "Pulling  |", "Recreated |", "Container siem-web
+    ## Running |") - deliberately not just "???" alone, so a genuine
+    ## docker-cli failure relayed the same way (not a table row, so it
+    ## wouldn't end in " |") still falls through to the PRI default and
+    ## keeps surfacing as an error.
+    if is_null(reported_level) && .appname == "portainer" {
+      if match(message_for_level, r'cli/streams/out\.go:\d+.*\|\s*$') {
+        reported_level = "info"
+      }
+    }
+
     if is_string(reported_level) {
       mapped_severity = if reported_level == "debug" { "debug" } else if reported_level == "info" { "info" } else if reported_level == "warn" || reported_level == "warning" { "warning" } else if reported_level == "error" || reported_level == "err" { "err" } else if reported_level == "fatal" || reported_level == "crit" || reported_level == "critical" { "crit" } else { null }
       if is_string(mapped_severity) {

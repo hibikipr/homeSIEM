@@ -1269,6 +1269,91 @@ name = "generic nc-style healthcheck success line (immich / duplicati) overrides
     '''
 
 [[tests]]
+name = "Portainer's docker-cli passthrough progress line (routine stack-sync pull) overrides a mismatched PRI severity to info"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "portainer"
+    message = "#033[90m2026/08/23 10:44PM#033[0m ??? #033[1mgithub.com/docker/cli@v28.5.1+incompatible/cli/streams/out.go:20#033[0m#033[36m >#033[0m  isponsorblocktv Pulling  |"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Found in production: Portainer's periodic GitOps stack sync shells
+      ## out to `docker compose pull/build/up`, and relays that subprocess's
+      ## own step-table output verbatim through its zerolog writer as "???"
+      ## (no level word Portainer's own logger recognizes) - so every one of
+      ## these routine per-container sync rows was landing as severity=err,
+      ## identical to a real error, purely because there's no level word
+      ## here for any branch above to find.
+      assert_eq!(.severity, "info")
+    '''
+
+[[tests]]
+name = "Portainer's genuine zerolog ERR line (Edge environment snapshot failure) stays err - a real error is not flipped"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "portainer"
+    message = '#033[90m2026/08/23 06:22PM#033[0m #033[31mERR#033[0m #033[1mgithub.com/portainer/portainer-ee/api/chisel/service.go:351#033[0m#033[36m >#033[0m unable to snapshot Edge environment | #033[36merror=#033[0m#033[31m#033[1m"failed to create Docker client"#033[0m'
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## A genuine Portainer-level failure, self-reported through its
+      ## normal zerolog #033[31mERR#033[0m format (not the "???"
+      ## docker-cli-passthrough shape) - already caught correctly by the
+      ## zerolog branch above. Confirms the new portainer branch's
+      ## is_null(reported_level) guard means it never overrides a level
+      ## Portainer already reported itself.
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
+name = "a different app's message shaped like Portainer's docker-cli passthrough is not downgraded"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "err"
+    parser = "rfc5424"
+    appname = "some-other-app"
+    message = "#033[90m2026/08/23 10:44PM#033[0m ??? #033[1mgithub.com/docker/cli@v28.5.1+incompatible/cli/streams/out.go:20#033[0m#033[36m >#033[0m  isponsorblocktv Pulling  |"
+
+  [[tests.outputs]]
+  extract_from = "enrich_geo"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Proves the fix is scoped to .appname == "portainer", not a bare
+      ## message-shape match that could accidentally downgrade some other
+      ## program's output that happens to look similar.
+      assert_eq!(.severity, "err")
+    '''
+
+[[tests]]
 name = "netfilter event with a valid public src still gets geoip enrichment (pre-existing path, unaffected)"
 
   [tests.input]
