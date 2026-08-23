@@ -1,13 +1,15 @@
 <script lang="ts">
 	import type { CountryCount } from '$lib/wall';
 
-	let { countries }: { countries: CountryCount[] } = $props();
+	let { countries, loading = false }: { countries: CountryCount[]; loading?: boolean } = $props();
 	let max = $derived(Math.max(1, ...countries.map((c) => c.count)));
 </script>
 
 <div class="country-bar">
 	<div class="eyebrow">Where it's coming from</div>
-	{#if countries.length === 0}
+	{#if loading}
+		<div class="empty">Loading…</div>
+	{:else if countries.length === 0}
 		<div class="empty">No international traffic in this sample.</div>
 	{:else}
 		{#each countries as c (c.country)}
