@@ -338,6 +338,25 @@
 		gap: 2.8px;
 	}
 
+	@media (max-width: 768px) {
+		.settings-shell {
+			flex-direction: column;
+			padding: var(--space-5);
+		}
+		.sidebar {
+			width: 100%;
+			flex-direction: row;
+			overflow-x: auto;
+			gap: var(--space-2);
+		}
+		.sidebar button {
+			flex-shrink: 0;
+		}
+		.content {
+			max-width: none;
+		}
+	}
+
 	.sidebar button {
 		border: 0;
 		background: transparent;

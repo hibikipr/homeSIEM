@@ -60,6 +60,17 @@
 		flex-direction: column;
 		gap: var(--space-4);
 	}
+
+	@media (max-width: 768px) {
+		.sources-screen {
+			flex-direction: column;
+			padding: var(--space-5);
+		}
+		.rail {
+			flex: none;
+			width: 100%;
+		}
+	}
 	.panel {
 		background: var(--color-surface-2);
 		border-radius: var(--radius-default);

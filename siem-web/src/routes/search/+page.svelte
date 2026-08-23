@@ -30,10 +30,22 @@
 		saveHiddenColumns(COLUMN_STORAGE_KEY, hiddenColumns);
 	}
 
+	// Below the mobile breakpoint the facets/table/inspector panes become a
+	// drill-in (only one visible at a time) instead of a 3-way split -
+	// selection is already URL-driven, so this is just which pane shows.
+	let hasSelection = $derived(data.selectedEntry !== null);
+
 	function selectRow(index: number) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
 		const params = new URLSearchParams(window.location.search);
 		params.set('preview', String(index));
+		goto(resolve(`/search?${params.toString()}`), { noScroll: true, keepFocus: true });
+	}
+
+	function closeSelection() {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
+		const params = new URLSearchParams(window.location.search);
+		params.delete('preview');
 		goto(resolve(`/search?${params.toString()}`), { noScroll: true, keepFocus: true });
 	}
 
@@ -78,26 +90,33 @@
 	<div class="table-toolbar">
 		<ColumnToggle columns={SEARCH_COLUMNS} hidden={hiddenColumns} onToggle={toggleColumn} />
 	</div>
-	<div class="body">
-		<FacetRail
-			entries={data.entries}
-			claimedSources={data.claimedSources}
-			facets={data.facets}
-			onFacetClick={facetClick}
-		/>
-		<ResultTable
-			entries={data.entries}
-			selectedIndex={data.previewIndex}
-			onSelect={selectRow}
-			displayTimezone={data.displayTimezone}
-			{hiddenColumns}
-		/>
-		<EventInspector
-			entry={data.selectedEntry}
-			contextSummary={data.contextSummary}
-			onFilterToSrc={filterToSrc}
-			onRuleFromThis={ruleFromEvent}
-		/>
+	<div class="body" class:has-selection={hasSelection}>
+		<div class="pane pane-list">
+			<FacetRail
+				entries={data.entries}
+				claimedSources={data.claimedSources}
+				facets={data.facets}
+				onFacetClick={facetClick}
+			/>
+			<ResultTable
+				entries={data.entries}
+				selectedIndex={data.previewIndex}
+				onSelect={selectRow}
+				displayTimezone={data.displayTimezone}
+				{hiddenColumns}
+			/>
+		</div>
+		<div class="pane pane-detail">
+			<button type="button" class="back-link" onclick={closeSelection}>
+				<i class="ph ph-arrow-left"></i> Back
+			</button>
+			<EventInspector
+				entry={data.selectedEntry}
+				contextSummary={data.contextSummary}
+				onFilterToSrc={filterToSrc}
+				onRuleFromThis={ruleFromEvent}
+			/>
+		</div>
 	</div>
 </div>
 
@@ -131,5 +150,52 @@
 		gap: var(--space-5);
 		margin-top: var(--space-2);
 		align-items: flex-start;
+	}
+	.pane-list,
+	.pane-detail {
+		display: contents;
+	}
+	.back-link {
+		display: none;
+	}
+
+	/* Mobile: drill-in instead of a 3-way split - facets+table show until a
+	   row is selected (URL-driven, same as Alerts), then only the
+	   inspector shows, with a back control to clear the selection. */
+	@media (max-width: 768px) {
+		.search-screen {
+			padding: var(--space-5);
+		}
+		.body {
+			flex-direction: column;
+		}
+		.pane-list {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-5);
+			width: 100%;
+		}
+		.pane-detail {
+			display: block;
+			width: 100%;
+		}
+		.body.has-selection .pane-list {
+			display: none;
+		}
+		.body:not(.has-selection) .pane-detail {
+			display: none;
+		}
+		.back-link {
+			display: flex;
+			align-items: center;
+			gap: var(--space-2);
+			margin-bottom: var(--space-4);
+			background: none;
+			border: none;
+			padding: 0;
+			color: var(--color-muted);
+			font-size: var(--text-table);
+			cursor: pointer;
+		}
 	}
 </style>

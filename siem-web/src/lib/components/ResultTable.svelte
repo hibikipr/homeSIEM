@@ -157,6 +157,22 @@
 		box-shadow: inset var(--shadow-flat);
 		overflow: hidden;
 	}
+
+	/* Mobile: the fixed-width columns alone already exceed a phone's width -
+	   let the table scroll horizontally instead of squeezing the message
+	   column to nothing. .row uses left:0/right:0 to stretch to its
+	   containing block, so giving .header-row and .scroll-container the
+	   same min-width keeps columns aligned as both scroll together (same
+	   technique as TailViewport's Live tail table). */
+	@media (max-width: 768px) {
+		.table-wrap {
+			overflow-x: auto;
+		}
+		.header-row,
+		.scroll-container {
+			min-width: 600px;
+		}
+	}
 	.jump-pill {
 		position: absolute;
 		bottom: var(--space-4);
