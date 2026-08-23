@@ -4,7 +4,8 @@
 		AbsenceContextSource,
 		AlertResponse,
 		AlertSample,
-		RuleResponse
+		RuleResponse,
+		SourceResponse
 	} from '$lib/server/siemApiClient';
 	import type { AlertStats } from '$lib/alerts';
 	import { extractMessage } from '$lib/logline';
@@ -15,7 +16,8 @@
 		samples,
 		stats,
 		rule,
-		sourceDisplayNames
+		sourceDisplayNames,
+		liveSources
 	}: {
 		alert: AlertResponse;
 		samples: AlertSample[];
@@ -26,6 +28,11 @@
 		// than trusting alert.title/body, which are static text baked in
 		// at raise time and never rewritten by a later rename.
 		sourceDisplayNames: Record<string, string>;
+		// The full live Sources rows behind sourceDisplayNames, same fetch,
+		// keyed the same way - the fallback data source for an
+		// absence-shaped alert whose stored context has no per-source
+		// detail at all (see fallbackSources below).
+		liveSources: Record<string, SourceResponse>;
 	} = $props();
 
 	// alert.group_key IS the raw source name for source-quiet/first-seen
@@ -44,11 +51,42 @@
 	// the per-source last-seen/heartbeat data AbsenceEvaluator's Context
 	// actually carries instead (see siem-api's rules.sourceContext).
 	let isAbsence = $derived(rule?.shape === 'absence');
-	let absenceSources = $derived<AbsenceContextSource[]>(
+	// What actually fired, straight from the stored alert - the authoritative
+	// source when present.
+	let historicalSources = $derived<AbsenceContextSource[]>(
 		isAbsence && Array.isArray(alert.context?.sources)
 			? (alert.context.sources as AbsenceContextSource[])
 			: []
 	);
+	// Falls back to resolving alert.group_key against the live Sources list
+	// when the stored context has nothing - either an already-open alert
+	// raised before AbsenceEvaluator started attaching Context at all (that
+	// row will never get backfilled unless it happens to touch/reopen again
+	// under the exact same source or, for a correlated "multi:" alert, the
+	// exact same combination - see store.TouchAlert's doc), or a source a
+	// stored context did name that's since been deleted from Sources
+	// (filtered out here, same "don't claim a resolved name for something
+	// that isn't really there" posture as resolvedSourceName below). This is
+	// current status, not history - a live-fallback note in the template
+	// says so rather than presenting it as what was true when the alert fired.
+	let fallbackSources = $derived<AbsenceContextSource[]>(
+		isAbsence && historicalSources.length === 0
+			? (alert.group_key.startsWith('multi:')
+					? alert.group_key.slice('multi:'.length).split(',')
+					: [alert.group_key]
+				)
+					.map((name) => liveSources[name])
+					.filter((s): s is SourceResponse => Boolean(s))
+					.map((s) => ({
+						name: s.name,
+						display_name: s.display_name || s.name,
+						last_seen_at: s.last_seen_at ?? null,
+						heartbeat_sec: s.heartbeat_sec
+					}))
+			: []
+	);
+	let usingLiveFallback = $derived(historicalSources.length === 0 && fallbackSources.length > 0);
+	let displaySources = $derived(historicalSources.length > 0 ? historicalSources : fallbackSources);
 	// One snapshot per render, not a live ticker - matches the rest of this
 	// pane (samples list, stats) being a static view of server-loaded data
 	// rather than something that updates itself between navigations.
@@ -153,6 +191,12 @@
 	{#if isAbsence}
 		<div class="absence-sources">
 			<span class="label">Sources affected</span>
+			{#if usingLiveFallback}
+				<p class="renamed-note">
+					This alert predates per-source detail tracking - showing each source's current status
+					instead of what was true when it fired.
+				</p>
+			{/if}
 			<div class="absence-table">
 				<div class="absence-row absence-head">
 					<span>Source</span>
@@ -160,7 +204,7 @@
 					<span>Heartbeat</span>
 					<span>Status</span>
 				</div>
-				{#each absenceSources as src (src.name)}
+				{#each displaySources as src (src.name)}
 					<div class="absence-row">
 						<span>{src.display_name || src.name}</span>
 						<span>{src.last_seen_at ? elapsedLabel(src.last_seen_at, nowMs) : 'never'}</span>

@@ -50,6 +50,7 @@
 				stats={data.stats}
 				rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
 				sourceDisplayNames={data.sourceDisplayNames}
+				liveSources={data.liveSourcesByName}
 			/>
 		{:else if data.selectedRule}
 			<RuleDetail
