@@ -30,6 +30,28 @@ func displayName(src store.Source) string {
 	return src.Name
 }
 
+// sourceContext is the JSON shape AlertDetail reads (via alert.context) to
+// render absence-shaped alerts - last-seen/heartbeat/overdue-by, rather than
+// the network-alert stat tiles (matched events, ports, source IP) that a
+// threshold rule's Context doesn't apply here. Always "sources": [...],
+// even for a single-source alert, so the frontend has one shape to handle
+// instead of branching on whether this was a correlated alert.
+type sourceContext struct {
+	Name         string  `json:"name"`
+	DisplayName  string  `json:"display_name"`
+	LastSeenAt   *string `json:"last_seen_at"`
+	HeartbeatSec int     `json:"heartbeat_sec"`
+}
+
+func toSourceContext(src store.Source) sourceContext {
+	sc := sourceContext{Name: src.Name, DisplayName: displayName(src), HeartbeatSec: src.HeartbeatSec}
+	if src.LastSeenAt != nil {
+		ts := src.LastSeenAt.Format(time.RFC3339)
+		sc.LastSeenAt = &ts
+	}
+	return sc
+}
+
 func (e *AbsenceEvaluator) Evaluate(ctx context.Context, rule store.Rule) ([]alerts.Candidate, error) {
 	stale, err := e.Sources.StaleSources(ctx, time.Now().UTC())
 	if err != nil {
@@ -52,6 +74,7 @@ func (e *AbsenceEvaluator) Evaluate(ctx context.Context, rule store.Rule) ([]ale
 			Severity: rule.Severity,
 			Title:    fmt.Sprintf("%s: source %q has gone silent", rule.Name, displayName(src)),
 			Body:     fmt.Sprintf("no events from %q since %s (heartbeat %ds)", displayName(src), lastSeen, src.HeartbeatSec),
+			Context:  map[string]any{"sources": []sourceContext{toSourceContext(src)}},
 		})
 	}
 	return candidates, nil
@@ -104,6 +127,7 @@ func correlatedCandidate(rule store.Rule, stale []store.Source) (alerts.Candidat
 
 	groupNames := make([]string, 0, len(stale))
 	lines := make([]string, 0, len(stale))
+	sourceContexts := make([]sourceContext, 0, len(stale))
 	for _, src := range stale {
 		groupNames = append(groupNames, src.Name)
 		lastSeen := "never"
@@ -111,6 +135,7 @@ func correlatedCandidate(rule store.Rule, stale []store.Source) (alerts.Candidat
 			lastSeen = src.LastSeenAt.Format(time.RFC3339)
 		}
 		lines = append(lines, fmt.Sprintf("- %q: last seen %s (heartbeat %ds)", displayName(src), lastSeen, src.HeartbeatSec))
+		sourceContexts = append(sourceContexts, toSourceContext(src))
 	}
 	// Sorted so the same set of affected sources always produces the same
 	// GroupKey regardless of StaleSources' return order - this is what
@@ -129,5 +154,6 @@ func correlatedCandidate(rule store.Rule, stale []store.Source) (alerts.Candidat
 			"%d sources stopped sending events within %s of each other - more likely one shared cause (the collector, a network segment, a router) than independent coincidences:\n%s",
 			len(stale), window, strings.Join(lines, "\n"),
 		),
+		Context: map[string]any{"sources": sourceContexts},
 	}, true
 }

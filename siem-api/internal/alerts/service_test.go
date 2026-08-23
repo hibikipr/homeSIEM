@@ -51,22 +51,28 @@ func (f *fakeAlertStore) InsertAlert(ctx context.Context, a store.Alert) (store.
 	return a, nil
 }
 
-func (f *fakeAlertStore) TouchAlert(ctx context.Context, id int64, at time.Time) error {
+func (f *fakeAlertStore) TouchAlert(ctx context.Context, id int64, at time.Time, title, body, contextJSON string) error {
 	f.touched = append(f.touched, id)
 	for _, a := range f.openAlerts {
 		if a.ID == id {
 			a.EventCount++
 			a.LastSeenAt = at
+			a.Title = title
+			a.Body = body
+			a.Context = contextJSON
 		}
 	}
 	return nil
 }
 
-func (f *fakeAlertStore) ReopenAlert(ctx context.Context, id int64, at time.Time) error {
+func (f *fakeAlertStore) ReopenAlert(ctx context.Context, id int64, at time.Time, title, body, contextJSON string) error {
 	f.reopened = append(f.reopened, id)
 	for _, a := range f.openAlerts {
 		if a.ID == id {
 			a.LastSeenAt = at
+			a.Title = title
+			a.Body = body
+			a.Context = contextJSON
 		}
 	}
 	return nil
@@ -271,7 +277,7 @@ func TestRaise_WithinCooldown_TouchesOnlyNoNotify(t *testing.T) {
 	notifier := &fakeNotifier{}
 
 	svc := NewService(fs, hub, notifier, "https://siem.example.com", testLogger())
-	err := svc.Raise(context.Background(), Candidate{RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical", Title: "t", Body: "b"})
+	err := svc.Raise(context.Background(), Candidate{RuleID: 1, GroupKey: "10.0.0.5", Severity: "critical", Title: "t2", Body: "b2"})
 	if err != nil {
 		t.Fatalf("Raise() error = %v", err)
 	}
@@ -284,6 +290,9 @@ func TestRaise_WithinCooldown_TouchesOnlyNoNotify(t *testing.T) {
 	}
 	if notifier.calls != 0 {
 		t.Errorf("notifier.calls = %d, want 0 within cooldown", notifier.calls)
+	}
+	if got := fs.openAlerts[key(1, "10.0.0.5")]; got.Title != "t2" || got.Body != "b2" {
+		t.Errorf("Title/Body = %q/%q, want t2/b2 - a touch within cooldown must still refresh the displayed text", got.Title, got.Body)
 	}
 
 	select {
