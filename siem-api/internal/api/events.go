@@ -29,13 +29,15 @@ type searchResponse struct {
 	Count   int             `json:"count"`
 	Entries []loki.LogEntry `json:"entries"`
 	Volume  []volumeBucket  `json:"volume"`
-	// Facets holds real Loki-side aggregate counts per label (currently
-	// "severity", "program", "source" - the three that are genuine Loki
-	// stream labels, see loki.BuildQuery), keyed by that label name. Each
-	// facet's own filter is excluded from the query it's computed with (so
-	// the severity facet, for example, shows counts across all severities
-	// given the other active filters, not just whichever one is currently
-	// selected) - see queryFacetCounts.
+	// Facets holds real Loki-side aggregate counts per facet, keyed by facet
+	// name: "severity", "program", "source" (genuine Loki stream labels, see
+	// loki.BuildQuery and queryFacetCounts) plus "country" (not a stream
+	// label - extracted from each line's JSON body at query time via the
+	// same `| json cc="geoip.country_code"` LogQL RequireGeoIP already uses,
+	// see queryCountryFacetCounts). Each label facet's own filter is
+	// excluded from the query it's computed with (so the severity facet,
+	// for example, shows counts across all severities given the other
+	// active filters, not just whichever one is currently selected).
 	//
 	// Added because the frontend used to derive these entirely from
 	// `entries`, which is capped at `limit` (1000 by default): a 24h
@@ -241,7 +243,7 @@ func (s *Server) queryFacets(ctx context.Context, filters loki.Filters, start, e
 		err    error
 	}
 
-	results := make(chan facetResult, len(facetLabels))
+	results := make(chan facetResult, len(facetLabels)+1)
 	var wg sync.WaitGroup
 	for _, label := range facetLabels {
 		wg.Add(1)
@@ -251,6 +253,12 @@ func (s *Server) queryFacets(ctx context.Context, filters loki.Filters, start, e
 			results <- facetResult{label: label, counts: counts, err: err}
 		}(label)
 	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		counts, err := s.queryCountryFacetCounts(ctx, filters, start, end)
+		results <- facetResult{label: "country", counts: counts, err: err}
+	}()
 	wg.Wait()
 	close(results)
 
@@ -302,6 +310,54 @@ func (s *Server) queryFacetCounts(ctx context.Context, filters loki.Filters, lab
 	counts := make([]facetCount, 0, len(result.Series))
 	for _, series := range result.Series {
 		value := series.Labels[label]
+		if value == "" || len(series.Samples) == 0 {
+			continue
+		}
+		counts = append(counts, facetCount{Value: value, Count: int64(series.Samples[0].Value)})
+	}
+	sort.Slice(counts, func(i, j int) bool { return counts[i].Count > counts[j].Count })
+	return counts, nil
+}
+
+// queryCountryFacetCounts returns a real Loki-side count per source country,
+// the same technique queryFacetCounts uses for severity/program/source, but
+// grouping on a JSON-extracted field instead of a stream label:
+// geoip.country_code is deliberately never promoted to a label (see
+// Filters.Facility's doc for why - the same cardinality reasoning applies),
+// so `sum by (source)`-style label aggregation can't reach it. RequireGeoIP
+// already builds the exact `| json cc="geoip.country_code" | cc != ""`
+// extraction Search's geoip=true filter uses; forcing it on here (regardless
+// of what the caller's own filters requested) narrows the aggregate to only
+// the events that can contribute a country, the same reasoning as
+// RequireGeoIP's own doc comment.
+//
+// Found in production: the frontend used to derive this facet purely from
+// the fetched entries page, same as every other facet before the backend
+// aggregates existed - but geoip-bearing events (a UniFi CEF threat/block
+// with a public src or dst IP) are a small fraction of any default search's
+// results, so that derivation came back empty in ordinary use even though
+// enrich_geo was enriching correctly. This aggregate is a real Loki-side
+// count over the full time range, not just whatever geoip-bearing lines
+// happened to land in the current page.
+func (s *Server) queryCountryFacetCounts(ctx context.Context, filters loki.Filters, start, end time.Time) ([]facetCount, error) {
+	facetFilters := filters
+	facetFilters.RequireGeoIP = true
+	logql := loki.BuildQuery(s.deps.JobLabel, facetFilters)
+
+	window := end.Sub(start)
+	if window <= 0 {
+		return []facetCount{}, nil
+	}
+	aggLogQL := fmt.Sprintf("sum by (cc) (count_over_time(%s[%ds]))", logql, int64(math.Ceil(window.Seconds())))
+
+	result, err := s.deps.Loki.QueryInstant(ctx, aggLogQL, end)
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make([]facetCount, 0, len(result.Series))
+	for _, series := range result.Series {
+		value := series.Labels["cc"]
 		if value == "" || len(series.Samples) == 0 {
 			continue
 		}
