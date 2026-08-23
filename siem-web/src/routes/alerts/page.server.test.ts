@@ -200,7 +200,10 @@ describe('Alerts load', () => {
 			url: new URL('https://siem.townsville.cc/alerts')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
-		expect(result.sourceDisplayNames).toEqual({
+		// sourceDisplayNames/liveSourcesByName are streamed (not awaited
+		// before load() returns - see the module-level comment on
+		// sourcesByNamePromise), hence the extra await here.
+		await expect(result.sourceDisplayNames).resolves.toEqual({
 			'192.168.3.223': 'Home Assistant',
 			'udm-ultra': ''
 		});
@@ -227,7 +230,7 @@ describe('Alerts load', () => {
 			url: new URL('https://siem.townsville.cc/alerts')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
-		expect(result.liveSourcesByName).toEqual({ '192.168.3.223': homeAssistant });
+		await expect(result.liveSourcesByName).resolves.toEqual({ '192.168.3.223': homeAssistant });
 	});
 
 	it('degrades to an empty name lookup if the Sources fetch fails, without failing the page', async () => {
@@ -245,8 +248,8 @@ describe('Alerts load', () => {
 			url: new URL('https://siem.townsville.cc/alerts')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
-		expect(result.sourceDisplayNames).toEqual({});
-		expect(result.liveSourcesByName).toEqual({});
+		await expect(result.sourceDisplayNames).resolves.toEqual({});
+		await expect(result.liveSourcesByName).resolves.toEqual({});
 		expect(result.alerts).toHaveLength(1);
 	});
 });

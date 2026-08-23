@@ -22,8 +22,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// display name through by re-raising, resolve it live at render time
 	// instead: fetch the current source list once and let AlertDetail show
 	// whatever Sources currently calls this alert's group_key, alongside
-	// the (possibly stale) historical title. Supplementary, same
-	// degrade-to-empty-on-failure posture as Search's identical fetch.
+	// the (possibly stale) historical title. Supplementary, streamed to the
+	// client (not awaited before load() returns - see the return statement)
+	// rather than blocking the whole page on it, and a failure here
+	// degrades to an empty lookup rather than breaking the page.
 	//
 	// The same live fetch also backs AlertDetail's fallback for an
 	// absence-shaped alert whose stored `context` has no per-source detail
@@ -32,7 +34,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// get backfilled unless it happens to touch/reopen again under the
 	// exact same source or source-combination), or one whose source has
 	// since been deleted from a stored context that did have it. See
-	// AlertDetail's liveSources prop.
+	// AlertDetail's liveSources prop. sourceDisplayNames below is derived
+	// from this same promise (not a second fetch) so both stream together.
 	const sourcesByNamePromise = client
 		.getSources(token)
 		.then((sources) => Object.fromEntries(sources.map((s) => [s.name, s])))
@@ -40,6 +43,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			console.error('alerts: sources lookup failed', err);
 			return {} as Record<string, Awaited<ReturnType<typeof client.getSources>>[number]>;
 		});
+	const sourceDisplayNames = sourcesByNamePromise.then((sourcesByName) =>
+		Object.fromEntries(Object.entries(sourcesByName).map(([name, s]) => [name, s.display_name]))
+	);
 
 	let alerts, rules;
 	try {
@@ -77,8 +83,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		throw err;
 	}
 
-	const sourcesByName = await sourcesByNamePromise;
-
 	return {
 		tab,
 		alerts,
@@ -87,10 +91,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		selectedSamples,
 		stats: selectedAlert ? deriveAlertStats(selectedSamples) : null,
 		selectedRule,
-		sourceDisplayNames: Object.fromEntries(
-			Object.entries(sourcesByName).map(([name, s]) => [name, s.display_name])
-		),
-		liveSourcesByName: sourcesByName,
+		sourceDisplayNames,
+		liveSourcesByName: sourcesByNamePromise,
 		userRole: locals.user?.role
 	};
 };
