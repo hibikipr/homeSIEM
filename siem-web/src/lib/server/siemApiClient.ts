@@ -319,6 +319,17 @@ export class SiemApiClient {
 		});
 	}
 
+	// How long, in seconds, this source can go without an event before it's
+	// considered silent - siem-api rejects anything below its own sanity
+	// floor (10s).
+	async setSourceHeartbeat(sessionToken: string, id: number, heartbeatSec: number): Promise<void> {
+		return this.requestNoContent(`/sources/${id}/heartbeat`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json', ...this.authInit(sessionToken).headers },
+			body: JSON.stringify({ heartbeat_sec: heartbeatSec })
+		});
+	}
+
 	// Removes the source row entirely. Not a permanent ban - a source still
 	// actively sending logs re-creates itself, unclaimed, on its next
 	// heartbeat. See siem-api's store.DeleteSource for the full reasoning.

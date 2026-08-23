@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import type { SourceResponse } from '$lib/server/siemApiClient';
 	import { formatEventsPerMin, formatLastSeen } from '$lib/sources';
+	import { formatSecondsAsMinutes } from '$lib/minutePresets';
 
 	let {
 		sources,
@@ -14,6 +15,10 @@
 	let renameValue = $state('');
 	let saving = $state(false);
 	let deletingId = $state<number | null>(null);
+
+	let editingHeartbeatId = $state<number | null>(null);
+	let heartbeatMinutesValue = $state(1);
+	let savingHeartbeat = $state(false);
 
 	function startRename(source: SourceResponse) {
 		renamingId = source.id;
@@ -38,6 +43,32 @@
 			}
 		} finally {
 			saving = false;
+		}
+	}
+
+	function startEditHeartbeat(source: SourceResponse) {
+		editingHeartbeatId = source.id;
+		heartbeatMinutesValue = source.heartbeat_sec / 60;
+	}
+
+	function cancelEditHeartbeat() {
+		editingHeartbeatId = null;
+	}
+
+	async function saveHeartbeat(id: number) {
+		savingHeartbeat = true;
+		try {
+			const response = await fetch(`/api/sources/${id}/heartbeat`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ heartbeat_sec: Math.round(heartbeatMinutesValue * 60) })
+			});
+			if (response.ok) {
+				editingHeartbeatId = null;
+				await invalidateAll();
+			}
+		} finally {
+			savingHeartbeat = false;
 		}
 	}
 
@@ -75,6 +106,7 @@
 			<th>Parser</th>
 			<th class="num">Events/min</th>
 			<th>Last seen</th>
+			<th>Heartbeat</th>
 			<th>Health</th>
 		</tr>
 	</thead>
@@ -123,6 +155,41 @@
 				<td><span class="tag">{source.parser}</span></td>
 				<td class="num mono">{formatEventsPerMin(source.events_per_min)}</td>
 				<td class="mono">{formatLastSeen(source.last_seen_at)}</td>
+				<td>
+					{#if editingHeartbeatId === source.id}
+						<div class="rename-row">
+							<input
+								class="rename-input heartbeat-input"
+								type="number"
+								min="1"
+								step="1"
+								bind:value={heartbeatMinutesValue}
+								disabled={savingHeartbeat}
+								onkeydown={(e) => {
+									if (e.key === 'Enter') saveHeartbeat(source.id);
+									if (e.key === 'Escape') cancelEditHeartbeat();
+								}}
+							/>
+							<span class="unit">min</span>
+							<button
+								class="rename-action"
+								onclick={() => saveHeartbeat(source.id)}
+								disabled={savingHeartbeat}
+							>
+								{savingHeartbeat ? '…' : 'Save'}
+							</button>
+							<button class="rename-action" onclick={cancelEditHeartbeat} disabled={savingHeartbeat}
+								>Cancel</button
+							>
+						</div>
+					{:else}
+						<span class="mono">{formatSecondsAsMinutes(source.heartbeat_sec)}</span>
+						{#if canRename}
+							<button class="rename-trigger" onclick={() => startEditHeartbeat(source)}>Edit</button
+							>
+						{/if}
+					{/if}
+				</td>
 				<td>
 					<span class="health health-{source.status}">
 						<span class="dot"></span>{source.status}
@@ -200,6 +267,13 @@
 		padding: 2px var(--space-2);
 		min-width: 0;
 		flex: 1 1 auto;
+	}
+	.heartbeat-input {
+		flex: 0 0 64px;
+	}
+	.unit {
+		font-size: var(--text-label);
+		color: var(--color-muted-2);
 	}
 	.rename-action {
 		background: var(--color-accent-tint-2);

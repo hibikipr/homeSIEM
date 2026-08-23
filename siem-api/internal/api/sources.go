@@ -119,6 +119,46 @@ func (s *Server) handleRenameSource(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type setHeartbeatRequest struct {
+	HeartbeatSec int `json:"heartbeat_sec"`
+}
+
+// minHeartbeatSec is a sanity floor, not a meaningful default - it exists
+// only to reject an obviously-wrong value (0, negative, a typo missing a
+// digit) that would flag a source silent almost immediately.
+const minHeartbeatSec = 10
+
+// handleSetHeartbeat sets how often, in seconds, a source is expected to
+// check in before AbsenceEvaluator considers it silent (see
+// store.UpdateHeartbeat) - distinct per source since different devices have
+// different natural check-in cadences.
+func (s *Server) handleSetHeartbeat(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid source id", http.StatusBadRequest)
+		return
+	}
+	var req setHeartbeatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json body", http.StatusBadRequest)
+		return
+	}
+	if req.HeartbeatSec < minHeartbeatSec {
+		http.Error(w, fmt.Sprintf("heartbeat_sec must be at least %d", minHeartbeatSec), http.StatusBadRequest)
+		return
+	}
+	if err := s.deps.Store.UpdateHeartbeat(r.Context(), id, req.HeartbeatSec); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "source not found", http.StatusNotFound)
+			return
+		}
+		s.deps.Logger.Error("set heartbeat failed", "source_id", id, "error", err)
+		http.Error(w, "set heartbeat failed", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleDeleteSource removes a source row entirely - see store.DeleteSource
 // for why this isn't a permanent ban on a still-actively-sending sender.
 func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
@@ -159,12 +199,10 @@ func (s *Server) handleSourceHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	// heartbeat_sec: no UI exists yet to let an admin customize this per
-	// source, so every heartbeat call passes the schema's own default.
-	// UpsertSource always overwrites it — harmless today since nothing sets
-	// it to anything else, but whoever builds the Sources screen's "edit
-	// heartbeat interval" feature will need to read-then-preserve here
-	// instead of always passing this constant.
+	// Always passes the schema default - harmless for an existing source
+	// since UpsertSource deliberately never overwrites heartbeat_sec on
+	// conflict (see its own doc comment), only uses this for a brand-new
+	// source's initial row.
 	const defaultHeartbeatSec = 900
 
 	if _, err := s.deps.Store.UpsertSource(ctx, store.Source{

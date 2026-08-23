@@ -182,6 +182,120 @@ func TestRenameSource_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestSetHeartbeat_RequiresAdmin(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	src, err := st.UpsertSource(ctx, store.Source{
+		Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	token := authToken(t, st, "analyst", 50)
+	req := httptest.NewRequest(http.MethodPut, "/sources/"+itoa(src.ID)+"/heartbeat",
+		strings.NewReader(`{"heartbeat_sec":3600}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestSetHeartbeat_AdminSucceeds_AndShowsInListSources(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	src, err := st.UpsertSource(ctx, store.Source{
+		Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	adminToken := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodPut, "/sources/"+itoa(src.ID)+"/heartbeat",
+		strings.NewReader(`{"heartbeat_sec":3600}`))
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204, body=%s", rec.Code, rec.Body.String())
+	}
+
+	viewerToken := authToken(t, st, "viewer", 100)
+	listReq := httptest.NewRequest(http.MethodGet, "/sources", nil)
+	listReq.Header.Set("Authorization", "Bearer "+viewerToken)
+	listRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(listRec, listReq)
+
+	var got []sourceResponse
+	if err := json.Unmarshal(listRec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got) != 1 || got[0].HeartbeatSec != 3600 {
+		t.Fatalf("got = %+v, want HeartbeatSec=3600", got)
+	}
+}
+
+func TestSetHeartbeat_UnknownID_Returns404(t *testing.T) {
+	s, st := newTestServer(t)
+	token := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodPut, "/sources/999/heartbeat", strings.NewReader(`{"heartbeat_sec":3600}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSetHeartbeat_InvalidJSON(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	src, err := st.UpsertSource(ctx, store.Source{
+		Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	token := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodPut, "/sources/"+itoa(src.ID)+"/heartbeat", strings.NewReader("not json"))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestSetHeartbeat_TooLow_Returns400(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	src, err := st.UpsertSource(ctx, store.Source{
+		Name: "192.168.3.223", Address: "192.168.3.223", Transport: "tcp/601", Parser: "rfc5424", HeartbeatSec: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSource() error = %v", err)
+	}
+
+	token := authToken(t, st, "admin", 10)
+	req := httptest.NewRequest(http.MethodPut, "/sources/"+itoa(src.ID)+"/heartbeat",
+		strings.NewReader(`{"heartbeat_sec":5}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestDeleteSource_RequiresAdmin(t *testing.T) {
 	s, st := newTestServer(t)
 	ctx := context.Background()
