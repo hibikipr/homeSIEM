@@ -15,7 +15,11 @@
 	<div class="col-main">
 		<StatRow eventCount24h={data.eventCount24h} openAlertCount={data.openAlertCount} />
 		<EventsOverTime totals={data.hourlyTotals} />
-		<HeatGrid rows={data.heatGrid} sourceLabels={data.sourceLabels} />
+		{#await data.sourceLabels}
+			<HeatGrid rows={data.heatGrid} sourceLabels={{}} />
+		{:then sourceLabels}
+			<HeatGrid rows={data.heatGrid} {sourceLabels} />
+		{/await}
 		<div class="triage-lane">
 			{#each data.triageAlerts as alert (alert.id)}
 				<TriageCard {alert} />
@@ -23,8 +27,16 @@
 		</div>
 	</div>
 	<div class="col-side">
-		<CountryBar countries={data.countryBreakdown} />
-		<InsightsPanel insights={data.insights} />
+		{#await data.countryBreakdown}
+			<CountryBar countries={[]} loading />
+		{:then countryBreakdown}
+			<CountryBar countries={countryBreakdown} />
+		{/await}
+		{#await data.insights}
+			<InsightsPanel insights={[]} loading />
+		{:then insights}
+			<InsightsPanel {insights} />
+		{/await}
 		<Ticker />
 	</div>
 </div>

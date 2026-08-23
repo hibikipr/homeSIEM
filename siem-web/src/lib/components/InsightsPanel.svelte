@@ -4,7 +4,7 @@
 	import { severityColor } from '$lib/tail';
 	import type { Insight } from '$lib/server/siemApiClient';
 
-	let { insights }: { insights: Insight[] } = $props();
+	let { insights, loading = false }: { insights: Insight[]; loading?: boolean } = $props();
 
 	const PANEL_CAP = 5;
 	let visible = $derived(insights.slice(0, PANEL_CAP));
@@ -29,7 +29,9 @@
 		<span class="title">Insights</span>
 		<a class="view-all" href={resolve('/insights')}>View all →</a>
 	</div>
-	{#if visible.length === 0}
+	{#if loading}
+		<p class="empty">Loading…</p>
+	{:else if visible.length === 0}
 		<p class="empty">No insights yet.</p>
 	{:else}
 		<ul class="list">
