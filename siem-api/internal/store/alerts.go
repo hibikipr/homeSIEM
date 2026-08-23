@@ -87,17 +87,32 @@ func (s *Store) InsertAlert(ctx context.Context, a Alert) (Alert, error) {
 	return s.GetAlert(ctx, id)
 }
 
-func (s *Store) TouchAlert(ctx context.Context, id int64, at time.Time) error {
+// TouchAlert bumps event_count and last_seen_at, and also rewrites
+// title/body/context to whatever the current evaluation pass just computed -
+// touching an alert means "still true, here's the latest state", not just
+// "still true, same as when it was raised". Found in production: a
+// source-quiet alert kept showing the heartbeat_sec value (and stale "no
+// events since" timestamp) from the moment it was first raised, hours after
+// an admin changed that source's heartbeat setting on the Sources page - the
+// row was being touched on every evaluation pass but never re-written, so
+// the displayed text silently drifted out of sync with reality.
+func (s *Store) TouchAlert(ctx context.Context, id int64, at time.Time, title, body, contextJSON string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE alerts SET event_count = event_count + 1, last_seen_at = ? WHERE id = ?`,
-		formatTime(at), id)
+		`UPDATE alerts SET event_count = event_count + 1, last_seen_at = ?, title = ?, body = ?, context = ? WHERE id = ?`,
+		formatTime(at), title, body, contextJSON, id)
 	return err
 }
 
-func (s *Store) ReopenAlert(ctx context.Context, id int64, at time.Time) error {
+// ReopenAlert re-opens a previously acked/muted/closed alert row for reuse
+// (see alerts.Service.Raise - never inserts a second row for the same
+// rule_id+group_key). Also rewrites title/body/context for the same reason
+// TouchAlert does: the text describing why this alert fired must reflect the
+// evaluation pass that's reopening it, not whatever was true the last time it
+// was raised.
+func (s *Store) ReopenAlert(ctx context.Context, id int64, at time.Time, title, body, contextJSON string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE alerts SET state = 'open', last_seen_at = ?, event_count = 1, acked_by = NULL, acked_at = NULL, muted_until = NULL WHERE id = ?`,
-		formatTime(at), id)
+		`UPDATE alerts SET state = 'open', last_seen_at = ?, event_count = 1, acked_by = NULL, acked_at = NULL, muted_until = NULL, title = ?, body = ?, context = ? WHERE id = ?`,
+		formatTime(at), title, body, contextJSON, id)
 	return err
 }
 

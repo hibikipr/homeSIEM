@@ -37,6 +37,17 @@ func TestAbsenceEvaluator_OneCandidateForASingleStaleSource(t *testing.T) {
 	if c.RuleID != 1 || c.Severity != "warning" || c.GroupKey != "silent-host" {
 		t.Errorf("candidate = %+v, want RuleID=1 Severity=warning GroupKey=silent-host", c)
 	}
+
+	gotSources, ok := c.Context["sources"].([]sourceContext)
+	if !ok || len(gotSources) != 1 {
+		t.Fatalf("Context[sources] = %#v, want a single sourceContext", c.Context["sources"])
+	}
+	if gotSources[0].Name != "silent-host" || gotSources[0].HeartbeatSec != 900 {
+		t.Errorf("gotSources[0] = %+v, want Name=silent-host HeartbeatSec=900", gotSources[0])
+	}
+	if gotSources[0].LastSeenAt == nil || *gotSources[0].LastSeenAt != lastSeen.Format(time.RFC3339) {
+		t.Errorf("gotSources[0].LastSeenAt = %v, want %s", gotSources[0].LastSeenAt, lastSeen.Format(time.RFC3339))
+	}
 }
 
 func TestAbsenceEvaluator_UsesDisplayNameInTitleAndBodyNotGroupKey(t *testing.T) {
@@ -117,6 +128,11 @@ func TestAbsenceEvaluator_CorrelatesSourcesGoneQuietTogether(t *testing.T) {
 	// it's the identity for dedup, not display text.
 	if !strings.Contains(c.GroupKey, "192.168.3.223") {
 		t.Errorf("GroupKey = %q, want the raw source name 192.168.3.223, not the display name", c.GroupKey)
+	}
+
+	gotSources, ok := c.Context["sources"].([]sourceContext)
+	if !ok || len(gotSources) != 3 {
+		t.Fatalf("Context[sources] = %#v, want 3 sourceContext entries", c.Context["sources"])
 	}
 }
 

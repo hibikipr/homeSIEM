@@ -32,8 +32,8 @@ type AlertStore interface {
 	GetRule(ctx context.Context, id int64) (store.Rule, error)
 	FindLatestAlert(ctx context.Context, ruleID int64, groupKey string) (*store.Alert, error)
 	InsertAlert(ctx context.Context, a store.Alert) (store.Alert, error)
-	TouchAlert(ctx context.Context, id int64, at time.Time) error
-	ReopenAlert(ctx context.Context, id int64, at time.Time) error
+	TouchAlert(ctx context.Context, id int64, at time.Time, title, body, contextJSON string) error
+	ReopenAlert(ctx context.Context, id int64, at time.Time, title, body, contextJSON string) error
 	AddAlertSample(ctx context.Context, alertID int64, ts time.Time, line string) error
 	GetMinNotifySeverity(ctx context.Context) (string, error)
 }
@@ -80,13 +80,13 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 
 	switch {
 	case existing != nil && existing.State == "open" && now.Sub(existing.LastSeenAt) < time.Duration(rule.CooldownSec)*time.Second:
-		if err := s.store.TouchAlert(ctx, existing.ID, now); err != nil {
+		if err := s.store.TouchAlert(ctx, existing.ID, now, c.Title, c.Body, string(contextJSON)); err != nil {
 			return err
 		}
 		alertID = existing.ID
 
 	case existing != nil && existing.State == "muted" && existing.MutedUntil != nil && now.Before(*existing.MutedUntil):
-		if err := s.store.TouchAlert(ctx, existing.ID, now); err != nil {
+		if err := s.store.TouchAlert(ctx, existing.ID, now, c.Title, c.Body, string(contextJSON)); err != nil {
 			return err
 		}
 		alertID = existing.ID
@@ -97,7 +97,7 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 		// reuse the same row (never insert a second row for this
 		// rule_id+group_key, which would violate the schema's
 		// UNIQUE(rule_id, group_key, state) once it's later acked).
-		if err := s.store.ReopenAlert(ctx, existing.ID, now); err != nil {
+		if err := s.store.ReopenAlert(ctx, existing.ID, now, c.Title, c.Body, string(contextJSON)); err != nil {
 			return err
 		}
 		alertID = existing.ID

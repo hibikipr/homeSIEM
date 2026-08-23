@@ -1,8 +1,14 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import type { AlertResponse, AlertSample, RuleResponse } from '$lib/server/siemApiClient';
+	import type {
+		AbsenceContextSource,
+		AlertResponse,
+		AlertSample,
+		RuleResponse
+	} from '$lib/server/siemApiClient';
 	import type { AlertStats } from '$lib/alerts';
 	import { extractMessage } from '$lib/logline';
+	import { formatMinuteLabel, formatSecondsAsMinutes } from '$lib/minutePresets';
 
 	let {
 		alert,
@@ -30,6 +36,48 @@
 	// matches a known source, never claim an arbitrary group_key IS a
 	// source.
 	let resolvedSourceName = $derived(sourceDisplayNames[alert.group_key]);
+
+	// The threshold-shaped stat tiles (matched events, ports, source IP,
+	// reputation) are meaningless for an absence-shaped alert - source-quiet
+	// fires on the *absence* of matching events, so those are always
+	// 0/empty/unknown for this shape, not a sign anything's missing. Show
+	// the per-source last-seen/heartbeat data AbsenceEvaluator's Context
+	// actually carries instead (see siem-api's rules.sourceContext).
+	let isAbsence = $derived(rule?.shape === 'absence');
+	let absenceSources = $derived<AbsenceContextSource[]>(
+		isAbsence && Array.isArray(alert.context?.sources)
+			? (alert.context.sources as AbsenceContextSource[])
+			: []
+	);
+	// One snapshot per render, not a live ticker - matches the rest of this
+	// pane (samples list, stats) being a static view of server-loaded data
+	// rather than something that updates itself between navigations.
+	const nowMs = Date.now();
+
+	// Floors to whole minutes before handing off to formatMinuteLabel -
+	// elapsed wall-clock time is essentially never an exact minute multiple,
+	// and formatSecondsAsMinutes' raw-seconds fallback for that case (e.g.
+	// "11263s") is exactly the ugly display it exists to avoid for clean
+	// interval settings, not something we want for a live-computed elapsed
+	// duration.
+	function elapsedLabel(sinceIso: string, nowMs: number): string {
+		const elapsedSec = Math.floor((nowMs - new Date(sinceIso).getTime()) / 1000);
+		if (elapsedSec < 60) return 'just now';
+		return formatMinuteLabel(Math.floor(elapsedSec / 60)) + ' ago';
+	}
+
+	// A source's row here can be showing a stale snapshot from whenever this
+	// alert was last touched/reopened (see store.TouchAlert/ReopenAlert) -
+	// recomputing status from last_seen_at + heartbeat_sec against the
+	// current time, rather than trusting the alert was raised because the
+	// source is *still* stale right now, is what surfaces the "this alert is
+	// open but the source already recovered" case rather than hiding it.
+	function absenceStatus(src: AbsenceContextSource, nowMs: number): string {
+		if (!src.last_seen_at) return 'never seen';
+		const elapsedSec = (nowMs - new Date(src.last_seen_at).getTime()) / 1000;
+		if (elapsedSec < src.heartbeat_sec) return 'recovered';
+		return `overdue by ${formatMinuteLabel(Math.floor((elapsedSec - src.heartbeat_sec) / 60))}`;
+	}
 
 	let acking = $state(false);
 	let muting = $state(false);
@@ -102,46 +150,72 @@
 		</div>
 	</div>
 
-	<div class="stats">
-		<div class="stat">
-			<span class="label">Matched events</span>
-			<span class="value">{stats.matchedEvents}</span>
+	{#if isAbsence}
+		<div class="absence-sources">
+			<span class="label">Sources affected</span>
+			<div class="absence-table">
+				<div class="absence-row absence-head">
+					<span>Source</span>
+					<span>Last seen</span>
+					<span>Heartbeat</span>
+					<span>Status</span>
+				</div>
+				{#each absenceSources as src (src.name)}
+					<div class="absence-row">
+						<span>{src.display_name || src.name}</span>
+						<span>{src.last_seen_at ? elapsedLabel(src.last_seen_at, nowMs) : 'never'}</span>
+						<span>{formatSecondsAsMinutes(src.heartbeat_sec)}</span>
+						<span class="status" class:recovered={absenceStatus(src, nowMs) === 'recovered'}>
+							{absenceStatus(src, nowMs)}
+						</span>
+					</div>
+				{:else}
+					<div class="absence-row empty-row">No source detail recorded for this alert.</div>
+				{/each}
+			</div>
 		</div>
-		<div class="stat">
-			<span class="label">Distinct ports</span>
-			<span class="value">{stats.distinctPorts.length}</span>
+	{:else}
+		<div class="stats">
+			<div class="stat">
+				<span class="label">Matched events</span>
+				<span class="value">{stats.matchedEvents}</span>
+			</div>
+			<div class="stat">
+				<span class="label">Distinct ports</span>
+				<span class="value">{stats.distinctPorts.length}</span>
+			</div>
+			<div class="stat">
+				<span class="label">Source IP</span>
+				<span class="value">{stats.sourceIps[0] ?? '—'}</span>
+			</div>
+			<div class="stat">
+				<span class="label">Reputation</span>
+				<span class="value">{stats.reputation}</span>
+			</div>
 		</div>
-		<div class="stat">
-			<span class="label">Source IP</span>
-			<span class="value">{stats.sourceIps[0] ?? '—'}</span>
-		</div>
-		<div class="stat">
-			<span class="label">Reputation</span>
-			<span class="value">{stats.reputation}</span>
-		</div>
-	</div>
 
-	{#if stats.distinctPorts.length > 0}
-		<div class="ports">
-			<span class="label">Ports touched, in order</span>
-			<div class="chips">
-				{#each stats.distinctPorts as port (port)}
-					<span class="chip">{port}</span>
+		{#if stats.distinctPorts.length > 0}
+			<div class="ports">
+				<span class="label">Ports touched, in order</span>
+				<div class="chips">
+					{#each stats.distinctPorts as port (port)}
+						<span class="chip">{port}</span>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<div class="matched-events">
+			<span class="label">Matched events</span>
+			<div class="log-block">
+				{#each samples as sample (sample.id)}
+					<div class="log-line">{extractMessage(sample.line)}</div>
+				{:else}
+					<div class="log-line empty">No samples recorded yet.</div>
 				{/each}
 			</div>
 		</div>
 	{/if}
-
-	<div class="matched-events">
-		<span class="label">Matched events</span>
-		<div class="log-block">
-			{#each samples as sample (sample.id)}
-				<div class="log-line">{extractMessage(sample.line)}</div>
-			{:else}
-				<div class="log-line empty">No samples recorded yet.</div>
-			{/each}
-		</div>
-	</div>
 
 	<div class="rule-panel">
 		<span class="label">Rule that fired</span>
@@ -268,6 +342,35 @@
 	.value {
 		font-size: 20px;
 		font-weight: 500;
+	}
+	.absence-table {
+		margin-top: var(--space-2);
+		background: var(--color-surface-2);
+		border-radius: var(--radius-default);
+		overflow: hidden;
+	}
+	.absence-row {
+		display: grid;
+		grid-template-columns: 1.2fr 1fr 1fr 1fr;
+		gap: var(--space-3);
+		padding: var(--space-2) var(--space-3);
+		font-size: var(--text-table);
+		border-bottom: 1px solid var(--color-line-2);
+	}
+	.absence-row:last-child {
+		border-bottom: none;
+	}
+	.absence-row.absence-head {
+		color: var(--color-muted-2);
+		font-size: var(--text-eyebrow);
+		text-transform: uppercase;
+	}
+	.absence-row.empty-row {
+		display: block;
+		color: var(--color-muted-2);
+	}
+	.status.recovered {
+		color: var(--color-severity-healthy);
 	}
 	.chips {
 		display: flex;

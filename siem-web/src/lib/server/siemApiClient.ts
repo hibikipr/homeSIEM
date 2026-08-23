@@ -64,6 +64,24 @@ export interface AlertResponse {
 	last_seen_at: string;
 	acked_by?: number;
 	acked_at?: string;
+	// The rule shape's own structured payload - shape depends on which
+	// evaluator raised this alert (see siem-api's rules.sourceContext for
+	// the absence shape - AlertDetail is the only consumer today). Absent
+	// on alerts raised before this existed, or by a shape that doesn't set
+	// one.
+	context?: Record<string, unknown>;
+}
+
+// The absence shape's own Context shape (see siem-api's
+// rules.sourceContext) - one entry per stale source, always a list even
+// for a single-source alert so AlertDetail has one shape to render
+// regardless of whether AbsenceEvaluator correlated multiple sources
+// into one alert.
+export interface AbsenceContextSource {
+	name: string;
+	display_name: string;
+	last_seen_at: string | null;
+	heartbeat_sec: number;
 }
 
 export interface AlertSample {

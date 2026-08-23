@@ -73,7 +73,7 @@ func TestTouchAlert_IncrementsEventCount(t *testing.T) {
 	}
 
 	later := now.Add(5 * time.Minute)
-	if err := s.TouchAlert(ctx, inserted.ID, later); err != nil {
+	if err := s.TouchAlert(ctx, inserted.ID, later, "t2", "b2", `{"k":"v"}`); err != nil {
 		t.Fatalf("TouchAlert() error = %v", err)
 	}
 
@@ -83,6 +83,12 @@ func TestTouchAlert_IncrementsEventCount(t *testing.T) {
 	}
 	if got.EventCount != 2 {
 		t.Errorf("EventCount = %d, want 2", got.EventCount)
+	}
+	if got.Title != "t2" || got.Body != "b2" {
+		t.Errorf("Title/Body = %q/%q, want t2/b2 - a touch must refresh the displayed text to the latest evaluation, not leave it frozen from when the alert was first raised", got.Title, got.Body)
+	}
+	if got.Context != `{"k":"v"}` {
+		t.Errorf("Context = %q, want {\"k\":\"v\"}", got.Context)
 	}
 }
 
@@ -175,7 +181,7 @@ func TestReopenAlert(t *testing.T) {
 	}
 
 	later := now.Add(time.Hour)
-	if err := s.ReopenAlert(ctx, inserted.ID, later); err != nil {
+	if err := s.ReopenAlert(ctx, inserted.ID, later, "t2", "b2", `{"k":"v"}`); err != nil {
 		t.Fatalf("ReopenAlert() error = %v", err)
 	}
 
@@ -185,6 +191,12 @@ func TestReopenAlert(t *testing.T) {
 	}
 	if got.State != "open" {
 		t.Errorf("State = %q, want open", got.State)
+	}
+	if got.Title != "t2" || got.Body != "b2" {
+		t.Errorf("Title/Body = %q/%q, want t2/b2 - a reopen must refresh the displayed text to the latest evaluation", got.Title, got.Body)
+	}
+	if got.Context != `{"k":"v"}` {
+		t.Errorf("Context = %q, want {\"k\":\"v\"}", got.Context)
 	}
 }
 
