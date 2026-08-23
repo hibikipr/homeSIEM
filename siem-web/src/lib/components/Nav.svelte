@@ -33,6 +33,13 @@
 	let menuEl = $state<HTMLDivElement | undefined>();
 	let menuButtonEl = $state<HTMLButtonElement | undefined>();
 
+	// Mobile nav drawer (<=768px) - same open/close/outside-click/Escape
+	// pattern as the account menu above, just a second independent instance
+	// since the two can be open at different times.
+	let navOpen = $state(false);
+	let navEl = $state<HTMLElement | undefined>();
+	let navButtonEl = $state<HTMLButtonElement | undefined>();
+
 	function toggleMenu() {
 		menuOpen = !menuOpen;
 	}
@@ -41,11 +48,22 @@
 		menuOpen = false;
 	}
 
+	function toggleNav() {
+		navOpen = !navOpen;
+	}
+
+	function closeNav() {
+		navOpen = false;
+	}
+
 	function handleWindowClick(event: MouseEvent) {
-		if (!menuOpen) return;
 		const target = event.target as Node;
-		if (menuEl?.contains(target) || menuButtonEl?.contains(target)) return;
-		closeMenu();
+		if (menuOpen && !menuEl?.contains(target) && !menuButtonEl?.contains(target)) {
+			closeMenu();
+		}
+		if (navOpen && !navEl?.contains(target) && !navButtonEl?.contains(target)) {
+			closeNav();
+		}
 	}
 
 	function handleMenuKeydown(event: KeyboardEvent) {
@@ -56,8 +74,12 @@
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && menuOpen) {
-			closeMenu();
+		if (event.key === 'Escape') {
+			if (menuOpen) closeMenu();
+			if (navOpen) {
+				closeNav();
+				navButtonEl?.focus();
+			}
 		}
 	}
 
@@ -79,20 +101,42 @@
 <svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
 
 <header class="nav">
+	<button
+		bind:this={navButtonEl}
+		type="button"
+		class="nav-toggle"
+		aria-haspopup="true"
+		aria-expanded={navOpen}
+		aria-label="Toggle navigation"
+		onclick={toggleNav}
+	>
+		<span class="nav-toggle-bar"></span>
+		<span class="nav-toggle-bar"></span>
+		<span class="nav-toggle-bar"></span>
+	</button>
+
 	<div class="brand">
 		<span class="brand-icon"><i class="ph ph-shield-check"></i></span>
 		<span class="brand-name">homeSIEM</span>
 	</div>
 
-	<nav class="links">
+	<nav bind:this={navEl} class="links" class:nav-open={navOpen}>
 		{#each visibleNavItems as item (item.href)}
-			<a href={resolve(item.href)} class:active={activeRoute === resolve(item.href)}>
+			<a
+				href={resolve(item.href)}
+				class:active={activeRoute === resolve(item.href)}
+				onclick={closeNav}
+			>
 				{item.label}
 				{#if item.label === 'Alerts' && alertCount > 0}
 					<span class="pill">{alertCount}</span>
 				{/if}
 			</a>
 		{/each}
+		<span class="links-status">
+			<span class="ingest-dot"></span>
+			<span class="ingest-text">ingest live · {ingestRate}/min</span>
+		</span>
 	</nav>
 
 	<div class="status">
@@ -319,5 +363,91 @@
 	.account-menu-signout:hover {
 		color: var(--color-text);
 		background: var(--row-hover-bg);
+	}
+
+	.nav-toggle {
+		display: none;
+		flex-direction: column;
+		justify-content: center;
+		gap: 4px;
+		width: 22px;
+		height: 22px;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+	}
+	.nav-toggle-bar {
+		display: block;
+		height: 2px;
+		background: var(--color-text);
+		border-radius: 1px;
+	}
+	.links-status {
+		display: none;
+	}
+
+	/* Mobile: hamburger + slide-out drawer replaces the horizontal link row,
+	   and the ingest status (dropped from the top bar) moves into the drawer.
+	   The drawer is a DOM child of .nav (needed so it lays out inline with
+	   the header on desktop), so it can never paint over the header via
+	   z-index - a positioned descendant always paints above its ancestor's
+	   own background, regardless of z-index. Anchoring it at top:100% of
+	   the header (rather than top:0 of the viewport) sidesteps that
+	   entirely: it starts below the header, so there's no overlap to
+	   stack-order in the first place. .nav needs a defined height (not
+	   just padding-driven auto) for the child's percentage-based height
+	   below to resolve. */
+	@media (max-width: 768px) {
+		.nav {
+			position: relative;
+			height: 64px;
+		}
+		.nav-toggle {
+			display: flex;
+		}
+		.links {
+			display: none;
+			position: absolute;
+			top: 100%;
+			left: 0;
+			height: calc(100vh - 100%);
+			width: min(78vw, 320px);
+			flex-direction: column;
+			align-items: stretch;
+			gap: var(--space-2);
+			padding: var(--space-6) var(--space-5);
+			background: var(--color-surface-2);
+			box-shadow: var(--shadow-flat);
+			z-index: 30;
+			overflow-y: auto;
+		}
+		.links.nav-open {
+			display: flex;
+		}
+		.links a {
+			padding: var(--space-3) var(--space-2);
+			border-bottom: 1px solid var(--color-line-2);
+		}
+		.links a.active {
+			border-bottom-color: var(--color-line-2);
+		}
+		.links-status {
+			display: flex;
+			align-items: center;
+			gap: var(--space-2);
+			margin-top: var(--space-4);
+			padding: var(--space-2);
+			font-size: var(--text-table);
+			color: var(--color-muted-2);
+		}
+		.status .ingest-dot,
+		.status .ingest-text,
+		.status .user {
+			display: none;
+		}
+		.status {
+			gap: var(--space-3);
+		}
 	}
 </style>

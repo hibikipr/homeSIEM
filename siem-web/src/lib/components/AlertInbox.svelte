@@ -115,4 +115,13 @@
 		padding: var(--space-4);
 		text-align: center;
 	}
+
+	/* On mobile the parent page (alerts/+page.svelte) drops the side-by-side
+	   split for a list/detail drill-in, at which point this fixed 376px only
+	   fits some phones and overflows narrower ones - let it fill the pane. */
+	@media (max-width: 768px) {
+		.inbox {
+			width: 100%;
+		}
+	}
 </style>
