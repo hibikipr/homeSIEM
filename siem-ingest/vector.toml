@@ -197,6 +197,31 @@ source = '''
 type = "remap"
 inputs = ["parse_unifi", "parse_hosts"]
 source = '''
+  ## Tag this stack's own operational chatter and other routine internal
+  ## polling - not from a monitored device/network, but from the platform's
+  ## own components logging about themselves. Found in production: loki's
+  ## own query-engine debug output alone accounts for the large majority of
+  ## ingested volume (~647k of ~650k events sampled over 24h) - real signal
+  ## from actual monitored infrastructure was getting buried under it in
+  ## Search's default view, the Wall ticker, and even the Insights LLM's
+  ## own input (which ended up reviewing Loki's internals instead of the
+  ## network). Not dropped outright - an admin debugging Loki/Docker
+  ## directly may still want to see these - just tagged so every caller
+  ## that builds a LogQL query (siem-api's loki.BuildQuery) can exclude
+  ## them by default and let a user opt back in.
+  ##
+  ## Deliberately the FIRST thing this transform does, not the last: found
+  ## in production (a one-time warning right after deploying this, never
+  ## recurring) that at least one event reached sinks.loki without
+  ## .internal_noise set at all, causing a rate-limited "missing field"
+  ## template-render warning on the loki sink. This transform has many
+  ## fallible/early-exit paths below for malformed input - setting this
+  ## first, depending on nothing but .appname (already set well before
+  ## this transform runs), guarantees it's present on every event
+  ## regardless of what any later branch does.
+  INTERNAL_NOISE_PROGRAMS = ["loki", "docker-socket-proxy", "dockersocket", "Redis"]
+  .internal_noise = includes(INTERNAL_NOISE_PROGRAMS, .appname)
+
   ## Found against a real UniFi device: its "SIEM Server" integration's
   ## test event didn't carry a standard syslog PRI header, so Vector's
   ## syslog source never populated .severity - and sinks.loki's severity
@@ -697,21 +722,6 @@ source = '''
     .geoip = get_enrichment_table_record("geolite", { "ip": geoip_ip }) ?? {}
     .threat_intel = get_enrichment_table_record("threatlist", { "ip": geoip_ip }).tag ?? null
   }
-
-  ## Tag this stack's own operational chatter and other routine internal
-  ## polling - not from a monitored device/network, but from the platform's
-  ## own components logging about themselves. Found in production: loki's
-  ## own query-engine debug output alone accounts for the large majority of
-  ## ingested volume (~647k of ~650k events sampled over 24h) - real signal
-  ## from actual monitored infrastructure was getting buried under it in
-  ## Search's default view, the Wall ticker, and even the Insights LLM's
-  ## own input (which ended up reviewing Loki's internals instead of the
-  ## network). Not dropped outright - an admin debugging Loki/Docker
-  ## directly may still want to see these - just tagged so every caller
-  ## that builds a LogQL query (siem-api's loki.BuildQuery) can exclude
-  ## them by default and let a user opt back in.
-  INTERNAL_NOISE_PROGRAMS = ["loki", "docker-socket-proxy", "dockersocket", "Redis"]
-  .internal_noise = includes(INTERNAL_NOISE_PROGRAMS, .appname)
 '''
 
 ## Bug found and fixed here (same direct-testing process as Task 3's
