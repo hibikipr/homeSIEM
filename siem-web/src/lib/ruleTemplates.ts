@@ -49,7 +49,14 @@ export const RULE_TEMPLATES: RuleTemplate[] = [
 		name: 'source-quiet',
 		shape: 'absence',
 		logql: '',
-		windowSec: 60,
+		// This is the correlation window (see RuleForm's label for this
+		// shape), not a detection window - AbsenceEvaluator decides
+		// staleness from each source's own heartbeat, never this value.
+		// 4 hours: a real production case had three unrelated sources go
+		// quiet ~4 hours apart overnight, from what was almost certainly
+		// one shared cause - narrow enough that two things going quiet
+		// days apart still get their own separate alerts.
+		windowSec: 4 * 60 * 60,
 		threshold: 1,
 		groupBy: '',
 		severity: 'warning'

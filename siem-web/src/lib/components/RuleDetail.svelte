@@ -75,7 +75,27 @@
 	<h1>{rule.name}</h1>
 	<div class="meta">
 		<span>severity: {rule.severity}</span>
-		<span>window: {formatSecondsAsMinutes(rule.window_sec)}</span>
+		{#if rule.shape === 'absence'}
+			<!-- Found in production: this used to show unconditionally as a
+			     bare "window: 1m" for an absence rule, which read as
+			     inconsistent against the 900-second heartbeat cited in the
+			     rule's own alert text - they never reconciled because
+			     AbsenceEvaluator doesn't use window_sec to decide staleness
+			     at all (it checks each source's own HeartbeatSec). Rather
+			     than hide a field that could carry real meaning,
+			     window_sec is repurposed for this shape specifically as
+			     the correlation window: sources going quiet within this
+			     long of each other raise one combined alert instead of one
+			     per source (rules.correlatedCandidate). Labeled
+			     accordingly so it doesn't look like the old, unrelated
+			     "detection window" meaning threshold/first_seen use. -->
+			<span>correlation window: {formatSecondsAsMinutes(rule.window_sec)}</span>
+		{:else if rule.shape !== 'insight'}
+			<!-- insight doesn't use window_sec either (InsightEvaluator
+			     reads only severity and last_run_at) and has no comparable
+			     use to repurpose it for - stays hidden, matching RuleForm. -->
+			<span>window: {formatSecondsAsMinutes(rule.window_sec)}</span>
+		{/if}
 		<span>cooldown: {formatSecondsAsMinutes(rule.cooldown_sec)}</span>
 		<span>evaluates every: {formatSecondsAsMinutes(rule.interval_sec)}</span>
 	</div>

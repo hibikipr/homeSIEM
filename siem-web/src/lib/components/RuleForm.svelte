@@ -174,7 +174,14 @@
 			</label>
 			<p class="hint">The Loki query this rule watches - same syntax as Search's query bar.</p>
 		{/if}
-		{#if shape !== 'absence' && shape !== 'insight'}
+		{#if shape === 'absence'}
+			<MinutesPicker
+				bind:seconds={windowSec}
+				presetsMinutes={WINDOW_PRESETS_MIN}
+				label="Correlation window"
+				description="If multiple sources go quiet within this long of each other, raise one combined alert instead of one per source - multiple unrelated devices going silent together is usually one shared cause (the collector, a network segment, a router), not independent coincidences."
+			/>
+		{:else if shape !== 'insight'}
 			<MinutesPicker
 				bind:seconds={windowSec}
 				presetsMinutes={WINDOW_PRESETS_MIN}
