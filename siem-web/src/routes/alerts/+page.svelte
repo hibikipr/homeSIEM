@@ -44,14 +44,25 @@
 			<i class="ph ph-arrow-left"></i> Back
 		</a>
 		{#if data.selectedAlert && data.stats}
-			<AlertDetail
-				alert={data.selectedAlert}
-				samples={data.selectedSamples}
-				stats={data.stats}
-				rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
-				sourceDisplayNames={data.sourceDisplayNames}
-				liveSources={data.liveSourcesByName}
-			/>
+			{#await Promise.all([data.sourceDisplayNames, data.liveSourcesByName])}
+				<AlertDetail
+					alert={data.selectedAlert}
+					samples={data.selectedSamples}
+					stats={data.stats}
+					rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
+					sourceDisplayNames={{}}
+					liveSources={{}}
+				/>
+			{:then [sourceDisplayNames, liveSources]}
+				<AlertDetail
+					alert={data.selectedAlert}
+					samples={data.selectedSamples}
+					stats={data.stats}
+					rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
+					{sourceDisplayNames}
+					{liveSources}
+				/>
+			{/await}
 		{:else if data.selectedRule}
 			<RuleDetail
 				rule={data.selectedRule}

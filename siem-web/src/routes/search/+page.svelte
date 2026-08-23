@@ -92,12 +92,21 @@
 	</div>
 	<div class="body" class:has-selection={hasSelection}>
 		<div class="pane pane-list">
-			<FacetRail
-				entries={data.entries}
-				claimedSources={data.claimedSources}
-				facets={data.facets}
-				onFacetClick={facetClick}
-			/>
+			{#await data.claimedSources}
+				<FacetRail
+					entries={data.entries}
+					claimedSources={[]}
+					facets={data.facets}
+					onFacetClick={facetClick}
+				/>
+			{:then claimedSources}
+				<FacetRail
+					entries={data.entries}
+					{claimedSources}
+					facets={data.facets}
+					onFacetClick={facetClick}
+				/>
+			{/await}
 			<ResultTable
 				entries={data.entries}
 				selectedIndex={data.previewIndex}
@@ -110,12 +119,21 @@
 			<button type="button" class="back-link" onclick={closeSelection}>
 				<i class="ph ph-arrow-left"></i> Back
 			</button>
-			<EventInspector
-				entry={data.selectedEntry}
-				contextSummary={data.contextSummary}
-				onFilterToSrc={filterToSrc}
-				onRuleFromThis={ruleFromEvent}
-			/>
+			{#await data.contextSummary}
+				<EventInspector
+					entry={data.selectedEntry}
+					contextSummary={null}
+					onFilterToSrc={filterToSrc}
+					onRuleFromThis={ruleFromEvent}
+				/>
+			{:then contextSummary}
+				<EventInspector
+					entry={data.selectedEntry}
+					{contextSummary}
+					onFilterToSrc={filterToSrc}
+					onRuleFromThis={ruleFromEvent}
+				/>
+			{/await}
 		</div>
 	</div>
 </div>

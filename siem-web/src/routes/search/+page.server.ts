@@ -16,13 +16,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// The Source facet needs the full list of claimed sources, not just
 	// whatever happens to be in the current (filtered, capped) result set -
 	// see mergeSourceFacet's own comment for why. Supplementary, not gated
-	// content: started here so its round trip overlaps with the main
-	// search below rather than adding to it, and a failure here degrades to
-	// an empty list rather than breaking the page. Carries display_name
-	// alongside name so the facet can show an operator-set rename (e.g.
-	// "Home Assistant" instead of a bare IP) without changing what
-	// onFacetClick actually filters on.
-	const claimedSourcesPromise = client
+	// content: streamed to the client (not awaited before load() returns -
+	// see the return statement) rather than blocking the whole page on it,
+	// and a failure here degrades to an empty list rather than breaking the
+	// page. Carries display_name alongside name so the facet can show an
+	// operator-set rename (e.g. "Home Assistant" instead of a bare IP)
+	// without changing what onFacetClick actually filters on.
+	const claimedSources = client
 		.getSources(token)
 		.then((sources) =>
 			sources.filter((s) => s.claimed).map((s) => ({ name: s.name, displayName: s.display_name }))
@@ -69,34 +69,36 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			? result.entries[previewIndex]
 			: null;
 
-	let contextSummary: { count: number } | null = null;
+	// Supplementary callout, same streamed-not-blocking posture as
+	// claimedSources above - null (not a promise) when there's nothing to
+	// look up, which {#await} in +page.svelte treats as an
+	// already-resolved value.
+	let contextSummary: Promise<{ count: number } | null> | null = null;
 	if (selectedEntry) {
 		const srcIp = extractSrcIp(selectedEntry.Line);
 		if (srcIp) {
-			try {
-				// entries=false/volume=false: this callout only ever shows
-				// contextResult.count - fetching up to 5000 full log entries
-				// (and a volume histogram) just to read their length was
-				// measurably slower than asking siem-api for a real
-				// aggregate count directly.
-				const contextResult = await client.search(token, {
+			// entries=false/volume=false: this callout only ever shows
+			// contextResult.count - fetching up to 5000 full log entries
+			// (and a volume histogram) just to read their length was
+			// measurably slower than asking siem-api for a real
+			// aggregate count directly.
+			contextSummary = client
+				.search(token, {
 					q: srcIp,
 					start: new Date(end.getTime() - 24 * 60 * 60 * 1000).toISOString(),
 					end: end.toISOString(),
 					entries: 'false',
 					volume: 'false'
+				})
+				.then((contextResult) => ({ count: contextResult.count }))
+				.catch((err) => {
+					// Context callout is supplementary — a failure here
+					// shouldn't take down the rest of the page.
+					console.error('search: context summary lookup failed', err);
+					return null;
 				});
-				contextSummary = { count: contextResult.count };
-			} catch (err) {
-				// Context callout is supplementary — a failure here shouldn't
-				// take down the rest of the page.
-				console.error('search: context summary lookup failed', err);
-				contextSummary = null;
-			}
 		}
 	}
-
-	const claimedSources = await claimedSourcesPromise;
 
 	return {
 		filters,

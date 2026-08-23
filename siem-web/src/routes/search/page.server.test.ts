@@ -45,17 +45,21 @@ describe('Search load', () => {
 			expect.objectContaining({ limit: '1000' })
 		);
 		// fakeGetSources() returns one claimed and one unclaimed source -
-		// only the claimed one should survive into page data.
-		expect(result.claimedSources).toEqual([{ name: 'udm-ultra', displayName: '' }]);
+		// only the claimed one should survive into page data. claimedSources
+		// is streamed (not awaited before load() returns - see the
+		// module-level comment on it), hence the extra await here.
+		await expect(result.claimedSources).resolves.toEqual([{ name: 'udm-ultra', displayName: '' }]);
 	});
 
 	it('carries display_name through as displayName for the Source facet to use', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
 				search: vi.fn().mockResolvedValue(fakeSearchResult()),
-				getSources: vi.fn().mockResolvedValue([
-					{ id: 7, name: '192.168.3.223', display_name: 'Home Assistant', claimed: true }
-				])
+				getSources: vi
+					.fn()
+					.mockResolvedValue([
+						{ id: 7, name: '192.168.3.223', display_name: 'Home Assistant', claimed: true }
+					])
 			};
 		});
 
@@ -64,7 +68,7 @@ describe('Search load', () => {
 			url: new URL('https://siem.townsville.cc/search')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
-		expect(result.claimedSources).toEqual([
+		await expect(result.claimedSources).resolves.toEqual([
 			{ name: '192.168.3.223', displayName: 'Home Assistant' }
 		]);
 	});
@@ -82,7 +86,7 @@ describe('Search load', () => {
 			url: new URL('https://siem.townsville.cc/search')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
-		expect(result.claimedSources).toEqual([]);
+		await expect(result.claimedSources).resolves.toEqual([]);
 	});
 
 	it('has no selected entry or context summary when ?preview= is absent', async () => {
@@ -127,13 +131,43 @@ describe('Search load', () => {
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		expect(result.selectedEntry?.Line).toBe('{"src_ip":"10.0.0.5"}');
-		expect(result.contextSummary).toEqual({ count: 4 });
+		// contextSummary is streamed when there's a src_ip to look up (not
+		// awaited before load() returns) - see the module-level comment.
+		await expect(result.contextSummary).resolves.toEqual({ count: 4 });
 		expect(searchMock).toHaveBeenCalledTimes(2);
 		expect(searchMock).toHaveBeenNthCalledWith(
 			2,
 			'token-123',
 			expect.objectContaining({ entries: 'false', volume: 'false' })
 		);
+	});
+
+	it('degrades contextSummary to null without throwing when the context lookup fails', async () => {
+		const searchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				fakeSearchResult({
+					entries: [
+						{
+							Timestamp: '2026-08-05T00:00:00Z',
+							Labels: { severity: 'critical' },
+							Line: '{"src_ip":"10.0.0.5"}'
+						}
+					]
+				})
+			)
+			.mockRejectedValueOnce(new SiemApiError(500, 'loki unavailable'));
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return { search: searchMock, getSources: fakeGetSources() };
+		});
+
+		const result = (await load({
+			locals: { sessionToken: 'token-123' },
+			url: new URL('https://siem.townsville.cc/search?preview=0')
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+		expect(result.selectedEntry?.Line).toBe('{"src_ip":"10.0.0.5"}');
+		await expect(result.contextSummary).resolves.toBeNull();
 	});
 
 	it('resolves previewIndex to null when ?preview= is non-numeric', async () => {
