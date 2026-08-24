@@ -128,7 +128,7 @@ func TestEventsStats_QueriesLokiConcurrently(t *testing.T) {
 	// Each of the ~76 Loki instant queries this handler makes (1 total +
 	// 3*25 hourly-by-source) artificially takes lokiLatency here. Run
 	// sequentially, that's ~76*lokiLatency; run concurrently (bounded by
-	// maxConcurrentLokiQueries), it should take a small, roughly constant
+	// MaxConcurrentLokiQueries), it should take a small, roughly constant
 	// number of "rounds" regardless of how many buckets there are. This is
 	// the actual regression test for the fix - it would fail again if
 	// someone reverts to a sequential loop.

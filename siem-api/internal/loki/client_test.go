@@ -9,6 +9,27 @@ import (
 	"time"
 )
 
+func TestNewHTTPClient_TunesConnectionPoolAndTimeout(t *testing.T) {
+	client := NewHTTPClient(30*time.Second, 12)
+
+	if client.Timeout != 30*time.Second {
+		t.Errorf("Timeout = %v, want 30s", client.Timeout)
+	}
+
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("Transport = %T, want *http.Transport", client.Transport)
+	}
+	// The default (2) is far too small once queryHourlyBySource fires up to
+	// MaxConcurrentLokiQueries requests at once (see stats.go) - most of
+	// those connections would otherwise get torn down and re-established
+	// (a fresh DNS lookup + TCP handshake each time) on every single Wall
+	// page load instead of staying pooled and reused.
+	if transport.MaxIdleConnsPerHost != 12 {
+		t.Errorf("MaxIdleConnsPerHost = %d, want 12", transport.MaxIdleConnsPerHost)
+	}
+}
+
 func TestQueryRange_ParsesAndSortsEntries(t *testing.T) {
 	var gotQuery url.Values
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -51,7 +51,13 @@ func main() {
 		}
 	}
 
-	lokiClient := loki.New(cfg.LokiURL, &http.Client{Timeout: 30 * time.Second})
+	// MaxConcurrentLokiQueries: keeps this client's connection pool sized to
+	// match how many concurrent Loki requests events/stats can actually fire
+	// at once (see loki.NewHTTPClient's own doc comment for why this
+	// matters) - not the default (2), which was fine when every call was
+	// sequential but starts causing connection/DNS churn on every Wall page
+	// load once several requests are in flight together.
+	lokiClient := loki.New(cfg.LokiURL, loki.NewHTTPClient(30*time.Second, api.MaxConcurrentLokiQueries))
 	vectorClient := vector.New(cfg.VectorGraphQLURL, &http.Client{Timeout: 10 * time.Second})
 	ntfyClient := ntfy.New(cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyToken, &http.Client{Timeout: 10 * time.Second})
 	hub := sse.NewHub()

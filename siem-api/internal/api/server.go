@@ -52,7 +52,7 @@ type Deps struct {
 	InsightsLookbackMin int
 }
 
-// maxConcurrentLokiQueries bounds how many Loki requests this server fires
+// MaxConcurrentLokiQueries bounds how many Loki requests this server fires
 // at once across all in-flight requests, not just within a single
 // queryHourlyBySource call - see stats.go's handleEventsStats, which can
 // have three queryHourlyBySource calls in flight at the same time, each
@@ -60,7 +60,13 @@ type Deps struct {
 // overwhelming a modest homelab Loki instance (trading "slow" for "flaky")
 // in exchange for marginal extra speedup once concurrency is already this
 // high.
-const maxConcurrentLokiQueries = 12
+//
+// Exported so cmd/siem-api can size the Loki HTTP client's connection pool
+// (MaxIdleConnsPerHost) to match - otherwise the default of 2 idle
+// connections per host means most of these concurrent requests tear down
+// and re-establish a fresh connection (and DNS lookup) on every Wall page
+// load instead of reusing a warm one from the last.
+const MaxConcurrentLokiQueries = 12
 
 type Server struct {
 	mux     *http.ServeMux
@@ -69,7 +75,7 @@ type Server struct {
 }
 
 func NewServer(deps Deps) *Server {
-	s := &Server{mux: http.NewServeMux(), deps: deps, lokiSem: make(chan struct{}, maxConcurrentLokiQueries)}
+	s := &Server{mux: http.NewServeMux(), deps: deps, lokiSem: make(chan struct{}, MaxConcurrentLokiQueries)}
 	s.routes()
 	return s
 }
