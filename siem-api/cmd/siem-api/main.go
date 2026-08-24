@@ -51,7 +51,19 @@ func main() {
 		}
 	}
 
-	lokiClient := loki.New(cfg.LokiURL, &http.Client{Timeout: 30 * time.Second})
+	// A single Search/Wall page load fans out up to 7 concurrent Loki
+	// requests (handleEventsSearch's 3 top-level goroutines - entries,
+	// count, volume - plus queryFacets' 4: severity, program, source,
+	// country), all against this one shared *http.Client. Left on
+	// http.DefaultTransport (implicit whenever Transport is nil), Go caps
+	// idle connections per host at 2 - so most of those 7 connections were
+	// getting torn down and re-established, including a fresh DNS lookup,
+	// on every load instead of staying warm. 16 covers that fan-out with
+	// room for a couple of concurrent browser sessions before any
+	// connection has to be rebuilt from scratch.
+	lokiTransport := http.DefaultTransport.(*http.Transport).Clone()
+	lokiTransport.MaxIdleConnsPerHost = 16
+	lokiClient := loki.New(cfg.LokiURL, &http.Client{Timeout: 30 * time.Second, Transport: lokiTransport})
 	vectorClient := vector.New(cfg.VectorGraphQLURL, &http.Client{Timeout: 10 * time.Second})
 	ntfyClient := ntfy.New(cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyToken, &http.Client{Timeout: 10 * time.Second})
 	hub := sse.NewHub()
