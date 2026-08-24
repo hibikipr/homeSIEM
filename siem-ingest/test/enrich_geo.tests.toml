@@ -1354,6 +1354,84 @@ name = "a different app's message shaped like Portainer's docker-cli passthrough
     '''
 
 [[tests]]
+name = "rsyslog-escaped ANSI codes (tinyauth zerolog output) are stripped from .message before Loki"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    appname = "tinyauth"
+    severity = "warning"
+    parser = "rfc5424"
+    message = "#033[90m2026-08-24T00:57:16Z#033[0m #033[33mWRN#033[0m #033[1mClient Error#033[0m #033[36maddress=#033[0m172.18.0.25:51658 #033[36mclient_ip=#033[0m172.18.0.25 #033[36mlatency=#033[0m18.841709ms #033[36mmethod=#033[0mGET #033[36mpath=#033[0m/api/auth/nginx #033[36mstatus=#033[0m401 #033[36mstream=#033[0mhttp"
+
+  [[tests.outputs]]
+  extract_from = "strip_ansi_noise"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Real captured tinyauth line - found in production that rsyslog's
+      ## RFC5424 sanitization of the raw ANSI ESC byte zerolog's console
+      ## writer emits arrives here as inert literal text ("#033[33m..."),
+      ## never a real control byte again, so it just sits in every
+      ## affected line as unreadable noise instead of rendering as color.
+      assert_eq!(.message, "2026-08-24T00:57:16Z WRN Client Error address=172.18.0.25:51658 client_ip=172.18.0.25 latency=18.841709ms method=GET path=/api/auth/nginx status=401 stream=http")
+    '''
+
+[[tests]]
+name = "literal backslash ANSI escape (grafana's entrypoint script) is stripped from .message before Loki"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    appname = "grafana"
+    severity = "warning"
+    parser = "rfc5424"
+    message = '\033[0;33mWARN\033[0m: GF_INSTALL_PLUGINS is deprecated. Use GF_PLUGINS_PREINSTALL or GF_PLUGINS_PREINSTALL_SYNC instead.'
+
+  [[tests.outputs]]
+  extract_from = "strip_ansi_noise"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## Different mechanism from the tinyauth case above (a literal
+      ## "\033[" 4-character text from an `echo` without `-e` bug in
+      ## grafana's own entrypoint script, not rsyslog escaping a real
+      ## control byte - see enrich_geo's own comment on this), but the
+      ## same visible symptom and the same fix covers both.
+      assert_eq!(.message, "WARN: GF_INSTALL_PLUGINS is deprecated. Use GF_PLUGINS_PREINSTALL or GF_PLUGINS_PREINSTALL_SYNC instead.")
+    '''
+
+[[tests]]
+name = "a message with no ANSI codes at all passes through strip_ansi_noise unchanged"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    severity = "info"
+    parser = "rfc5424"
+    message = "backup completed with 0 errors"
+
+  [[tests.outputs]]
+  extract_from = "strip_ansi_noise"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.message, "backup completed with 0 errors")
+    '''
+
+[[tests]]
 name = "netfilter event with a valid public src still gets geoip enrichment (pre-existing path, unaffected)"
 
   [tests.input]
