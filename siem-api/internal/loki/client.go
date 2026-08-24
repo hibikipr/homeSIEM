@@ -33,6 +33,21 @@ func New(baseURL string, httpClient *http.Client) *Client {
 	return &Client{baseURL: baseURL, httpClient: httpClient}
 }
 
+// NewHTTPClient builds an *http.Client suited to this package's caller
+// pattern: many short-lived requests to one host, some of them concurrent
+// (see internal/api/stats.go's queryHourlyBySource). http.DefaultTransport's
+// default MaxIdleConnsPerHost is 2 - far too small once several requests are
+// ever in flight at once, since Go tears down and re-establishes a fresh
+// connection (a new DNS lookup + TCP handshake) for anything beyond the
+// pooled idle connections, on every burst of queries. maxIdleConnsPerHost
+// should match the caller's own concurrency cap so a full burst stays
+// pooled and reusable on the next one instead of mostly churning.
+func NewHTTPClient(timeout time.Duration, maxIdleConnsPerHost int) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = maxIdleConnsPerHost
+	return &http.Client{Timeout: timeout, Transport: transport}
+}
+
 type queryRangeResponse struct {
 	Status string `json:"status"`
 	Data   struct {
