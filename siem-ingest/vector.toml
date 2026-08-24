@@ -794,6 +794,30 @@ tag = "string"
 
 # ---------------------------------------------------------- heartbeat
 
+## rsyslog escapes a real ANSI color-code control byte (the zerolog console
+## writer used by portainer/tinyauth/uptime-kuma and others, plus grafana's
+## own literal "\033[...]" entrypoint-script bug - see enrich_geo's
+## severity-detection branches above, which parse THROUGH these same
+## patterns before this transform ever runs) into the literal 4-character
+## text "#033[<params>m" - not a real control byte by the time it reaches
+## here, so it never renders as color again, it just sits in every affected
+## line as inert escape-code noise ("#033[33mWRN#033[0m" instead of a
+## colored "WRN"). Found in production: 18k+ lines/24h across portainer,
+## immich, manyfold, uptime-kuma, tinyauth, homarr, dockge, loki carrying
+## this. Purely cosmetic - severity is already extracted from the original
+## .message upstream in enrich_geo, unaffected by stripping it here after
+## the fact. Scoped to the Loki-bound path only, same reasoning as
+## drop_blank_messages right below: fast_path/heartbeat_throttle/
+## heartbeat_shape don't read .message at all.
+[transforms.strip_ansi_noise]
+type = "remap"
+inputs = ["enrich_geo"]
+source = '''
+  if is_string(.message) {
+    .message = replace!(.message, r'(?:#033|\\033)\[[0-9;]*m', "")
+  }
+'''
+
 ## Found in production: Scrypted forwards ffmpeg's own multi-line startup
 ## banner (Duration/Metadata/Stream info printed to stderr on every
 ## motion-triggered recording or rebroadcast) line-by-line over syslog -
@@ -808,10 +832,13 @@ tag = "string"
 ## (not fast_path or the heartbeat pipeline) - fast_path cares about
 ## .threat_intel/.action, and heartbeat_throttle/heartbeat_shape use
 ## .source/.source_ip/.transport/.parser, none of which depend on .message,
-## so dropping blank-message noise here can't affect either.
+## so dropping blank-message noise here can't affect either. Reads from
+## strip_ansi_noise (not enrich_geo directly) so a line that was ONLY ANSI
+## codes - already effectively blank - also gets dropped, not just
+## genuinely-empty-from-the-start lines.
 [transforms.drop_blank_messages]
 type = "filter"
-inputs = ["enrich_geo"]
+inputs = ["strip_ansi_noise"]
 condition = '''
   !(is_string(.message) && .message == "")
 '''
