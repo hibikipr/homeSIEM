@@ -52,13 +52,24 @@ type Deps struct {
 	InsightsLookbackMin int
 }
 
+// maxConcurrentLokiQueries bounds how many Loki requests this server fires
+// at once across all in-flight requests, not just within a single
+// queryHourlyBySource call - see stats.go's handleEventsStats, which can
+// have three queryHourlyBySource calls in flight at the same time, each
+// wanting to fire 25 of its own. Firing all of those unbounded risks
+// overwhelming a modest homelab Loki instance (trading "slow" for "flaky")
+// in exchange for marginal extra speedup once concurrency is already this
+// high.
+const maxConcurrentLokiQueries = 12
+
 type Server struct {
-	mux  *http.ServeMux
-	deps Deps
+	mux     *http.ServeMux
+	deps    Deps
+	lokiSem chan struct{}
 }
 
 func NewServer(deps Deps) *Server {
-	s := &Server{mux: http.NewServeMux(), deps: deps}
+	s := &Server{mux: http.NewServeMux(), deps: deps, lokiSem: make(chan struct{}, maxConcurrentLokiQueries)}
 	s.routes()
 	return s
 }

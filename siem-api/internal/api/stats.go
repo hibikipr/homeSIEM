@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"sync"
 	"time"
+
+	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
 )
 
 type statsResponse struct {
@@ -38,28 +41,54 @@ func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
 	end := time.Now().UTC()
 	start := end.Add(-24 * time.Hour)
 
-	total, err := s.queryTotal24h(ctx, start, end)
-	if err != nil {
-		s.deps.Logger.Error("events stats: total query failed", "error", err)
-		http.Error(w, "query failed", http.StatusBadGateway)
-		return
-	}
+	// The four queries below are independent of each other, so they run
+	// concurrently instead of one after another - each already fires up to
+	// 25 of its own concurrent Loki requests (see queryHourlyBySource), all
+	// sharing this server's single lokiSem cap, so this doesn't multiply
+	// peak Loki load, just how much of it can overlap in time.
+	var (
+		total                     int64
+		critical, warning, volume bySourceHourly
+		totalErr, criticalErr     error
+		warningErr, volumeErr     error
+	)
+	var wg sync.WaitGroup
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		total, totalErr = s.queryTotal24h(ctx, start, end)
+	}()
+	go func() {
+		defer wg.Done()
+		critical, criticalErr = s.queryHourlyBySource(ctx, `severity="critical"`, start, end)
+	}()
+	go func() {
+		defer wg.Done()
+		warning, warningErr = s.queryHourlyBySource(ctx, `severity="warning"`, start, end)
+	}()
+	go func() {
+		defer wg.Done()
+		volume, volumeErr = s.queryHourlyBySource(ctx, "", start, end)
+	}()
+	wg.Wait()
 
-	critical, err := s.queryHourlyBySource(ctx, `severity="critical"`, start, end)
-	if err != nil {
-		s.deps.Logger.Error("events stats: critical query failed", "error", err)
+	if totalErr != nil {
+		s.deps.Logger.Error("events stats: total query failed", "error", totalErr)
 		http.Error(w, "query failed", http.StatusBadGateway)
 		return
 	}
-	warning, err := s.queryHourlyBySource(ctx, `severity="warning"`, start, end)
-	if err != nil {
-		s.deps.Logger.Error("events stats: warning query failed", "error", err)
+	if criticalErr != nil {
+		s.deps.Logger.Error("events stats: critical query failed", "error", criticalErr)
 		http.Error(w, "query failed", http.StatusBadGateway)
 		return
 	}
-	volume, err := s.queryHourlyBySource(ctx, "", start, end)
-	if err != nil {
-		s.deps.Logger.Error("events stats: volume query failed", "error", err)
+	if warningErr != nil {
+		s.deps.Logger.Error("events stats: warning query failed", "error", warningErr)
+		http.Error(w, "query failed", http.StatusBadGateway)
+		return
+	}
+	if volumeErr != nil {
+		s.deps.Logger.Error("events stats: volume query failed", "error", volumeErr)
 		http.Error(w, "query failed", http.StatusBadGateway)
 		return
 	}
@@ -97,8 +126,15 @@ type bySourceHourly map[string]map[int64]float64
 // queryHourlyBySource issues one instant query per hour bucket from start
 // to end (inclusive) instead of a single QueryMatrix call - more requests
 // (25 for a 24h window instead of 1), but each is a cheap single-point
-// aggregation and this only runs once per Wall page load, not a hot path.
-// Bucket map keys are the loop's own bucket timestamps, not whatever Loki
+// aggregation. These 25 fire concurrently (bounded by the server's shared
+// lokiSem, since handleEventsStats can have up to three of these calls
+// overlapping too) rather than one at a time - sequentially, 25 requests
+// at real-world Loki latency was measured adding several seconds to every
+// single Wall page load. Bucket-index results are collected into a plain
+// slice (one slot per bucket, filled by its own goroutine) rather than a
+// shared map, so no locking is needed for the fan-out itself; the final
+// bySourceHourly map is only assembled afterward, once all goroutines have
+// finished. Map keys are each bucket's own timestamp, not whatever Loki
 // echoes back in the response, so they line up exactly with
 // buildHourlyTotals' identical start-to-end hourly walk.
 func (s *Server) queryHourlyBySource(ctx context.Context, labelFilter string, start, end time.Time) (bySourceHourly, error) {
@@ -108,12 +144,35 @@ func (s *Server) queryHourlyBySource(ctx context.Context, labelFilter string, st
 	}
 	logql := fmt.Sprintf(`sum by (source) (count_over_time(%s[1h]))`, selector)
 
-	out := bySourceHourly{}
+	var buckets []time.Time
 	for bucket := start; !bucket.After(end); bucket = bucket.Add(time.Hour) {
-		result, err := s.deps.Loki.QueryInstant(ctx, logql, bucket)
+		buckets = append(buckets, bucket)
+	}
+
+	results := make([]loki.MatrixResult, len(buckets))
+	errs := make([]error, len(buckets))
+
+	var wg sync.WaitGroup
+	wg.Add(len(buckets))
+	for i, bucket := range buckets {
+		go func(i int, bucket time.Time) {
+			defer wg.Done()
+			s.lokiSem <- struct{}{}
+			defer func() { <-s.lokiSem }()
+			results[i], errs[i] = s.deps.Loki.QueryInstant(ctx, logql, bucket)
+		}(i, bucket)
+	}
+	wg.Wait()
+
+	for _, err := range errs {
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	out := bySourceHourly{}
+	for i, result := range results {
+		bucketTs := buckets[i].Unix()
 		for _, series := range result.Series {
 			source := series.Labels["source"]
 			hours := out[source]
@@ -122,7 +181,7 @@ func (s *Server) queryHourlyBySource(ctx context.Context, labelFilter string, st
 				out[source] = hours
 			}
 			for _, sample := range series.Samples {
-				hours[bucket.Unix()] = sample.Value
+				hours[bucketTs] = sample.Value
 			}
 		}
 	}
