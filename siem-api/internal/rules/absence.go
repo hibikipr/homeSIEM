@@ -8,15 +8,29 @@ import (
 	"time"
 
 	"github.com/hibikipr/homeSIEM/siem-api/internal/alerts"
+	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
 )
 
 type SourcesStore interface {
 	StaleSources(ctx context.Context, now time.Time) ([]store.Source, error)
+	// TouchSourceLastSeen lets reconcileWithLoki correct a source row's
+	// last_seen_at from a real Loki event it found - so Sources/AlertDetail
+	// stop showing a stale timestamp too, not just this one evaluation
+	// pass. Same method the /sources/heartbeat endpoint itself uses.
+	TouchSourceLastSeen(ctx context.Context, name string, at time.Time) error
 }
 
 type AbsenceEvaluator struct {
 	Sources SourcesStore
+	// Querier and JobLabel cross-check a source against Loki directly
+	// before trusting sources.last_seen_at - see reconcileWithLoki's own
+	// doc comment for why. Left nil in any test that doesn't care about
+	// this (every existing one before this field existed), reconciliation
+	// is skipped and StaleSources' verdict is trusted as-is, matching
+	// this evaluator's original behavior.
+	Querier  LokiQuerier
+	JobLabel string
 }
 
 // displayName prefers an operator-set Sources rename over the raw
@@ -58,6 +72,11 @@ func (e *AbsenceEvaluator) Evaluate(ctx context.Context, rule store.Rule) ([]ale
 		return nil, err
 	}
 
+	stale, err = e.reconcileWithLoki(ctx, stale)
+	if err != nil {
+		return nil, err
+	}
+
 	if candidate, ok := correlatedCandidate(rule, stale); ok {
 		return []alerts.Candidate{candidate}, nil
 	}
@@ -78,6 +97,63 @@ func (e *AbsenceEvaluator) Evaluate(ctx context.Context, rule store.Rule) ([]ale
 		})
 	}
 	return candidates, nil
+}
+
+// reconcileWithLoki cross-checks each candidate-stale source against Loki
+// directly before trusting StaleSources' verdict. sources.last_seen_at only
+// ever updates via siem-ingest's heartbeat_throttle, which allows at most
+// one /sources/heartbeat ping per 900s per source - a rate limiter, not a
+// guarantee of exactly-once-per-window delivery. A single missed or delayed
+// ping (a siem-api restart landing mid-window, a brief network blip between
+// siem-ingest and siem-api) pushes the recorded gap past heartbeat_sec even
+// for a source that never actually stopped sending real events, producing a
+// false "gone silent" alert while the source's own event stream in Loki
+// never had a gap at all - confirmed directly against a real production
+// case this way (Loki showed continuous per-minute activity for a source
+// with three separate false alarms the same day).
+//
+// Ground truth is Loki's own event stream, not the throttled heartbeat row,
+// so ask it directly: if a real event exists for this source within its own
+// heartbeat_sec window, it is not silent, full stop - regardless of what
+// the DB row says. Self-heals the DB row from that real timestamp too (via
+// TouchSourceLastSeen), so Sources/AlertDetail stop showing a stale
+// last_seen_at as a side effect of this check, not just this evaluation
+// pass, and don't need a genuinely fresh heartbeat ping to catch back up.
+func (e *AbsenceEvaluator) reconcileWithLoki(ctx context.Context, stale []store.Source) ([]store.Source, error) {
+	if e.Querier == nil || len(stale) == 0 {
+		return stale, nil
+	}
+
+	now := time.Now().UTC()
+	out := make([]store.Source, 0, len(stale))
+	for _, src := range stale {
+		window := time.Duration(src.HeartbeatSec) * time.Second
+		logql := loki.BuildQuery(e.JobLabel, loki.Filters{Source: src.Name})
+
+		result, err := e.Querier.QueryRange(ctx, logql, now.Add(-window), now, 1)
+		if err != nil {
+			// Loki being unreachable must not block absence detection
+			// entirely - that would let a real Loki outage silently mask
+			// every other source's outage too. Fall back to trusting
+			// StaleSources' verdict for this source, same as before this
+			// check existed.
+			out = append(out, src)
+			continue
+		}
+		if len(result.Entries) == 0 {
+			out = append(out, src) // genuinely stale - no recent real events either
+			continue
+		}
+
+		// A real event exists inside the heartbeat window - not silent,
+		// regardless of what last_seen_at says. Correct it and drop this
+		// source from the stale set instead of appending.
+		latest := result.Entries[0].Timestamp
+		if err := e.Sources.TouchSourceLastSeen(ctx, src.Name, latest); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // correlatedCandidate returns a single alert covering every currently-stale
