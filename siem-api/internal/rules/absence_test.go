@@ -2,20 +2,71 @@ package rules
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
 	"github.com/hibikipr/homeSIEM/siem-api/internal/store"
 )
 
 type fakeSourcesStore struct {
 	stale []store.Source
 	err   error
+
+	// touched records every TouchSourceLastSeen call reconcileWithLoki
+	// makes, keyed by source name, so tests can assert the DB row actually
+	// got self-healed from a real Loki timestamp.
+	touched map[string]time.Time
 }
 
 func (f *fakeSourcesStore) StaleSources(ctx context.Context, now time.Time) ([]store.Source, error) {
 	return f.stale, f.err
+}
+
+func (f *fakeSourcesStore) TouchSourceLastSeen(ctx context.Context, name string, at time.Time) error {
+	if f.touched == nil {
+		f.touched = map[string]time.Time{}
+	}
+	f.touched[name] = at
+	return nil
+}
+
+// fakeAbsenceLokiQuerier maps a source name (parsed out of the LogQL this
+// evaluator builds via loki.BuildQuery) to a canned QueryRange result -
+// enough to drive reconcileWithLoki without needing a real Loki.
+type fakeAbsenceLokiQuerier struct {
+	// entries maps source name -> the single most-recent entry QueryRange
+	// should return for it. A name absent from this map yields zero
+	// entries (genuinely no recent event).
+	entries map[string]loki.LogEntry
+	// errFor maps source name -> an error QueryRange should return for it,
+	// simulating Loki being unreachable for that specific query.
+	errFor map[string]error
+}
+
+func (f *fakeAbsenceLokiQuerier) QueryRange(ctx context.Context, logql string, start, end time.Time, limit int) (loki.QueryResult, error) {
+	// loki.BuildQuery always renders the source label as the first
+	// selector after job=..., e.g. {job="siem",source="host-a",...} -
+	// parsed back out here rather than threading the source name through
+	// a second channel, so this fake exercises the real query the
+	// evaluator builds instead of a hand-picked stand-in for it.
+	name := ""
+	if i := strings.Index(logql, `source="`); i != -1 {
+		rest := logql[i+len(`source="`):]
+		if j := strings.Index(rest, `"`); j != -1 {
+			name = rest[:j]
+		}
+	}
+	if err, ok := f.errFor[name]; ok {
+		return loki.QueryResult{}, err
+	}
+	entry, ok := f.entries[name]
+	if !ok {
+		return loki.QueryResult{}, nil
+	}
+	return loki.QueryResult{Entries: []loki.LogEntry{entry}}, nil
 }
 
 func TestAbsenceEvaluator_OneCandidateForASingleStaleSource(t *testing.T) {
@@ -210,5 +261,123 @@ func TestAbsenceEvaluator_CorrelatedGroupKeyIsOrderIndependent(t *testing.T) {
 	}
 	if got1[0].GroupKey != got2[0].GroupKey {
 		t.Errorf("GroupKey = %q vs %q, want the same regardless of StaleSources' return order", got1[0].GroupKey, got2[0].GroupKey)
+	}
+}
+
+// TestAbsenceEvaluator_LokiReconciliation is the regression test for a real
+// production case: a source's own event stream in Loki was continuously
+// active (a real event within its heartbeat window, every time checked),
+// yet sources.last_seen_at - only ever updated via siem-ingest's throttled
+// heartbeat ping, at most once per 900s - fell far enough behind to trip
+// StaleSources' verdict anyway, firing three false "gone silent" alerts the
+// same day. A source with real events must never be declared silent
+// regardless of what the throttled heartbeat row says.
+func TestAbsenceEvaluator_LokiReconciliation(t *testing.T) {
+	dbLastSeen := time.Now().UTC().Add(-2 * time.Hour) // stale by StaleSources' own math
+	realEvent := time.Now().UTC().Add(-30 * time.Second)
+
+	sources := &fakeSourcesStore{stale: []store.Source{
+		{Name: "host-a", HeartbeatSec: 900, LastSeenAt: &dbLastSeen},
+	}}
+	querier := &fakeAbsenceLokiQuerier{entries: map[string]loki.LogEntry{
+		"host-a": {Timestamp: realEvent},
+	}}
+	e := &AbsenceEvaluator{Sources: sources, Querier: querier, JobLabel: "siem"}
+
+	candidates, err := e.Evaluate(context.Background(), store.Rule{ID: 1, Name: "source-heartbeat", Severity: "warning"})
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("len(candidates) = %d, want 0 - host-a has a real recent Loki event, it must not be declared silent", len(candidates))
+	}
+
+	got, ok := sources.touched["host-a"]
+	if !ok {
+		t.Fatal("TouchSourceLastSeen was never called for host-a - the DB row should self-heal from the real Loki timestamp")
+	}
+	if !got.Equal(realEvent) {
+		t.Errorf("touched last_seen_at = %v, want the real Loki event timestamp %v", got, realEvent)
+	}
+}
+
+// TestAbsenceEvaluator_LokiReconciliation_GenuinelyStaleStillAlerts proves
+// reconcileWithLoki doesn't just blanket-suppress every alert: a source
+// with no real recent Loki event either must still fire, unchanged from
+// before this check existed.
+func TestAbsenceEvaluator_LokiReconciliation_GenuinelyStaleStillAlerts(t *testing.T) {
+	dbLastSeen := time.Now().UTC().Add(-2 * time.Hour)
+	sources := &fakeSourcesStore{stale: []store.Source{
+		{Name: "host-a", HeartbeatSec: 900, LastSeenAt: &dbLastSeen},
+	}}
+	querier := &fakeAbsenceLokiQuerier{entries: map[string]loki.LogEntry{}} // nothing recent for anyone
+	e := &AbsenceEvaluator{Sources: sources, Querier: querier, JobLabel: "siem"}
+
+	candidates, err := e.Evaluate(context.Background(), store.Rule{ID: 1, Name: "source-heartbeat", Severity: "warning"})
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if len(candidates) != 1 {
+		t.Fatalf("len(candidates) = %d, want 1 - no real recent Loki event either, genuinely stale", len(candidates))
+	}
+	if _, touched := sources.touched["host-a"]; touched {
+		t.Error("TouchSourceLastSeen was called for a genuinely stale source - should only self-heal when a real event was actually found")
+	}
+}
+
+// TestAbsenceEvaluator_LokiReconciliation_LokiErrorFallsBackToStaleVerdict
+// proves a Loki outage doesn't silently mask every other source's real
+// outage too - reconcileWithLoki must degrade to trusting StaleSources'
+// verdict for whichever source it couldn't query, not fail the whole
+// evaluation or suppress the alert by default.
+func TestAbsenceEvaluator_LokiReconciliation_LokiErrorFallsBackToStaleVerdict(t *testing.T) {
+	dbLastSeen := time.Now().UTC().Add(-2 * time.Hour)
+	sources := &fakeSourcesStore{stale: []store.Source{
+		{Name: "host-a", HeartbeatSec: 900, LastSeenAt: &dbLastSeen},
+	}}
+	querier := &fakeAbsenceLokiQuerier{errFor: map[string]error{"host-a": errors.New("loki unreachable")}}
+	e := &AbsenceEvaluator{Sources: sources, Querier: querier, JobLabel: "siem"}
+
+	candidates, err := e.Evaluate(context.Background(), store.Rule{ID: 1, Name: "source-heartbeat", Severity: "warning"})
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v, want no error - a Loki query failure must degrade, not fail the whole evaluation", err)
+	}
+	if len(candidates) != 1 {
+		t.Fatalf("len(candidates) = %d, want 1 - Loki unreachable for this source, fall back to StaleSources' own verdict", len(candidates))
+	}
+}
+
+// TestAbsenceEvaluator_LokiReconciliation_CorrelationSeesReconciledSet
+// proves correlatedCandidate operates on the reconciled set, not the raw
+// StaleSources output - a source with real recent events must not be
+// folded into a "N sources went silent together" alert alongside sources
+// that are genuinely stale.
+func TestAbsenceEvaluator_LokiReconciliation_CorrelationSeesReconciledSet(t *testing.T) {
+	base := time.Now().UTC()
+	t1 := base.Add(-1 * time.Hour)
+	t2 := base.Add(-2 * time.Hour)
+	sources := &fakeSourcesStore{stale: []store.Source{
+		{Name: "host-a", HeartbeatSec: 900, LastSeenAt: &t1},
+		{Name: "host-b", HeartbeatSec: 900, LastSeenAt: &t2}, // has a real recent event below
+	}}
+	querier := &fakeAbsenceLokiQuerier{entries: map[string]loki.LogEntry{
+		"host-b": {Timestamp: base.Add(-30 * time.Second)},
+	}}
+	e := &AbsenceEvaluator{Sources: sources, Querier: querier, JobLabel: "siem"}
+
+	rule := store.Rule{ID: 1, Name: "source-heartbeat", Severity: "warning", WindowSec: 3 * 3600}
+	candidates, err := e.Evaluate(context.Background(), rule)
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if len(candidates) != 1 {
+		t.Fatalf("len(candidates) = %d, want 1 (host-a alone - host-b was reconciled away before correlation ever ran)", len(candidates))
+	}
+	c := candidates[0]
+	if strings.HasPrefix(c.GroupKey, "multi:") {
+		t.Errorf("GroupKey = %q, want a single-source alert for host-a - only one source is genuinely stale", c.GroupKey)
+	}
+	if c.GroupKey != "host-a" {
+		t.Errorf("GroupKey = %q, want host-a", c.GroupKey)
 	}
 }
