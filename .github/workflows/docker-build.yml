@@ -49,6 +49,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
@@ -58,3 +59,103 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      # A successful build only proves the binary/bundle is well-formed,
+      # not that the service actually starts and serves traffic. Boots
+      # the just-pushed image on both platforms and confirms /healthz
+      # responds - by digest, not a tag, so this is unambiguously the
+      # image this job just built. Config values below are all
+      # placeholders (siem-api/siem-web don't dial any of these
+      # synchronously at startup - config.Load() only requires them to be
+      # non-empty strings, and a background poller logging connection
+      # errors for an unreachable placeholder Loki is expected, not a
+      # boot failure) - this checks the process starts and its own HTTP
+      # server binds, not that a real backing Loki/ntfy/OIDC exists.
+      - name: Verify the image boots and serves /healthz
+        if: matrix.service == 'siem-api' || matrix.service == 'siem-web'
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}"
+          for platform in linux/amd64 linux/arm64; do
+            echo "::group::Verifying boot on ${platform}"
+
+            if [ "${{ matrix.service }}" = "siem-api" ]; then
+              docker run -d --name healthz-check --platform "${platform}" -p 18080:8080 \
+                -e DATABASE_URL=sqlite:///tmp/ci.db \
+                -e LOKI_URL=http://ci-placeholder.invalid \
+                -e NTFY_URL=http://ci-placeholder.invalid \
+                -e NTFY_TOPIC=ci-placeholder \
+                -e OIDC_ISSUER=http://ci-placeholder.invalid \
+                -e OIDC_CLIENT_ID=ci-placeholder \
+                -e SIEM_FASTPATH_TOKEN=ci-placeholder \
+                -e SIEM_SESSION_SECRET="$(head -c32 /dev/urandom | base64)" \
+                "${IMAGE}"
+            else
+              docker run -d --name healthz-check --platform "${platform}" -p 18080:8080 \
+                -e API_URL=http://ci-placeholder.invalid \
+                -e SESSION_SECRET="$(head -c32 /dev/urandom | base64)" \
+                "${IMAGE}"
+            fi
+
+            # 40x1s, not 15 - found in production on a sibling project's
+            # identical check (hibikipr/iSponsorblockTV_WebUI's first real
+            # CI run for this): the amd64 leg answers in a few seconds
+            # (native to the runner), but arm64 under QEMU emulation can
+            # still be starting up past 15s, failing the check as a false
+            # negative rather than a real boot failure.
+            ok=""
+            for i in $(seq 1 40); do
+              if body="$(curl -fsS http://localhost:18080/healthz 2>/dev/null)"; then
+                ok="${body}"
+                break
+              fi
+              sleep 1
+            done
+
+            docker logs healthz-check || true
+            docker rm -f healthz-check >/dev/null 2>&1 || true
+            # See hibikipr/obico-server#3: without this, the next
+            # platform's pull of the same digest reference fails outright
+            # with "docker: cannot overwrite digest" - the local image
+            # store ties a digest to one specific image's content, and
+            # two different real images (amd64 vs arm64) can't both live
+            # under that same reference at once.
+            docker rmi "${IMAGE}" >/dev/null 2>&1 || true
+
+            if [ -z "${ok}" ]; then
+              echo "::error::${platform}: container never responded on /healthz"
+              exit 1
+            fi
+            echo "${platform}: /healthz -> ${ok}"
+            echo "::endgroup::"
+          done
+
+      # No HTTP server to boot-check here - this image runs
+      # update-threatlist.py once, then sleeps (see entrypoint.sh).
+      # Verifies the real thing that matters instead: run one real update
+      # cycle (actual network fetches against the live threat-intel
+      # feeds, same as production) and confirm it exits 0 with a
+      # populated, correctly-shaped CSV - catches a broken feed URL, a
+      # runtime-only Python error, or a networking/TLS problem in the
+      # image that a build-success signal alone can't.
+      - name: Verify a real update cycle produces a populated threatlist
+        if: matrix.service == 'siem-threatlist-updater'
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}"
+          for platform in linux/amd64 linux/arm64; do
+            echo "::group::Verifying update cycle on ${platform}"
+            rm -rf out && mkdir out
+            docker run --rm --platform "${platform}" -v "$(pwd)/out:/out" \
+              --entrypoint python3 "${IMAGE}" \
+              /app/update-threatlist.py --output /out/threatlist.csv --verbose
+
+            docker rmi "${IMAGE}" >/dev/null 2>&1 || true
+
+            rows="$(tail -n +2 out/threatlist.csv | wc -l)"
+            head1="$(head -n1 out/threatlist.csv)"
+            if [ "${head1}" != "ip,tag" ] || [ "${rows}" -lt 1 ]; then
+              echo "::error::${platform}: threatlist.csv missing/malformed (header='${head1}', rows=${rows})"
+              exit 1
+            fi
+            echo "${platform}: wrote ${rows} rows"
+            echo "::endgroup::"
+          done
