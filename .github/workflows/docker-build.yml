@@ -13,6 +13,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      # Publish/verify each image independently - one failing must not
+      # cancel the others. Found in production: without this, a genuine
+      # threatlist-updater check failure cancelled the still-running
+      # siem-api/siem-web legs outright, losing the answer to whether
+      # those two would have passed at all.
+      fail-fast: false
       matrix:
         include:
           - service: siem-api
@@ -151,7 +157,12 @@ jobs:
             docker rmi "${IMAGE}" >/dev/null 2>&1 || true
 
             rows="$(tail -n +2 out/threatlist.csv | wc -l)"
-            head1="$(head -n1 out/threatlist.csv)"
+            # tr -d '\r': found in production (this exact check's first
+            # real CI run) - update-threatlist.py's csv.writer defaults to
+            # \r\n line endings, so the unstripped header compared unequal
+            # to the literal "ip,tag" despite being correct, failing a
+            # genuinely-good run.
+            head1="$(head -n1 out/threatlist.csv | tr -d '\r')"
             if [ "${head1}" != "ip,tag" ] || [ "${rows}" -lt 1 ]; then
               echo "::error::${platform}: threatlist.csv missing/malformed (header='${head1}', rows=${rows})"
               exit 1
