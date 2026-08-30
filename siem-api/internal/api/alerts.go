@@ -86,6 +86,7 @@ func (s *Server) handleAckAlert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ack failed", http.StatusInternalServerError)
 		return
 	}
+	s.publishAlertEvent("acked", id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -111,7 +112,26 @@ func (s *Server) handleMuteAlert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "mute failed", http.StatusInternalServerError)
 		return
 	}
+	s.publishAlertEvent("muted", id)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// publishAlertEvent notifies every open Wall/Alerts SSE connection
+// (handleAlertsStream, the "alerts" topic) that alert id changed state -
+// alerts/service.go's own alert-created publish is the only thing that
+// used to touch this topic, so an ack/mute made by one analyst never
+// reached anyone else's already-open browser tab; they'd only see it on
+// their own next action or a manual reload. siem-web's client
+// (+page.svelte's EventSource) doesn't inspect the payload today - any
+// message triggers a full invalidateAll() - but "type"/"id" are included
+// so a future consumer could react more surgically without that full
+// reload.
+func (s *Server) publishAlertEvent(eventType string, id int64) {
+	payload, _ := json.Marshal(struct {
+		Type string `json:"type"`
+		ID   int64  `json:"id"`
+	}{eventType, id})
+	s.deps.Hub.Publish("alerts", payload)
 }
 
 type alertSampleResponse struct {

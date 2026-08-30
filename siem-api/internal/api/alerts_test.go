@@ -123,6 +123,58 @@ func TestAckAlert_AnalystSucceedsAndAudits(t *testing.T) {
 	}
 }
 
+func TestAckAlert_PublishesToAlertsStream(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "warning",
+		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
+	if err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+	now := time.Now().UTC()
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning",
+		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
+	if err != nil {
+		t.Fatalf("InsertAlert() error = %v", err)
+	}
+
+	streamReq := httptest.NewRequest(http.MethodGet, "/alerts/stream", nil)
+	streamReq.Header.Set("Authorization", "Bearer "+authToken(t, st, "viewer", 100))
+	streamCtx, cancel := context.WithCancel(context.Background())
+	streamReq = streamReq.WithContext(streamCtx)
+	streamRec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		s.Handler().ServeHTTP(streamRec, streamReq)
+		close(done)
+	}()
+	for s.deps.Hub.SubscriberCount("alerts") == 0 {
+		time.Sleep(time.Millisecond)
+	}
+
+	token := authToken(t, st, "analyst", 50)
+	req := httptest.NewRequest(http.MethodPost, "/alerts/"+itoa(alert.ID)+"/ack", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204, body=%s", rec.Code, rec.Body.String())
+	}
+
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("stream handler did not return after context cancellation")
+	}
+
+	want := `"type":"acked","id":` + itoa(alert.ID)
+	if !strings.Contains(streamRec.Body.String(), want) {
+		t.Errorf("stream body = %q, want it to contain %q", streamRec.Body.String(), want)
+	}
+}
+
 func TestAckAlert_NotFound(t *testing.T) {
 	s, st := newTestServer(t)
 	token := authToken(t, st, "analyst", 50)
@@ -230,6 +282,58 @@ func TestMuteAlert_AnalystSucceedsAndAudits(t *testing.T) {
 	}
 	if got.MutedUntil == nil || !got.MutedUntil.After(now) {
 		t.Errorf("MutedUntil = %v, want a time after %v", got.MutedUntil, now)
+	}
+}
+
+func TestMuteAlert_PublishesToAlertsStream(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "warning",
+		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
+	if err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+	now := time.Now().UTC()
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning",
+		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
+	if err != nil {
+		t.Fatalf("InsertAlert() error = %v", err)
+	}
+
+	streamReq := httptest.NewRequest(http.MethodGet, "/alerts/stream", nil)
+	streamReq.Header.Set("Authorization", "Bearer "+authToken(t, st, "viewer", 100))
+	streamCtx, cancel := context.WithCancel(context.Background())
+	streamReq = streamReq.WithContext(streamCtx)
+	streamRec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		s.Handler().ServeHTTP(streamRec, streamReq)
+		close(done)
+	}()
+	for s.deps.Hub.SubscriberCount("alerts") == 0 {
+		time.Sleep(time.Millisecond)
+	}
+
+	token := authToken(t, st, "analyst", 50)
+	req := httptest.NewRequest(http.MethodPost, "/alerts/"+itoa(alert.ID)+"/mute", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204, body=%s", rec.Code, rec.Body.String())
+	}
+
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("stream handler did not return after context cancellation")
+	}
+
+	want := `"type":"muted","id":` + itoa(alert.ID)
+	if !strings.Contains(streamRec.Body.String(), want) {
+		t.Errorf("stream body = %q, want it to contain %q", streamRec.Body.String(), want)
 	}
 }
 
