@@ -11,8 +11,10 @@
 	let { data }: { data: PageData } = $props();
 	let showRuleForm = $state(false);
 	let editingRule = $state<RuleResponse | null>(null);
-	// Same role gate siem-api's own POST/PUT /rules routes enforce
-	// (RoleAnalyst) - reused for both creating and toggling rules.
+	// Same RoleAnalyst gate siem-api's own POST/PUT /rules and
+	// POST /alerts/{id}/ack|mute routes all enforce - reused for rule
+	// create/edit/delete/toggle AND the Alerts detail pane's
+	// Acknowledge/Mute buttons, not just Rules despite the name.
 	let canManageRules = $derived(data.userRole === 'admin' || data.userRole === 'analyst');
 	// Below the mobile breakpoint the list/detail panes become a drill-in
 	// (only one visible at a time) instead of a side-by-side split -
@@ -52,6 +54,7 @@
 					rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
 					sourceDisplayNames={{}}
 					liveSources={{}}
+					canEdit={canManageRules}
 				/>
 			{:then [sourceDisplayNames, liveSources]}
 				<AlertDetail
@@ -61,6 +64,7 @@
 					rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
 					{sourceDisplayNames}
 					{liveSources}
+					canEdit={canManageRules}
 				/>
 			{/await}
 		{:else if data.selectedRule}
