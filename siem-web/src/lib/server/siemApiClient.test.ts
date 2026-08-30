@@ -64,6 +64,23 @@ describe('SiemApiClient', () => {
 		});
 	});
 
+	it('localLogin POSTs JSON with no Authorization header', async () => {
+		const fetchFn = fakeFetch({ user_id: 1, role: 'admin', display_name: 'Local Admin' });
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		const result = await client.localLogin({ username: 'admin', password: 'correct-horse' });
+
+		expect(result.user_id).toBe(1);
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/auth/local');
+		expect(init?.method).toBe('POST');
+		expect((init?.headers as Record<string, string>).Authorization).toBeUndefined();
+		expect(JSON.parse(init?.body as string)).toEqual({
+			username: 'admin',
+			password: 'correct-horse'
+		});
+	});
+
 	it('throws SiemApiError with the status code on a non-OK response', async () => {
 		const fetchFn = fakeFetch({ error: 'denied' }, 403);
 		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);

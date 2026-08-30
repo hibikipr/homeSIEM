@@ -2,7 +2,13 @@ import { redirect, type Handle } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '$lib/server/session';
 
-const PUBLIC_PREFIXES = ['/auth/login', '/auth/callback', '/auth/logout', '/healthz'];
+const PUBLIC_PREFIXES = [
+	'/auth/login',
+	'/auth/callback',
+	'/auth/local-login',
+	'/auth/logout',
+	'/healthz'
+];
 
 export const handle: Handle = async ({ event, resolve }) => {
 	if (
