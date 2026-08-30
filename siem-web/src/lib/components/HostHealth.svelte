@@ -60,7 +60,7 @@
 	.frame-wrap iframe {
 		display: block;
 		width: 100%;
-		height: 560px;
+		height: 420px;
 		border: 0;
 	}
 	.open-link {
