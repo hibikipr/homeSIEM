@@ -88,9 +88,6 @@ the app no longer ships SvelteKit's default scaffold favicon.
 - Muting an alert removes it from every list (Wall's triage lane, the Alerts inbox) for the
   full mute window with no "Muted" tab or countdown — matches the design's intent for
   Wall's triage lane, but is an easy-to-miss side effect from the Alerts detail pane.
-- Ack/mute changes made by one analyst aren't pushed live to other open browser sessions —
-  only new alerts raised by the rule engine publish over SSE; a second person's ack/mute
-  only becomes visible to you on your next own action or reload.
 - There's no "dropped UDP" metric on the Sources screen — Vector doesn't expose one,
   and component-error counts aren't queryable over one-shot HTTP (only Subscription is),
   so this isn't currently obtainable at all.
