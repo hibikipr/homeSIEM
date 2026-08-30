@@ -64,6 +64,7 @@ export interface AlertResponse {
 	last_seen_at: string;
 	acked_by?: number;
 	acked_at?: string;
+	muted_until?: string;
 	// The rule shape's own structured payload - shape depends on which
 	// evaluator raised this alert (see siem-api's rules.sourceContext for
 	// the absence shape - AlertDetail is the only consumer today). Absent

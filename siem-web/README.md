@@ -57,9 +57,11 @@ avatar, live ingest-rate/open-alert-count summary), and all six screens:
   The empty-state message distinguishes "nothing has arrived yet," "paused
   with events waiting," and "the severity filter hides everything" as three
   separate cases.
-- **Alerts** — inbox, detail panel (acknowledge/mute, matched-event stats),
-  and a Rules tab that supports creating, editing, deleting (with a confirm
-  prompt), and toggling enabled/disabled.
+- **Alerts** — inbox with Open/Acked/Muted/Rules tabs (a muted alert shows a
+  countdown to when it reopens instead of dropping out of sight), detail panel
+  (acknowledge/mute, matched-event stats), and a Rules tab that supports
+  creating, editing, deleting (with a confirm prompt), and toggling
+  enabled/disabled.
 - **Sources** — claimed/unclaimed sources table, a parser preview with a
   scrollable recent-samples history (not just the single latest line),
   ingest-health panel, claim flow.
@@ -85,9 +87,6 @@ the app no longer ships SvelteKit's default scaffold favicon.
 - The Alerts screen's "distinct ports"/"source IP" stat cards depend on log lines carrying
   structured `src_ip`/`dst_port` JSON fields (`dst_port` as a JSON number) — only some
   parsed formats (netfilter-style, CEF) populate these; free-text log lines don't.
-- Muting an alert removes it from every list (Wall's triage lane, the Alerts inbox) for the
-  full mute window with no "Muted" tab or countdown — matches the design's intent for
-  Wall's triage lane, but is an easy-to-miss side effect from the Alerts detail pane.
 - There's no "dropped UDP" metric on the Sources screen — Vector doesn't expose one,
   and component-error counts aren't queryable over one-shot HTTP (only Subscription is),
   so this isn't currently obtainable at all.

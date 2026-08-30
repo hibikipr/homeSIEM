@@ -64,6 +64,19 @@
 	// real tag string (e.g. "spamhaus") - only the latter should read as a
 	// finding.
 	let reputationIsMatch = $derived(stats.reputation !== 'clean' && stats.reputation !== 'unknown');
+	// A countdown label for the "muted" state tag - minutes remaining until
+	// muted_until, floored at 0 rather than going negative for an alert
+	// whose mute window has lapsed but hasn't been touched/reopened by a
+	// new matching event yet (see alerts/service.go's Raise() dedup switch -
+	// an expired mute only flips back to "open" on the next matching event,
+	// not on a timer).
+	let mutedCountdown = $derived(
+		alert.state === 'muted' && alert.muted_until
+			? formatMinuteLabel(
+					Math.max(0, Math.ceil((new Date(alert.muted_until).getTime() - Date.now()) / 60000))
+				)
+			: null
+	);
 	// What actually fired, straight from the stored alert - the authoritative
 	// source when present.
 	let historicalSources = $derived<AbsenceContextSource[]>(
@@ -172,6 +185,8 @@
 				<span class="eyebrow severity-{alert.severity}">{alert.severity}</span>
 				{#if alert.state === 'open'}
 					<span class="tag">unacknowledged</span>
+				{:else if mutedCountdown}
+					<span class="tag">muted, {mutedCountdown} left</span>
 				{/if}
 			</div>
 			<h1>{alert.title}</h1>

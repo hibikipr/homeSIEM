@@ -25,6 +25,11 @@ type alertResponse struct {
 	LastSeenAt  time.Time  `json:"last_seen_at"`
 	AckedBy     *int64     `json:"acked_by,omitempty"`
 	AckedAt     *time.Time `json:"acked_at,omitempty"`
+	// MutedUntil was stored (MuteAlert) and used server-side (Raise's
+	// muted-and-still-within-window check) since alerts existed, but never
+	// sent to the client - siem-web had no way to show a Muted tab's
+	// countdown without it.
+	MutedUntil *time.Time `json:"muted_until,omitempty"`
 	// Context is the rule shape's own structured payload (e.g. absence's
 	// per-source last-seen/heartbeat data - see rules.sourceContext) -
 	// passed through as raw JSON rather than unmarshaled into a Go type
@@ -41,6 +46,7 @@ func toAlertResponse(a store.Alert) alertResponse {
 		ID: a.ID, RuleID: a.RuleID, GroupKey: a.GroupKey, Severity: a.Severity,
 		Title: a.Title, Body: a.Body, EventCount: a.EventCount, State: a.State,
 		FirstSeenAt: a.FirstSeenAt, LastSeenAt: a.LastSeenAt, AckedBy: a.AckedBy, AckedAt: a.AckedAt,
+		MutedUntil: a.MutedUntil,
 	}
 	if a.Context != "" {
 		resp.Context = json.RawMessage(a.Context)
