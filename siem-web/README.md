@@ -89,9 +89,6 @@ the app no longer ships SvelteKit's default scaffold favicon.
 - The Alerts screen's "distinct ports"/"source IP" stat cards depend on log lines carrying
   structured `src_ip`/`dst_port` JSON fields (`dst_port` as a JSON number) — only some
   parsed formats (netfilter-style, CEF) populate these; free-text log lines don't.
-- Acknowledge/Mute buttons are shown to every role, not just `analyst`+/`admin` — siem-api
-  correctly rejects the request either way, but a `viewer` clicking either button sees
-  an inline "failed" message rather than the button being hidden/disabled up front.
 - Muting an alert removes it from every list (Wall's triage lane, the Alerts inbox) for the
   full mute window with no "Muted" tab or countdown — matches the design's intent for
   Wall's triage lane, but is an easy-to-miss side effect from the Alerts detail pane.

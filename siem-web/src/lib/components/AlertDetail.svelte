@@ -17,7 +17,8 @@
 		stats,
 		rule,
 		sourceDisplayNames,
-		liveSources
+		liveSources,
+		canEdit = false
 	}: {
 		alert: AlertResponse;
 		samples: AlertSample[];
@@ -33,6 +34,13 @@
 		// absence-shaped alert whose stored context has no per-source
 		// detail at all (see fallbackSources below).
 		liveSources: Record<string, SourceResponse>;
+		// Same RoleAnalyst gate siem-api's own POST /alerts/{id}/ack and
+		// /mute routes enforce - hides Acknowledge/Mute for a viewer rather
+		// than letting them click through to an inline "failed" message.
+		// "Block at gateway" stays visible either way; it's permanently
+		// disabled for everyone regardless of role (SOAR is out of scope
+		// for v1), so there's no permission-driven failure to hide there.
+		canEdit?: boolean;
 	} = $props();
 
 	// alert.group_key IS the raw source name for source-quiet/first-seen
@@ -171,9 +179,11 @@
 			{/if}
 		</div>
 		<div class="actions">
-			<button class="primary" onclick={acknowledge} disabled={acking || alert.state !== 'open'}>
-				Acknowledge
-			</button>
+			{#if canEdit}
+				<button class="primary" onclick={acknowledge} disabled={acking || alert.state !== 'open'}>
+					Acknowledge
+				</button>
+			{/if}
 			<button
 				class="ghost"
 				disabled
@@ -181,7 +191,9 @@
 			>
 				Block at gateway
 			</button>
-			<button class="ghost" onclick={mute} disabled={muting}>Mute rule 1h</button>
+			{#if canEdit}
+				<button class="ghost" onclick={mute} disabled={muting}>Mute rule 1h</button>
+			{/if}
 			{#if error}
 				<span class="error">{error}</span>
 			{/if}
