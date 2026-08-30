@@ -60,10 +60,17 @@
 	.frame-wrap iframe {
 		display: block;
 		width: 100%;
-		/* Grafana dashboard now uses lcd display mode + manual sizing
-		   (h:3 per panel) instead of gradient/h:5 - measured ~520-530px of
-		   real content against the live embed, 540px leaves a small margin. */
-		height: 540px;
+		/* Grafana's public-dashboard page is a full-viewport flex column
+		   with its "Powered by Grafana" footer pushed to the very bottom
+		   via margin-top:auto (or similar) - it does NOT sit right after
+		   the content. Any iframe height taller than what's actually needed
+		   creates a visible gap, since the footer chases the iframe's
+		   bottom edge, not the content above it. Measured precisely via
+		   getBoundingClientRect() on the live embed: last data row bottom
+		   at 389px, footer top at 671px in a 697px-tall viewport - i.e. the
+		   footer was floating ~280px below the real content. 430px keeps
+		   the footer directly under the content instead. */
+		height: 430px;
 		border: 0;
 	}
 	.open-link {
