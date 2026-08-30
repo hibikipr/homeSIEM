@@ -12,7 +12,7 @@
 		onNewRule,
 		canCreateRule
 	}: {
-		tab: 'open' | 'acked' | 'rules';
+		tab: 'open' | 'acked' | 'muted' | 'rules';
 		alerts: AlertResponse[];
 		rules: RuleResponse[];
 		selectedId: number | null;
@@ -21,9 +21,10 @@
 	} = $props();
 
 	const ruleNames = $derived(new Map(rules.map((r) => [r.id, r.name])));
-	const tabs: { label: string; value: 'open' | 'acked' | 'rules' }[] = [
+	const tabs: { label: string; value: 'open' | 'acked' | 'muted' | 'rules' }[] = [
 		{ label: 'Open', value: 'open' },
 		{ label: 'Acked', value: 'acked' },
+		{ label: 'Muted', value: 'muted' },
 		{ label: 'Rules', value: 'rules' }
 	];
 </script>
@@ -56,7 +57,13 @@
 				/>
 			{:else}
 				<div class="empty-list">
-					{tab === 'acked' ? 'No acknowledged alerts.' : 'No open alerts.'}
+					{#if tab === 'acked'}
+						No acknowledged alerts.
+					{:else if tab === 'muted'}
+						No muted alerts.
+					{:else}
+						No open alerts.
+					{/if}
 				</div>
 			{/each}
 		{/if}

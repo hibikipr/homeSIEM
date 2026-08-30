@@ -285,6 +285,51 @@ func TestMuteAlert_AnalystSucceedsAndAudits(t *testing.T) {
 	}
 }
 
+func TestListAlerts_MutedStateIncludesMutedUntil(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+	rule, err := st.CreateRule(ctx, store.Rule{Name: "r", Shape: "absence", Severity: "warning",
+		Destinations: []string{"inapp"}, CooldownSec: 60, IntervalSec: 60, Enabled: true}, nil)
+	if err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+	now := time.Now().UTC()
+	alert, err := st.InsertAlert(ctx, store.Alert{RuleID: rule.ID, GroupKey: "a", Severity: "warning",
+		Title: "t", Body: "b", EventCount: 1, Context: "{}", State: "open", FirstSeenAt: now, LastSeenAt: now})
+	if err != nil {
+		t.Fatalf("InsertAlert() error = %v", err)
+	}
+
+	analystToken := authToken(t, st, "analyst", 50)
+	muteReq := httptest.NewRequest(http.MethodPost, "/alerts/"+itoa(alert.ID)+"/mute", nil)
+	muteReq.Header.Set("Authorization", "Bearer "+analystToken)
+	muteRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(muteRec, muteReq)
+	if muteRec.Code != http.StatusNoContent {
+		t.Fatalf("mute status = %d, want 204, body=%s", muteRec.Code, muteRec.Body.String())
+	}
+
+	viewerToken := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/alerts?state=muted", nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var got []alertResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d alerts, want 1", len(got))
+	}
+	if got[0].MutedUntil == nil || !got[0].MutedUntil.After(now) {
+		t.Errorf("MutedUntil = %v, want a time after %v", got[0].MutedUntil, now)
+	}
+}
+
 func TestMuteAlert_PublishesToAlertsStream(t *testing.T) {
 	s, st := newTestServer(t)
 	ctx := context.Background()

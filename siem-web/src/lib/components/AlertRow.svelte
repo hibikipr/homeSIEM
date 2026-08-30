@@ -11,16 +11,27 @@
 		if (minutes < 60) return `${minutes}m`;
 		return `${Math.floor(minutes / 60)}h`;
 	}
+
+	function mutedLabel(iso: string): string {
+		const ms = new Date(iso).getTime() - Date.now();
+		const minutes = Math.max(0, Math.ceil(ms / 60000));
+		if (minutes < 60) return `muted ${minutes}m`;
+		return `muted ${Math.floor(minutes / 60)}h`;
+	}
 </script>
 
 <a
 	class="row severity-{alert.severity}"
 	class:selected
-	href={resolve(`/alerts?state=${alert.state === 'acked' ? 'acked' : 'open'}&id=${alert.id}`)}
+	href={resolve(`/alerts?state=${alert.state}&id=${alert.id}`)}
 >
 	<div class="header">
 		<span class="eyebrow">{alert.severity}</span>
-		<span class="age">{ageLabel(alert.first_seen_at)}</span>
+		{#if alert.state === 'muted' && alert.muted_until}
+			<span class="age muted">{mutedLabel(alert.muted_until)}</span>
+		{:else}
+			<span class="age">{ageLabel(alert.first_seen_at)}</span>
+		{/if}
 	</div>
 	<div class="title">{alert.title}</div>
 	<div class="body">{alert.body}</div>
@@ -63,6 +74,10 @@
 	.age {
 		color: var(--color-muted);
 		text-transform: none;
+	}
+	.age.muted {
+		color: var(--color-accent-deep);
+		font-weight: 600;
 	}
 	.title {
 		font-size: 13.5px;

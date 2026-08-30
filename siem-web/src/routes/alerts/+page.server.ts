@@ -9,8 +9,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const token = locals.sessionToken as string;
 
 	const tabParam = url.searchParams.get('state');
-	const tab: 'open' | 'acked' | 'rules' =
-		tabParam === 'acked' || tabParam === 'rules' ? tabParam : 'open';
+	const tab: 'open' | 'acked' | 'muted' | 'rules' =
+		tabParam === 'acked' || tabParam === 'muted' || tabParam === 'rules' ? tabParam : 'open';
 	const selectedId = url.searchParams.get('id');
 
 	// A source-quiet/first-seen alert's title/body is a static string
