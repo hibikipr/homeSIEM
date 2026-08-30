@@ -21,6 +21,9 @@
 		{:then sourceLabels}
 			<HeatGrid rows={data.heatGrid} {sourceLabels} />
 		{/await}
+		{#if data.grafanaHostHealthUrl}
+			<HostHealth url={data.grafanaHostHealthUrl} />
+		{/if}
 		<div class="triage-lane">
 			{#each data.triageAlerts as alert (alert.id)}
 				<TriageCard {alert} />
@@ -33,9 +36,6 @@
 		{:then countryBreakdown}
 			<CountryBar countries={countryBreakdown} />
 		{/await}
-		{#if data.grafanaHostHealthUrl}
-			<HostHealth url={data.grafanaHostHealthUrl} />
-		{/if}
 		{#await data.insights}
 			<InsightsPanel insights={[]} loading />
 		{:then insights}
