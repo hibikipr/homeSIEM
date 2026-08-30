@@ -179,6 +179,17 @@ export interface EstablishSessionResponse {
 	display_name: string;
 }
 
+export interface LocalLoginRequest {
+	username: string;
+	password: string;
+}
+
+export interface LocalLoginResponse {
+	user_id: number;
+	role: string;
+	display_name: string;
+}
+
 export interface RoleMappingResponse {
 	id: number;
 	group_claim: string;
@@ -244,6 +255,14 @@ export class SiemApiClient {
 
 	async establishSession(req: EstablishSessionRequest): Promise<EstablishSessionResponse> {
 		return this.request<EstablishSessionResponse>('/auth/session', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(req)
+		});
+	}
+
+	async localLogin(req: LocalLoginRequest): Promise<LocalLoginResponse> {
+		return this.request<LocalLoginResponse>('/auth/local', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(req)

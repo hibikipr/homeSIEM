@@ -279,10 +279,12 @@ Each service's own README has the full list for that service
 for its API surface). Deployment-level gaps worth knowing about before you
 rely on this:
 
-- **No local user database** — if your OIDC provider is down, you cannot
-  sign in. siem-api does have a break-glass local-admin login path
-  (`SIEM_LOCAL_ADMIN_USERNAME`/`SIEM_LOCAL_ADMIN_PASSWORD_HASH`), but
-  siem-web has no UI wired up to use it yet.
+- **No local user database** — sign-in is delegated entirely to your OIDC
+  provider. If it's down, break-glass access is available at
+  `${SIEM_APP_URL}/auth/local-login` (not linked from the normal sign-in
+  page — deliberately, since this is an emergency door, not a second
+  everyday login option) once you set `SIEM_LOCAL_ADMIN_USERNAME`/
+  `SIEM_LOCAL_ADMIN_PASSWORD_HASH`.
 - **The example `docker-compose.yml`'s `ntfy` has no persistent cache** —
   messages delivered while no client is subscribed are not replayed.
 - **GeoIP/threat-intel data is never embedded in this repo** — you provision

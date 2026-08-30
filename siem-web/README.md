@@ -36,9 +36,11 @@ closeout, and others).
 
 ## What's built
 
-OIDC login, session cookie, global nav chrome (active-route highlighting,
-account menu with avatar, live ingest-rate/open-alert-count summary), and
-all six screens:
+OIDC login, a break-glass local-admin login (`/auth/local-login`, not linked
+from the normal sign-in page — see the root [.env.example](../.env.example)
+for `SIEM_LOCAL_ADMIN_USERNAME`/`SIEM_LOCAL_ADMIN_PASSWORD_HASH`), session
+cookie, global nav chrome (active-route highlighting, account menu with
+avatar, live ingest-rate/open-alert-count summary), and all six screens:
 
 - **Wall** — the landing dashboard: a volume ribbon, a severity/source heat
   grid, a country breakdown bar, a live ticker, and a triage lane for open
@@ -79,10 +81,6 @@ the app no longer ships SvelteKit's default scaffold favicon.
 
 - Wall's country breakdown is a best-effort client-side derivation from a
   bounded `/events/search` call, not a real aggregation endpoint.
-- Break-glass local admin login has no UI — the session/auth layer supports
-  it (`SIEM_LOCAL_ADMIN_USERNAME`/`SIEM_LOCAL_ADMIN_PASSWORD_HASH` on
-  `siem-api`), but there's no login form in `siem-web` that uses it; OIDC is
-  the only path in through the UI today.
 - "Block at gateway" on the Alerts detail panel is a disabled button — SOAR-style automated
   response is out of scope for v1.
 - The "reputation" stat on the Alerts detail panel is a static placeholder — nothing in the
