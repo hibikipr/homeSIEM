@@ -60,10 +60,10 @@
 	.frame-wrap iframe {
 		display: block;
 		width: 100%;
-		/* Grafana dashboard switched from gauge panels to bargauge rows
-		   (one per host, 4 hosts x 3 metrics) - measured ~645px of real
-		   content against the live embed, so 680px leaves a safety margin. */
-		height: 680px;
+		/* Grafana dashboard now uses lcd display mode + manual sizing
+		   (h:3 per panel) instead of gradient/h:5 - measured ~520-530px of
+		   real content against the live embed, 540px leaves a small margin. */
+		height: 540px;
 		border: 0;
 	}
 	.open-link {
