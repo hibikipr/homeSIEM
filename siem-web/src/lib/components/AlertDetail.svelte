@@ -59,6 +59,11 @@
 	// the per-source last-seen/heartbeat data AbsenceEvaluator's Context
 	// actually carries instead (see siem-api's rules.sourceContext).
 	let isAbsence = $derived(rule?.shape === 'absence');
+	// deriveAlertStats' reputation is either "unknown" (never checked - no
+	// public IP to look up), "clean" (checked, no threatlist hit), or a
+	// real tag string (e.g. "spamhaus") - only the latter should read as a
+	// finding.
+	let reputationIsMatch = $derived(stats.reputation !== 'clean' && stats.reputation !== 'unknown');
 	// What actually fired, straight from the stored alert - the authoritative
 	// source when present.
 	let historicalSources = $derived<AbsenceContextSource[]>(
@@ -246,7 +251,7 @@
 			</div>
 			<div class="stat">
 				<span class="label">Reputation</span>
-				<span class="value">{stats.reputation}</span>
+				<span class="value" class:reputation-match={reputationIsMatch}>{stats.reputation}</span>
 			</div>
 		</div>
 
@@ -398,6 +403,9 @@
 	.value {
 		font-size: 20px;
 		font-weight: 500;
+	}
+	.value.reputation-match {
+		color: var(--color-severity-critical);
 	}
 	.absence-table {
 		margin-top: var(--space-2);

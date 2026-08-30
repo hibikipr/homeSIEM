@@ -31,4 +31,38 @@ describe('deriveAlertStats', () => {
 		expect(stats.distinctPorts).toEqual([]);
 		expect(stats.sourceIps).toEqual(['10.0.0.5']);
 	});
+
+	it('reports the threatlist tag when any sample matched', () => {
+		const samples = [
+			sample('{"src_ip":"1.2.3.4","threat_intel":null}'),
+			sample('{"src_ip":"5.6.7.8","threat_intel":"spamhaus"}')
+		];
+
+		expect(deriveAlertStats(samples).reputation).toBe('spamhaus');
+	});
+
+	it('joins multiple distinct tags across samples', () => {
+		const samples = [
+			sample('{"threat_intel":"spamhaus"}'),
+			sample('{"threat_intel":"abuseipdb"}'),
+			sample('{"threat_intel":"spamhaus"}')
+		];
+
+		expect(deriveAlertStats(samples).reputation).toBe('spamhaus, abuseipdb');
+	});
+
+	it('reports "clean" when every checked sample had a null threat_intel', () => {
+		const samples = [
+			sample('{"src_ip":"1.2.3.4","threat_intel":null}'),
+			sample('{"src_ip":"5.6.7.8","threat_intel":null}')
+		];
+
+		expect(deriveAlertStats(samples).reputation).toBe('clean');
+	});
+
+	it('reports "unknown" when no sample ever had a threat_intel lookup done', () => {
+		const samples = [sample('{"src_ip":"10.0.0.5","dst_port":443}'), sample('{}')];
+
+		expect(deriveAlertStats(samples).reputation).toBe('unknown');
+	});
 });

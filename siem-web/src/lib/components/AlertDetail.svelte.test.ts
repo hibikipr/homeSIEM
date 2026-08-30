@@ -61,4 +61,20 @@ describe('AlertDetail', () => {
 
 		expect(screen.queryByRole('button', { name: 'Acknowledge' })).toBeNull();
 	});
+
+	it('highlights the reputation stat when it names a real threatlist tag', () => {
+		render(AlertDetail, {
+			props: { ...baseProps, stats: { ...fakeStats, reputation: 'spamhaus' } }
+		});
+
+		const value = screen.getByText('spamhaus');
+		expect(value.className).toContain('reputation-match');
+	});
+
+	it('does not highlight the reputation stat for "clean" or "unknown"', () => {
+		render(AlertDetail, { props: { ...baseProps, stats: { ...fakeStats, reputation: 'clean' } } });
+
+		const value = screen.getByText('clean');
+		expect(value.className).not.toContain('reputation-match');
+	});
 });
