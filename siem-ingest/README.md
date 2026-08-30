@@ -64,9 +64,6 @@ See `docs/superpowers/specs/2026-08-03-siem-ingest-design.md` for the design.
 - Port 6514 has been exercised end-to-end only with `openssl s_client`, not
   with a real syslog daemon (rsyslog/syslog-ng) configured for TLS forwarding
   — confirm your sender's certificate-trust configuration when you deploy.
-- `heartbeat_sec` (how long before a source is considered "silent") is
-  hardcoded to the schema default on every heartbeat call — `siem-web`'s
-  Sources screen displays it per source but has no control to change it yet.
 - Beyond the local Docker test harness, the pipeline has also been verified
   against real traffic: a real UniFi gateway (UDP/514, both classic
   RFC3164-ish "Remote Logging" and the CEF-formatted "SIEM Server"

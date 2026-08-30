@@ -46,8 +46,8 @@ all six screens:
   with events waiting," and "the severity filter hides everything" as three
   separate cases.
 - **Alerts** — inbox, detail panel (acknowledge/mute, matched-event stats),
-  and a Rules tab that supports creating rules and toggling
-  enabled/disabled (no edit or delete yet — see known gaps).
+  and a Rules tab that supports creating, editing, and toggling
+  enabled/disabled (no delete yet — see known gaps).
 - **Sources** — claimed/unclaimed sources table, parser preview, ingest-health
   panel, claim flow.
 - **Settings** — Authentication (OIDC identity, group→role mapping table,
@@ -73,8 +73,8 @@ the app no longer ships SvelteKit's default scaffold favicon.
   it (`SIEM_LOCAL_ADMIN_USERNAME`/`SIEM_LOCAL_ADMIN_PASSWORD_HASH` on
   `siem-api`), but there's no login form in `siem-web` that uses it; OIDC is
   the only path in through the UI today.
-- The Alerts screen's Rules tab supports create and enable/disable, but not
-  edit or delete — those would need their own follow-up.
+- The Alerts screen's Rules tab supports create, edit, and enable/disable,
+  but not delete — that would need its own follow-up.
 - "Block at gateway" on the Alerts detail panel is a disabled button — SOAR-style automated
   response is out of scope for v1.
 - The "reputation" stat on the Alerts detail panel is a static placeholder — nothing in the
@@ -100,8 +100,9 @@ the app no longer ships SvelteKit's default scaffold favicon.
 - The ingest-health panel will show as degraded unless `siem-ingest` is actually
   running — it's an optional/profiled service in the deployment compose file, not
   started by default.
-- No Svelte component test framework — UI-only changes are verified via
-  `svelte-check`/lint/manual or Playwright interaction, not automated
-  component-behavior tests. `pnpm test:unit`'s Vitest coverage is for
-  non-component logic (session/cookie handling, the siem-api client, claims
-  extraction, data-shaping helpers) — see Testing above.
+- No component-behavior test coverage — `@testing-library/svelte` is a
+  devDependency but isn't imported anywhere under `src/`. UI-only changes
+  are verified via `svelte-check`/lint/manual or Playwright interaction
+  instead. `pnpm test:unit`'s Vitest coverage is for non-component logic
+  (session/cookie handling, the siem-api client, claims extraction,
+  data-shaping helpers) — see Testing above.
