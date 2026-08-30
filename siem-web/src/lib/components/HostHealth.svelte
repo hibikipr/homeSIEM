@@ -60,10 +60,10 @@
 	.frame-wrap iframe {
 		display: block;
 		width: 100%;
-		/* 3 rows of h:4 gauge panels (~143px each) + Grafana's own
-		   toolbar/title (~58px) + footer (~20px) - measured directly
-		   against the live embed; 420px clipped the third row. */
-		height: 540px;
+		/* Grafana dashboard switched from gauge panels to bargauge rows
+		   (one per host, 4 hosts x 3 metrics) - measured ~645px of real
+		   content against the live embed, so 680px leaves a safety margin. */
+		height: 680px;
 		border: 0;
 	}
 	.open-link {
