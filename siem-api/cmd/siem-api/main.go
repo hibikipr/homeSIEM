@@ -51,6 +51,15 @@ func main() {
 		}
 	}
 
+	if cfg.BootstrapAdminGroup != "" {
+		if _, created, err := st.EnsureBootstrapRoleMapping(context.Background(), cfg.BootstrapAdminGroup); err != nil {
+			logger.Error("ensure bootstrap role mapping failed", "error", err)
+			os.Exit(1)
+		} else if created {
+			logger.Info("seeded bootstrap admin role mapping", "group_claim", cfg.BootstrapAdminGroup)
+		}
+	}
+
 	// MaxConcurrentLokiQueries: keeps this client's connection pool sized to
 	// match how many concurrent Loki requests events/stats can actually fire
 	// at once (see loki.NewHTTPClient's own doc comment for why this

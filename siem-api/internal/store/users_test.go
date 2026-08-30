@@ -89,6 +89,44 @@ func TestEnsureLocalAdmin_IdempotentAndFindable(t *testing.T) {
 	}
 }
 
+func TestEnsureBootstrapRoleMapping_SeedsOnlyWhenTableEmpty(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	m, created, err := s.EnsureBootstrapRoleMapping(ctx, "admins")
+	if err != nil {
+		t.Fatalf("EnsureBootstrapRoleMapping() error = %v", err)
+	}
+	if !created {
+		t.Fatal("EnsureBootstrapRoleMapping() created = false on an empty table, want true")
+	}
+	if m.GroupClaim != "admins" || m.Role != "admin" {
+		t.Errorf("EnsureBootstrapRoleMapping() = %+v, want group_claim=admins role=admin", m)
+	}
+
+	// A second call, even with a different group, must not touch anything -
+	// the table is no longer empty, whether or not the admin has since
+	// edited or added to what's there.
+	if _, err := s.UpsertRoleMapping(ctx, RoleMapping{GroupClaim: "sre", Role: "analyst", Priority: 5}); err != nil {
+		t.Fatalf("UpsertRoleMapping() error = %v", err)
+	}
+	_, created, err = s.EnsureBootstrapRoleMapping(ctx, "someone-else")
+	if err != nil {
+		t.Fatalf("second EnsureBootstrapRoleMapping() error = %v", err)
+	}
+	if created {
+		t.Error("EnsureBootstrapRoleMapping() created = true on a non-empty table, want false")
+	}
+
+	mappings, err := s.ListRoleMappings(ctx)
+	if err != nil {
+		t.Fatalf("ListRoleMappings() error = %v", err)
+	}
+	if len(mappings) != 2 {
+		t.Errorf("ListRoleMappings() = %d mappings, want 2 (no bootstrap re-seed)", len(mappings))
+	}
+}
+
 func TestGetLocalAdminByUsername_NotFound(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

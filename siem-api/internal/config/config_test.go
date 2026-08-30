@@ -120,6 +120,19 @@ func TestLoad_AppURLReadFromEnv(t *testing.T) {
 	}
 }
 
+func TestLoad_BootstrapAdminGroupReadFromEnv(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SIEM_BOOTSTRAP_ADMIN_GROUP", "admins")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.BootstrapAdminGroup != "admins" {
+		t.Errorf("BootstrapAdminGroup = %q, want admins", cfg.BootstrapAdminGroup)
+	}
+}
+
 func TestLoad_MissingRequired(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("DATABASE_URL", "")
