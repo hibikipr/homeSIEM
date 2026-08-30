@@ -85,8 +85,11 @@ the app no longer ships SvelteKit's default scaffold favicon.
 - "Block at gateway" on the Alerts detail panel is a disabled button — SOAR-style automated
   response is out of scope for v1.
 - The Alerts screen's "distinct ports"/"source IP" stat cards depend on log lines carrying
-  structured `src_ip`/`dst_port` JSON fields (`dst_port` as a JSON number) — only some
-  parsed formats (netfilter-style, CEF) populate these; free-text log lines don't.
+  structured `src_ip`/`dst_port` JSON fields (`dst_port` as a JSON number) — netfilter-style
+  and CEF (UniFi) events populate both, and sshd host events now populate `src_ip` (see
+  `siem-ingest/vector.toml`'s `parse_hosts`), but `dst_port` has no meaningful value to
+  extract from sshd's plain-text log lines, and most other host services log neither field
+  at all in free text.
 - There's no "dropped UDP" metric on the Sources screen — Vector doesn't expose one,
   and component-error counts aren't queryable over one-shot HTTP (only Subscription is),
   so this isn't currently obtainable at all.
