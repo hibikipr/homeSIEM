@@ -169,6 +169,46 @@ See
 for the full design, including why `qwen3.6:27b`-class models are
 recommended over coding-tuned models like Devstral for this task.
 
+### 6. (Optional) turn on the Wall's Host Health card
+
+The Wall can show host CPU/RAM/disk utilization (multiple hosts, not just
+the one running homeSIEM) as a compact card under the heat grid. It's
+entirely optional and off by default — leave `GRAFANA_HOST_HEALTH_URL`
+unset and the card is simply omitted, no broken iframe.
+
+This isn't homeSIEM growing its own metrics platform — the README above
+still means it. The card is a thin iframe over a Grafana instance you
+already run elsewhere; homeSIEM adds no metrics storage or querying of
+its own.
+
+To turn it on:
+
+1. In Grafana, build (or already have) a dashboard showing whatever host
+   metrics you want on the Wall.
+2. Open that dashboard's settings → **Public dashboard** → Enable. Copy
+   the resulting `/public-dashboards/<token>` URL.
+3. Grafana blocks iframe embedding by default (`X-Frame-Options: deny`)
+   regardless of the public-dashboard token being valid — set
+   `GF_SECURITY_ALLOW_EMBEDDING=true` on the Grafana container, or the
+   card renders an empty frame with no visible error. This makes Grafana
+   embeddable from any origin (no per-domain scoping available), so only
+   do this if Grafana isn't otherwise exposed somewhere that matters.
+4. Set `GRAFANA_HOST_HEALTH_URL` to that URL on `siem-web` and redeploy.
+
+Two things worth knowing if you're building the dashboard from scratch:
+
+- Grafana's `bargauge`/`gauge` panels have a real minimum row height
+  (roughly 34-40px per series) that doesn't shrink with panel height,
+  font size, or display mode — undersizing the panel just clips rows
+  instead of compressing them. Size the panel (and this card's iframe
+  height in `siem-web`) generously, or it'll cut off the last row(s).
+- The `gradient` display mode paints its color transition across the
+  *full* 0-100 scale, not relative to the current value — so a threshold
+  step that never gets crossed by real values (e.g. red at 85% CPU on a
+  host that idles at 10%) never shows any color blending at all, just a
+  flat single color. Put transition thresholds where values actually
+  land if you want the gradient to be visible.
+
 ### Verifying it's up
 
 ```bash
