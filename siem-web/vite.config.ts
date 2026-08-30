@@ -27,6 +27,23 @@ export default defineConfig({
 					include: ['src/**/*.{test,spec}.{js,ts}'],
 					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
 				}
+			},
+			{
+				extends: './vite.config.ts',
+				// Without this, Vite resolves svelte's "server" export
+				// condition even under jsdom (Vitest transforms as SSR by
+				// default), so @testing-library/svelte's mount() hits
+				// svelte's server-only runtime and throws
+				// lifecycle_function_unavailable instead of actually
+				// mounting into the DOM.
+				resolve: { conditions: ['browser'] },
+				test: {
+					name: 'client',
+					// jsdom, not node: @testing-library/svelte mounts real
+					// components, which need a DOM to render into.
+					environment: 'jsdom',
+					include: ['src/**/*.svelte.{test,spec}.{js,ts}']
+				}
 			}
 		]
 	}

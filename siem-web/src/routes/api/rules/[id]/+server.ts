@@ -20,3 +20,19 @@ export const PUT: RequestHandler = async ({ request, params, locals }) => {
 		throw err;
 	}
 };
+
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const token = locals.sessionToken as string;
+	const id = Number(params.id);
+
+	try {
+		await client.deleteRule(token, id);
+		return new Response(null, { status: 204 });
+	} catch (err) {
+		if (err instanceof SiemApiError) {
+			return json({ error: err.message }, { status: err.status });
+		}
+		throw err;
+	}
+};

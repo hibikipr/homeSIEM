@@ -308,6 +308,13 @@ export class SiemApiClient {
 		});
 	}
 
+	async deleteRule(sessionToken: string, id: number): Promise<void> {
+		return this.requestNoContent(`/rules/${id}`, {
+			method: 'DELETE',
+			...this.authInit(sessionToken)
+		});
+	}
+
 	async getSources(sessionToken: string): Promise<SourceResponse[]> {
 		return this.request<SourceResponse[]>('/sources', this.authInit(sessionToken));
 	}

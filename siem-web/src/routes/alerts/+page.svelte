@@ -69,6 +69,7 @@
 				canEdit={canManageRules}
 				onToggled={() => invalidateAll()}
 				onEdit={() => (editingRule = data.selectedRule ?? null)}
+				onDeleted={() => goto(resolve(`/alerts?state=rules`))}
 			/>
 		{:else}
 			<div class="empty">

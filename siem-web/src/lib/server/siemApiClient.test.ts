@@ -304,6 +304,18 @@ describe('SiemApiClient', () => {
 		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
 	});
 
+	it('deleteRule DELETEs to /rules/{id} with Authorization', async () => {
+		const fetchFn = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+		const client = new SiemApiClient({ baseUrl: 'http://siem-api:8080' }, fetchFn);
+
+		await client.deleteRule('token-123', 9);
+
+		const [url, init] = fetchFn.mock.calls[0];
+		expect(url).toBe('http://siem-api:8080/rules/9');
+		expect(init?.method).toBe('DELETE');
+		expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer token-123');
+	});
+
 	it('getAuthSettings attaches Authorization and parses the response', async () => {
 		const fetchFn = fakeFetch({
 			oidc_issuer: 'https://pocketid.townsville.cc',
