@@ -15,7 +15,7 @@
 			selectedName={data.previewName}
 			canRename={data.userRole === 'admin'}
 		/>
-		<ParserPreview sourceName={data.previewName} sample={data.previewSample} />
+		<ParserPreview sourceName={data.previewName} samples={data.previewSamples} />
 	</div>
 	<aside class="rail">
 		<section class="panel">
