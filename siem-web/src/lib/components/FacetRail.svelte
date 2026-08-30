@@ -92,6 +92,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
+		/* Matches ResultTable's own fixed 60vh viewport - without this, a
+		   query with many distinct programs/sources grows this list past
+		   the log window's height instead of scrolling alongside it. */
+		max-height: 60vh;
+		overflow-y: auto;
 	}
 	h2 {
 		font-size: var(--text-eyebrow);
