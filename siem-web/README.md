@@ -80,8 +80,6 @@ the app no longer ships SvelteKit's default scaffold favicon.
 
 ## Known gaps
 
-- Wall's country breakdown is a best-effort client-side derivation from a
-  bounded `/events/search` call, not a real aggregation endpoint.
 - "Block at gateway" on the Alerts detail panel is a disabled button — SOAR-style automated
   response is out of scope for v1.
 - The "reputation" stat on the Alerts detail panel is a static placeholder — nothing in the

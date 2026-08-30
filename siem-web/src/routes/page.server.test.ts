@@ -15,9 +15,8 @@ describe('Wall load', () => {
 		const searchMock = vi.fn().mockResolvedValue({
 			logql: '{job="siem"}',
 			count: 1,
-			entries: [
-				{ Timestamp: '2026-08-02T00:00:00Z', Labels: {}, Line: '{"geoip":{"country_code":"US"}}' }
-			]
+			entries: [],
+			facets: { country: [{ value: 'US', count: 1 }] }
 		});
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
@@ -72,9 +71,9 @@ describe('Wall load', () => {
 		// {#await} blocks for the client side of this.
 		await expect(result.countryBreakdown).resolves.toEqual([{ country: 'US', count: 1 }]);
 		expect(searchMock).toHaveBeenCalledWith('token-123', {
-			limit: '200',
+			entries: 'false',
 			volume: 'false',
-			geoip: 'true'
+			facets: 'true'
 		});
 		const insights = await result.insights;
 		expect(insights).toHaveLength(1);
