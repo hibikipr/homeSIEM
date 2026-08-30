@@ -1,5 +1,5 @@
 import type { AlertSeverity } from './severity';
-import type { AlertResponse, LogEntry } from './server/siemApiClient';
+import type { AlertResponse } from './server/siemApiClient';
 
 const HEAT_TIER_COLORS: Record<string, string> = {
 	critical: 'var(--color-severity-critical)',
@@ -66,37 +66,4 @@ export function topTriageAlerts(alerts: AlertResponse[], count = 3): AlertRespon
 export interface CountryCount {
 	country: string;
 	count: number;
-}
-
-export function deriveCountryBreakdown(entries: LogEntry[]): CountryCount[] {
-	const counts = new Map<string, number>();
-
-	for (const entry of entries) {
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(entry.Line);
-		} catch {
-			continue;
-		}
-		if (typeof parsed !== 'object' || parsed === null) continue;
-
-		const geoip = (parsed as Record<string, unknown>).geoip;
-		if (typeof geoip !== 'object' || geoip === null) continue;
-
-		// Vector's geoip enrichment table (see enrich_geo in vector.toml)
-		// names this field country_code - there's no "cc" field in the
-		// actual enriched data at all, despite that being what this file
-		// read for as long as this widget has existed. Found in production:
-		// confirmed directly against a live captured event that .geoip.cc
-		// was always undefined, so this widget could never have populated
-		// even on a sample that did contain a geoip-enriched entry.
-		const country = (geoip as Record<string, unknown>).country_code;
-		if (typeof country !== 'string' || country === '') continue;
-
-		counts.set(country, (counts.get(country) ?? 0) + 1);
-	}
-
-	return [...counts.entries()]
-		.map(([country, count]) => ({ country, count }))
-		.sort((a, b) => b.count - a.count);
 }

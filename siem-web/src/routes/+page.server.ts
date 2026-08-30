@@ -2,7 +2,7 @@ import { redirect, error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types';
 import { SiemApiClient, SiemApiError, type Insight } from '$lib/server/siemApiClient';
-import { topTriageAlerts, deriveCountryBreakdown, buildSourceLabels } from '$lib/wall';
+import { topTriageAlerts, buildSourceLabels, type CountryCount } from '$lib/wall';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
@@ -43,23 +43,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 			return {} as Record<string, string>;
 		});
 
-	const countryBreakdown = client
-		.search(token, {
-			limit: '200',
-			volume: 'false',
-			// geoip=true: found in production that geoip-bearing security
-			// events (a UniFi threat/block with a public src or dst IP) are
-			// a tiny fraction of this host's overall log volume - an
-			// unfiltered recent-200 sample almost never contained one at
-			// all, even when enrich_geo was enriching them correctly, so
-			// the country breakdown was reliably empty. Filtering at the
-			// LogQL level means every one of the 200 entries can actually
-			// contribute a country. volume=false skips a whole extra Loki
-			// query server-side that would otherwise be fetched and
-			// immediately discarded.
-			geoip: 'true'
-		})
-		.then((sample) => deriveCountryBreakdown(sample.entries))
+	// A real Loki-side aggregate (siem-api's queryCountryFacetCounts) over
+	// the full 24h default window, not derived from a capped sample of
+	// entries - this used to fetch 200 raw entries and count geoip fields
+	// client-side, which came back empty in ordinary use even when
+	// enrich_geo was enriching correctly (geoip-bearing events are a small
+	// fraction of overall volume, easily squeezed out of any small sample).
+	// entries=false/volume=false skip fetching data this call never uses.
+	const countryBreakdown: Promise<CountryCount[]> = client
+		.search(token, { entries: 'false', volume: 'false', facets: 'true' })
+		.then((result) =>
+			(result.facets?.country ?? []).map((c) => ({ country: c.value, count: c.count }))
+		)
 		.catch((err) => {
 			console.error('wall: country breakdown lookup failed', err);
 			return [];
