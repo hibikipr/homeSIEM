@@ -272,8 +272,12 @@ rely on this:
   sign in. siem-api does have a break-glass local-admin login path
   (`SIEM_LOCAL_ADMIN_USERNAME`/`SIEM_LOCAL_ADMIN_PASSWORD_HASH`), but
   siem-web has no UI wired up to use it yet.
-- **The role-mapping bootstrap above is a manual SQL step** — there's no
-  first-run wizard; see step 3.
+- **The very first role mapping is still a manual SQL step** — a
+  chicken-and-egg problem, since reaching Settings to add one requires an
+  admin role that doesn't exist yet; see step 3. Once you're in, though,
+  managing role mappings is a real UI (`siem-web`'s Settings → Authentication
+  has an add/edit form and table) — this bullet is about the bootstrap only,
+  not ongoing management.
 - **The example `docker-compose.yml`'s `ntfy` has no persistent cache** —
   messages delivered while no client is subscribed are not replayed.
 - **GeoIP/threat-intel data is never embedded in this repo** — you provision
