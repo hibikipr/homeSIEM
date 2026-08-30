@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PUT } from './+server';
+import { PUT, DELETE } from './+server';
 import * as siemApiClientModule from '$lib/server/siemApiClient';
 
 vi.mock('$env/dynamic/private', () => ({ env: { API_URL: 'http://siem-api:8080' } }));
@@ -60,6 +60,38 @@ describe('PUT /api/rules/[id]', () => {
 				method: 'PUT',
 				body: JSON.stringify(fakeRuleRequest())
 			}),
+			params: { id: '9' },
+			locals: { sessionToken: 'token-123' }
+		} as never);
+
+		expect(response.status).toBe(403);
+	});
+});
+
+describe('DELETE /api/rules/[id]', () => {
+	it('calls deleteRule with the session token and id, returning 204', async () => {
+		const deleteRuleMock = vi.fn().mockResolvedValue(undefined);
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return { deleteRule: deleteRuleMock };
+		});
+
+		const response = await DELETE({
+			params: { id: '9' },
+			locals: { sessionToken: 'token-123' }
+		} as never);
+
+		expect(deleteRuleMock).toHaveBeenCalledWith('token-123', 9);
+		expect(response.status).toBe(204);
+	});
+
+	it('propagates a SiemApiError status code as a JSON error response', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				deleteRule: vi.fn().mockRejectedValue(new siemApiClientModule.SiemApiError(403, 'denied'))
+			};
+		});
+
+		const response = await DELETE({
 			params: { id: '9' },
 			locals: { sessionToken: 'token-123' }
 		} as never);

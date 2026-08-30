@@ -18,9 +18,19 @@ closeout, and others).
 
 ## Testing
 
-- `pnpm test:unit` — Vitest, TDD coverage for session/cookie handling, the
-  siem-api client, claims extraction, the auth gate, and Wall's data-shaping
-  helpers.
+- `pnpm test:unit` — Vitest, split into two projects (`vite.config.ts`):
+  - `server` (Node environment) — session/cookie handling, the siem-api
+    client, claims extraction, the auth gate, Wall's data-shaping helpers.
+  - `client` (jsdom + `@testing-library/svelte`) — component-behavior tests,
+    e.g. `RuleDetail.svelte.test.ts`. Name test files `*.svelte.test.ts` so
+    they land in this project instead of `server`'s. Needs
+    `resolve: { conditions: ['browser'] }` on this project specifically —
+    without it Vite resolves Svelte's server-only build even under jsdom.
+    This project's own `afterEach` calls `@testing-library/svelte`'s
+    `cleanup()` explicitly; its usual auto-cleanup only self-registers when
+    `afterEach` is a vitest global, which this repo doesn't enable.
+  - Run one project at a time with `pnpm test:unit -- --project client` (or
+    `server`).
 - `pnpm exec playwright test` — the login-flow e2e test (see its own file
   for what is/isn't automated, depending on Pocket ID's WebAuthn testability).
 
@@ -46,8 +56,8 @@ all six screens:
   with events waiting," and "the severity filter hides everything" as three
   separate cases.
 - **Alerts** — inbox, detail panel (acknowledge/mute, matched-event stats),
-  and a Rules tab that supports creating, editing, and toggling
-  enabled/disabled (no delete yet — see known gaps).
+  and a Rules tab that supports creating, editing, deleting (with a confirm
+  prompt), and toggling enabled/disabled.
 - **Sources** — claimed/unclaimed sources table, parser preview, ingest-health
   panel, claim flow.
 - **Settings** — Authentication (OIDC identity, group→role mapping table,
@@ -73,8 +83,6 @@ the app no longer ships SvelteKit's default scaffold favicon.
   it (`SIEM_LOCAL_ADMIN_USERNAME`/`SIEM_LOCAL_ADMIN_PASSWORD_HASH` on
   `siem-api`), but there's no login form in `siem-web` that uses it; OIDC is
   the only path in through the UI today.
-- The Alerts screen's Rules tab supports create, edit, and enable/disable,
-  but not delete — that would need its own follow-up.
 - "Block at gateway" on the Alerts detail panel is a disabled button — SOAR-style automated
   response is out of scope for v1.
 - The "reputation" stat on the Alerts detail panel is a static placeholder — nothing in the
@@ -100,9 +108,3 @@ the app no longer ships SvelteKit's default scaffold favicon.
 - The ingest-health panel will show as degraded unless `siem-ingest` is actually
   running — it's an optional/profiled service in the deployment compose file, not
   started by default.
-- No component-behavior test coverage — `@testing-library/svelte` is a
-  devDependency but isn't imported anywhere under `src/`. UI-only changes
-  are verified via `svelte-check`/lint/manual or Playwright interaction
-  instead. `pnpm test:unit`'s Vitest coverage is for non-component logic
-  (session/cookie handling, the siem-api client, claims extraction,
-  data-shaping helpers) — see Testing above.

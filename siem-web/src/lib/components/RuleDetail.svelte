@@ -6,7 +6,8 @@
 		rule,
 		canEdit = false,
 		onToggled,
-		onEdit
+		onEdit,
+		onDeleted
 	}: {
 		rule: RuleResponse;
 		canEdit?: boolean;
@@ -15,10 +16,36 @@
 		onToggled?: () => void;
 		// Opens the parent's edit form for this rule.
 		onEdit?: () => void;
+		// Called after a successful delete so the parent can clear the
+		// selection and refresh its rule list - this rule no longer exists.
+		onDeleted?: () => void;
 	} = $props();
 
 	let toggling = $state(false);
+	let deleting = $state(false);
 	let error = $state<string | null>(null);
+
+	async function deleteRule() {
+		if (!confirm(`Delete "${rule.name}"? This can't be undone.`)) return;
+
+		deleting = true;
+		error = null;
+		try {
+			const response = await fetch(`/api/rules/${rule.id}`, { method: 'DELETE' });
+			if (!response.ok) {
+				error =
+					response.status === 403
+						? "You don't have permission to delete rules."
+						: 'Failed to delete rule.';
+				return;
+			}
+			onDeleted?.();
+		} catch {
+			error = 'Network error — check your connection and try again.';
+		} finally {
+			deleting = false;
+		}
+	}
 
 	async function toggleEnabled() {
 		toggling = true;
@@ -68,6 +95,9 @@
 				<button class="toggle" onclick={onEdit}>Edit</button>
 				<button class="toggle" onclick={toggleEnabled} disabled={toggling}>
 					{toggling ? '…' : rule.enabled ? 'Disable' : 'Enable'}
+				</button>
+				<button class="toggle delete" onclick={deleteRule} disabled={deleting}>
+					{deleting ? '…' : 'Delete'}
 				</button>
 			{/if}
 		</div>
@@ -149,6 +179,9 @@
 	.toggle:disabled {
 		opacity: 0.6;
 		cursor: default;
+	}
+	.toggle.delete {
+		color: var(--color-severity-critical);
 	}
 	h1 {
 		font-size: 26px;
