@@ -68,9 +68,11 @@
 		   bottom edge, not the content above it. Measured precisely via
 		   getBoundingClientRect() on the live embed: last data row bottom
 		   at 389px, footer top at 671px in a 697px-tall viewport - i.e. the
-		   footer was floating ~280px below the real content. 430px keeps
-		   the footer directly under the content instead. */
-		height: 430px;
+		   footer was floating ~280px below the real content. 430px got the
+		   footer right under the content but clipped the last data row by
+		   a few px in the actual iframe context (vs. the standalone tab
+		   used to measure) - 450px gives a small buffer. */
+		height: 450px;
 		border: 0;
 	}
 	.open-link {
