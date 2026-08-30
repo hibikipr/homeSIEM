@@ -89,6 +89,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		openAlertCount: openAlerts.length,
 		triageAlerts: topTriageAlerts(openAlerts),
 		countryBreakdown,
-		insights
+		insights,
+		// Not every deployment has Grafana's public-dashboard sharing set up -
+		// undefined here means the Wall omits the card entirely rather than
+		// embedding a broken iframe.
+		grafanaHostHealthUrl: (env.GRAFANA_HOST_HEALTH_URL as string) || undefined
 	};
 };

@@ -6,6 +6,7 @@
 	import CountryBar from '$lib/components/CountryBar.svelte';
 	import Ticker from '$lib/components/Ticker.svelte';
 	import InsightsPanel from '$lib/components/InsightsPanel.svelte';
+	import HostHealth from '$lib/components/HostHealth.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -32,6 +33,9 @@
 		{:then countryBreakdown}
 			<CountryBar countries={countryBreakdown} />
 		{/await}
+		{#if data.grafanaHostHealthUrl}
+			<HostHealth url={data.grafanaHostHealthUrl} />
+		{/if}
 		{#await data.insights}
 			<InsightsPanel insights={[]} loading />
 		{:then insights}
