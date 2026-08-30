@@ -82,9 +82,6 @@ the app no longer ships SvelteKit's default scaffold favicon.
 
 - "Block at gateway" on the Alerts detail panel is a disabled button — SOAR-style automated
   response is out of scope for v1.
-- The "reputation" stat on the Alerts detail panel is a static placeholder — nothing in the
-  pipeline populates real threat-intel data into it yet (threat-intel matching happens at
-  the `siem-ingest` fast-path layer, not surfaced back into this stat).
 - The Alerts screen's "distinct ports"/"source IP" stat cards depend on log lines carrying
   structured `src_ip`/`dst_port` JSON fields (`dst_port` as a JSON number) — only some
   parsed formats (netfilter-style, CEF) populate these; free-text log lines don't.
