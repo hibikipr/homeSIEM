@@ -144,6 +144,32 @@ func (s *Store) UpsertRoleMapping(ctx context.Context, m RoleMapping) (RoleMappi
 	return out, err
 }
 
+// EnsureBootstrapRoleMapping seeds a single admin role mapping, but only
+// when the role_mappings table is completely empty - the fresh-database
+// chicken-and-egg case this exists for (nobody can reach Settings to add a
+// mapping without an admin role, and nobody has one yet). Checking "table
+// empty" rather than "this group_claim doesn't already exist" is
+// deliberate: once a real admin mapping exists, restarting the container
+// must never re-seed or fight whatever they've configured since, even if
+// they changed or removed the original bootstrap group (there's no delete
+// endpoint yet, but priority/role edits alone should never be undone by a
+// restart).
+func (s *Store) EnsureBootstrapRoleMapping(ctx context.Context, groupClaim string) (RoleMapping, bool, error) {
+	existing, err := s.ListRoleMappings(ctx)
+	if err != nil {
+		return RoleMapping{}, false, err
+	}
+	if len(existing) > 0 {
+		return RoleMapping{}, false, nil
+	}
+
+	m, err := s.UpsertRoleMapping(ctx, RoleMapping{GroupClaim: groupClaim, Role: "admin", Priority: 1})
+	if err != nil {
+		return RoleMapping{}, false, err
+	}
+	return m, true, nil
+}
+
 func (s *Store) ResolveRole(ctx context.Context, groups []string) (string, bool) {
 	mappings, err := s.ListRoleMappings(ctx)
 	if err != nil {

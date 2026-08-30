@@ -84,8 +84,19 @@ This starts Loki, ntfy, siem-api and siem-web. `siem-ingest` is deliberately
 homeSIEM maps OIDC `groups` claims to roles (`viewer` / `analyst` / `admin`)
 via a table that starts **empty** on a fresh database — nobody can be
 assigned a role, so the very first login has nothing to match against and
-is rejected. Seed one mapping before you try to log in, using whatever
-group name your OIDC provider actually sends for your account:
+is rejected. Two ways to seed the first one:
+
+**Set `SIEM_BOOTSTRAP_ADMIN_GROUP` in `.env` before step 2** (the
+`.env.example` has this documented, right after the OIDC block) to whatever
+group name your OIDC provider actually sends for your account. `siem-api`
+seeds it as an admin mapping on its very first startup against an empty
+database, then never touches it again — a later restart won't re-seed or
+fight anything you've since changed from Settings → Authentication, even if
+you edit or replace that original mapping. If you already set this, you're
+done — skip straight to signing in below.
+
+**Otherwise** (you forgot, or `siem-api` already started once without it —
+same "table's still empty" condition either way), seed it by hand instead:
 
 ```bash
 docker run --rm -v siem_data:/data alpine:3.19 sh -c \
@@ -102,8 +113,8 @@ regardless of topology. It doesn't need to run from any particular
 directory, only that the `siem_data` volume already exists (i.e. `siem-api`
 has started at least once).
 
-(This only needs to run once — after that, manage additional mappings from
-the console's Settings → Authentication screen as an admin.)
+(Either path only ever seeds once — after that, manage additional mappings
+from the console's Settings → Authentication screen as an admin.)
 
 Then open `http://localhost:8080` and sign in.
 
@@ -272,12 +283,6 @@ rely on this:
   sign in. siem-api does have a break-glass local-admin login path
   (`SIEM_LOCAL_ADMIN_USERNAME`/`SIEM_LOCAL_ADMIN_PASSWORD_HASH`), but
   siem-web has no UI wired up to use it yet.
-- **The very first role mapping is still a manual SQL step** — a
-  chicken-and-egg problem, since reaching Settings to add one requires an
-  admin role that doesn't exist yet; see step 3. Once you're in, though,
-  managing role mappings is a real UI (`siem-web`'s Settings → Authentication
-  has an add/edit form and table) — this bullet is about the bootstrap only,
-  not ongoing management.
 - **The example `docker-compose.yml`'s `ntfy` has no persistent cache** —
   messages delivered while no client is subscribed are not replayed.
 - **GeoIP/threat-intel data is never embedded in this repo** — you provision

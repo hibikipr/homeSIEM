@@ -24,6 +24,14 @@ type Config struct {
 	FastpathToken          string
 	LocalAdminUsername     string
 	LocalAdminPasswordHash string
+	// BootstrapAdminGroup, if set, seeds a single admin role mapping for
+	// this OIDC group_claim on startup - but only when role_mappings is
+	// completely empty (see Store.EnsureBootstrapRoleMapping). Solves the
+	// fresh-database chicken-and-egg problem (nobody can reach Settings to
+	// add a mapping without an admin role) without a manual SQL step.
+	// Optional: leave unset and nothing changes - the manual sqlite3
+	// INSERT documented in the README still works exactly the same.
+	BootstrapAdminGroup string
 	// AppURL is siem-web's public URL (e.g. "https://siem.example.com").
 	// Optional: when set, ntfy notifications get a click-through link, a
 	// matching action button, and the app icon; when unset, notifications
@@ -69,6 +77,7 @@ func Load() (Config, error) {
 
 		LocalAdminUsername:     os.Getenv("SIEM_LOCAL_ADMIN_USERNAME"),
 		LocalAdminPasswordHash: os.Getenv("SIEM_LOCAL_ADMIN_PASSWORD_HASH"),
+		BootstrapAdminGroup:    os.Getenv("SIEM_BOOTSTRAP_ADMIN_GROUP"),
 	}
 
 	required := map[string]string{
