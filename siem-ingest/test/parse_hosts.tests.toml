@@ -1,0 +1,112 @@
+[[tests]]
+name = "sshd failed password extracts src_ip"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    appname = "sshd"
+    message = "Failed password for root from 203.0.113.9 port 51234 ssh2"
+
+  [[tests.outputs]]
+  extract_from = "parse_hosts"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.parser, "rfc5424")
+      assert_eq!(.source, "raspberrypi")
+      assert_eq!(.src_ip, "203.0.113.9")
+      assert!(!exists(.dst_port))
+    '''
+
+[[tests]]
+name = "sshd invalid user extracts src_ip"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    appname = "sshd"
+    message = "Invalid user admin from 198.51.100.20 port 44321"
+
+  [[tests.outputs]]
+  extract_from = "parse_hosts"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.src_ip, "198.51.100.20")
+    '''
+
+[[tests]]
+name = "sshd accepted publickey extracts src_ip"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    appname = "sshd"
+    message = "Accepted publickey for pi from 192.0.2.55 port 60102 ssh2: RSA SHA256:abc123"
+
+  [[tests.outputs]]
+  extract_from = "parse_hosts"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.src_ip, "192.0.2.55")
+    '''
+
+[[tests]]
+name = "sshd message with no from/port shape leaves src_ip unset"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    appname = "sshd"
+    message = "Connection closed by authenticating user root 203.0.113.9 port 51234 [preauth]"
+
+  [[tests.outputs]]
+  extract_from = "parse_hosts"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      ## The field is still set (to null, via the `?? null` fallback), not
+      ## absent - exists() would be true here. is_null() is the correct
+      ## check, matching this same distinction called out elsewhere in
+      ## vector.toml (enrich_geo's own is_string()-not-exists() comment).
+      assert!(is_null(.src_ip))
+    '''
+
+[[tests]]
+name = "non-sshd host message is unaffected"
+
+  [tests.input]
+  insert_at = "parse_hosts"
+  type = "log"
+
+    [tests.input.log_fields]
+    host = "raspberrypi"
+    appname = "unattended-upgrades"
+    message = "Packages that will be upgraded: vector"
+
+  [[tests.outputs]]
+  extract_from = "parse_hosts"
+
+    [[tests.outputs.conditions]]
+    type = "vrl"
+    source = '''
+      assert_eq!(.parser, "rfc5424")
+      assert!(!exists(.src_ip))
+    '''

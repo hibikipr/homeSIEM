@@ -189,6 +189,36 @@ source = '''
   .job = "siem"
   .source = downcase(string!(.host))
   .parser = "rfc5424"
+
+  ## OpenSSH auth log lines are the single most common security-relevant
+  ## event on this feed (every failed/invalid/accepted login attempt against
+  ## any host forwarding syslog here) and, unlike most other host-service log
+  ## lines, carry a real structured source IP - extract it so alert stat
+  ## cards (siem-web's deriveAlertStats: distinctPorts/sourceIps) and rules
+  ## grouped by src_ip work for host-level brute-force/scan activity, not
+  ## just UniFi's CEF/netfilter feed (see parse_unifi above). Setting this
+  ## here (parse_hosts, ahead of enrich_geo) means a public attacking IP also
+  ## gets the same geoip/threat-intel enrichment UniFi events already get,
+  ## for free.
+  ##
+  ## Deliberately NOT extracting a .dst_port: the "port NNNN" in these lines
+  ## is the remote client's own ephemeral source port, not the local sshd
+  ## listening port - labeling it .dst_port would be actively wrong, not
+  ## just incomplete, so it's left unset rather than guessed at.
+  ##
+  ## Scoped to messages containing "from <address> port <port>" - covers
+  ## Failed/Accepted password, Failed/Accepted publickey, and Invalid user,
+  ## which together are the overwhelming majority of sshd's per-attempt
+  ## logging. A handful of sshd message shapes (e.g. "Connection closed by
+  ## authenticating user X <ip> port N [preauth]") report the same address
+  ## without the word "from" and are intentionally left uncovered rather than
+  ## chasing every sshd message format in this first pass. <address> matches
+  ## either an IPv4 dotted address or an IPv6 literal (sshd never brackets
+  ## it here, unlike a URL) - no format-specific regex needed since both
+  ## just read as a run of non-space characters before " port".
+  if .appname == "sshd" && is_string(.message) {
+    .src_ip = parse_regex(string!(.message), r'\bfrom (?P<val>\S+) port \d+').val ?? null
+  }
 '''
 
 # ---------------------------------------------------------- enrichment
