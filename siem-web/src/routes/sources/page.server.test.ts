@@ -35,10 +35,12 @@ function fakeHealth() {
 }
 
 describe('Sources load', () => {
-	it('loads sources, health, and a preview sample for the first source by default', async () => {
-		const searchMock = vi
-			.fn()
-			.mockResolvedValue({ logql: '', count: 1, entries: [{ Line: '{}' }] });
+	it('loads sources, health, and preview samples for the first source by default', async () => {
+		const searchMock = vi.fn().mockResolvedValue({
+			logql: '',
+			count: 2,
+			entries: [{ Line: '{"a":1}' }, { Line: '{"a":2}' }]
+		});
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
 				getSources: vi.fn().mockResolvedValue([fakeSource({ name: 'udm-ultra' })]),
@@ -53,8 +55,8 @@ describe('Sources load', () => {
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		expect(result.previewName).toBe('udm-ultra');
-		expect(result.previewSample).toEqual({ Line: '{}' });
-		expect(searchMock).toHaveBeenCalledWith('token-123', { source: 'udm-ultra', limit: '1' });
+		expect(result.previewSamples).toEqual([{ Line: '{"a":1}' }, { Line: '{"a":2}' }]);
+		expect(searchMock).toHaveBeenCalledWith('token-123', { source: 'udm-ultra', limit: '10' });
 	});
 
 	it('uses the ?preview= query param over the first source when given', async () => {
@@ -78,7 +80,7 @@ describe('Sources load', () => {
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		expect(result.previewName).toBe('host-1');
-		expect(searchMock).toHaveBeenCalledWith('token-123', { source: 'host-1', limit: '1' });
+		expect(searchMock).toHaveBeenCalledWith('token-123', { source: 'host-1', limit: '10' });
 	});
 
 	it('splits sources into claimed and unclaimed', async () => {
@@ -104,7 +106,7 @@ describe('Sources load', () => {
 		expect(result.unclaimedSources).toHaveLength(1);
 	});
 
-	it('degrades the preview sample to null instead of failing the page on a search error', async () => {
+	it('degrades preview samples to an empty array instead of failing the page on a search error', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
 				getSources: vi.fn().mockResolvedValue([fakeSource()]),
@@ -118,7 +120,7 @@ describe('Sources load', () => {
 			url: new URL('https://siem.townsville.cc/sources')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
-		expect(result.previewSample).toBeNull();
+		expect(result.previewSamples).toEqual([]);
 		expect(result.sources).toHaveLength(1);
 	});
 

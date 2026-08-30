@@ -60,8 +60,9 @@ avatar, live ingest-rate/open-alert-count summary), and all six screens:
 - **Alerts** — inbox, detail panel (acknowledge/mute, matched-event stats),
   and a Rules tab that supports creating, editing, deleting (with a confirm
   prompt), and toggling enabled/disabled.
-- **Sources** — claimed/unclaimed sources table, parser preview, ingest-health
-  panel, claim flow.
+- **Sources** — claimed/unclaimed sources table, a parser preview with a
+  scrollable recent-samples history (not just the single latest line),
+  ingest-health panel, claim flow.
 - **Settings** — Authentication (OIDC identity, group→role mapping table,
   break-glass local-admin note) and Notifications. Retention/Parsers/Backups/About
   are intentionally hidden from the sidebar — no backend support exists for
@@ -95,8 +96,6 @@ the app no longer ships SvelteKit's default scaffold favicon.
 - Ack/mute changes made by one analyst aren't pushed live to other open browser sessions —
   only new alerts raised by the rule engine publish over SSE; a second person's ack/mute
   only becomes visible to you on your next own action or reload.
-- The Sources screen's parser preview only shows the single most recent sample
-  (`limit=1`), not a scrollable history.
 - There's no "dropped UDP" metric on the Sources screen — Vector doesn't expose one,
   and component-error counts aren't queryable over one-shot HTTP (only Subscription is),
   so this isn't currently obtainable at all.
