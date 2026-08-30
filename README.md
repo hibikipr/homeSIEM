@@ -180,6 +180,21 @@ curl http://localhost:8081/v1/health # ntfy
 Subscribe to alert delivery at `http://localhost:8081/<SIEM_NTFY_TOPIC>`
 (web UI, or the ntfy mobile app pointed at this host).
 
+### Prometheus metrics
+
+`siem-api` exposes `GET /metrics` in Prometheus text-exposition format,
+unauthenticated like `/healthz` — one gauge per source for the same data
+the Wall's Sources view shows: `siem_source_up`, `siem_source_claimed`,
+`siem_source_heartbeat_seconds`, `siem_source_last_seen_timestamp_seconds`,
+and `siem_source_events_per_minute`.
+
+`siem-api` isn't published to the host by default (`docker-compose.yml`
+only `expose`s port 8080 within the compose network), so scrape it from a
+Prometheus container on the same network — add one to
+`docker-compose.yml` with a scrape target of `siem-api:8080` — or add a
+`ports: ["8080:8080"]` mapping to the `siem-api` service if you'd rather
+point an external Prometheus at `http://<host>:8080/metrics` directly.
+
 ## Building and publishing images
 
 [`.github/workflows/docker-build.yml`](.github/workflows/docker-build.yml)
