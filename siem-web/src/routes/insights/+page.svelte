@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { severityColor } from '$lib/tail';
+	import { uniquePrograms } from '$lib/insights';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -134,6 +135,11 @@
 									{new Date(insight.created_at).toLocaleString()}
 								{/if}
 							</span>
+							{#if uniquePrograms(insight.evidence).length > 0}
+								<span class="row-programs" title="Program(s) in this insight's evidence"
+									>{uniquePrograms(insight.evidence).join(', ')}</span
+								>
+							{/if}
 						</div>
 					</button>
 					<div class="row-actions">
@@ -347,6 +353,11 @@
 		padding: 0 var(--space-1);
 	}
 	.created-at {
+		font-size: 11px;
+		color: var(--color-muted);
+	}
+	.row-programs {
+		font-family: var(--font-mono);
 		font-size: 11px;
 		color: var(--color-muted);
 	}
