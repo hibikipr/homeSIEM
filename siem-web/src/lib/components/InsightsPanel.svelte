@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { severityColor } from '$lib/tail';
+	import { uniquePrograms } from '$lib/insights';
 	import type { Insight } from '$lib/server/siemApiClient';
 
 	let { insights, loading = false }: { insights: Insight[]; loading?: boolean } = $props();
@@ -49,6 +50,9 @@
 							{/if}
 						</div>
 						<div class="row-detail">{insight.detail}</div>
+						{#if uniquePrograms(insight.evidence).length > 0}
+							<div class="row-programs">{uniquePrograms(insight.evidence).join(', ')}</div>
+						{/if}
 					</div>
 					<button
 						class="dismiss"
@@ -149,6 +153,12 @@
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
 		-webkit-box-orient: vertical;
+	}
+	.row-programs {
+		font-family: var(--font-mono);
+		font-size: 10.5px;
+		color: var(--color-muted-2);
+		margin-top: 2px;
 	}
 	.dismiss {
 		flex-shrink: 0;
