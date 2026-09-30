@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hibikipr/homeSIEM/siem-api/internal/ntfy"
@@ -48,6 +49,16 @@ type Service struct {
 	notifier Notifier
 	appURL   string
 	logger   *slog.Logger
+
+	// raiseMu serializes Raise's read-then-write on the alerts table
+	// (FindLatestAlert, then Insert/Touch/Reopen). Without it, concurrent
+	// raises for the same rule and group key - e.g. several fast-path
+	// requests in flight at once - could both see no alert and both
+	// insert, the second failing UNIQUE(rule_id, group_key, state). The
+	// store already runs on a single SQLite connection, so this costs no
+	// real parallelism; notification (an ntfy HTTP call) happens after
+	// the lock is released.
+	raiseMu sync.Mutex
 }
 
 // appURL is the public URL siem-web is reachable at (e.g.
@@ -59,19 +70,33 @@ func NewService(s AlertStore, hub *sse.Hub, notifier Notifier, appURL string, lo
 }
 
 func (s *Service) Raise(ctx context.Context, c Candidate) error {
+	alertID, rule, notify, err := s.record(ctx, c)
+	if err != nil || !notify {
+		return err
+	}
+	s.announce(ctx, alertID, c, rule)
+	return nil
+}
+
+// record creates, touches, or reopens the alert for c under raiseMu and
+// reports whether the change warrants a notification.
+func (s *Service) record(ctx context.Context, c Candidate) (int64, store.Rule, bool, error) {
+	s.raiseMu.Lock()
+	defer s.raiseMu.Unlock()
+
 	rule, err := s.store.GetRule(ctx, c.RuleID)
 	if err != nil {
-		return err
+		return 0, rule, false, err
 	}
 
 	contextJSON, err := json.Marshal(c.Context)
 	if err != nil {
-		return err
+		return 0, rule, false, err
 	}
 
 	existing, err := s.store.FindLatestAlert(ctx, c.RuleID, c.GroupKey)
 	if err != nil {
-		return err
+		return 0, rule, false, err
 	}
 
 	now := time.Now().UTC()
@@ -81,13 +106,13 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 	switch {
 	case existing != nil && existing.State == "open" && now.Sub(existing.LastSeenAt) < time.Duration(rule.CooldownSec)*time.Second:
 		if err := s.store.TouchAlert(ctx, existing.ID, now, c.Title, c.Body, string(contextJSON)); err != nil {
-			return err
+			return 0, rule, false, err
 		}
 		alertID = existing.ID
 
 	case existing != nil && existing.State == "muted" && existing.MutedUntil != nil && now.Before(*existing.MutedUntil):
 		if err := s.store.TouchAlert(ctx, existing.ID, now, c.Title, c.Body, string(contextJSON)); err != nil {
-			return err
+			return 0, rule, false, err
 		}
 		alertID = existing.ID
 
@@ -98,7 +123,7 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 		// rule_id+group_key, which would violate the schema's
 		// UNIQUE(rule_id, group_key, state) once it's later acked).
 		if err := s.store.ReopenAlert(ctx, existing.ID, now, c.Title, c.Body, string(contextJSON)); err != nil {
-			return err
+			return 0, rule, false, err
 		}
 		alertID = existing.ID
 		notify = true
@@ -110,7 +135,7 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 			State: "open", FirstSeenAt: now, LastSeenAt: now,
 		})
 		if err != nil {
-			return err
+			return 0, rule, false, err
 		}
 		alertID = inserted.ID
 		notify = true
@@ -118,14 +143,16 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 
 	for _, sample := range c.Samples {
 		if err := s.store.AddAlertSample(ctx, alertID, sample.TS, sample.Line); err != nil {
-			return err
+			return 0, rule, false, err
 		}
 	}
 
-	if !notify {
-		return nil
-	}
+	return alertID, rule, notify, nil
+}
 
+// announce pushes a newly raised or reopened alert to open consoles (SSE)
+// and, when it meets the configured minimum severity, to ntfy.
+func (s *Service) announce(ctx context.Context, alertID int64, c Candidate, rule store.Rule) {
 	payload, _ := json.Marshal(struct {
 		ID       int64  `json:"id"`
 		RuleID   int64  `json:"rule_id"`
@@ -150,7 +177,6 @@ func (s *Service) Raise(ctx context.Context, c Candidate) error {
 			}
 		}
 	}
-	return nil
 }
 
 // buildNotifyMessage turns a raised alert into a fully-dressed ntfy

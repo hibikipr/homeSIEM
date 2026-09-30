@@ -103,7 +103,29 @@ func Migrate(db *sql.DB) error {
 		}
 	}
 
+	if err := ensureAlertSamplesIndex(db); err != nil {
+		return fmt.Errorf("store: index alert_samples: %w", err)
+	}
+
 	return nil
+}
+
+// ensureAlertSamplesIndex indexes alert_samples by alert_id. Every raise
+// inserts a sample and then trims that alert to its 10 newest
+// (AddAlertSample), and the alert detail view reads them back - all keyed
+// on alert_id, which had no index, so each of those scanned the whole
+// table. Lives here rather than in migrations.sql because it can only run
+// once schema.sql has created the table.
+func ensureAlertSamplesIndex(db *sql.DB) error {
+	var exists int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='alert_samples'`).Scan(&exists); err != nil {
+		return err
+	}
+	if exists == 0 {
+		return nil
+	}
+	_, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_alert_samples_alert ON alert_samples(alert_id, ts DESC)`)
+	return err
 }
 
 // insightColumns are added to the insights table after its initial

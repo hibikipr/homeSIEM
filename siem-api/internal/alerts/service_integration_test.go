@@ -3,6 +3,7 @@ package alerts
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -72,5 +73,60 @@ func TestRaise_AckThenReoccur_NoUniqueConstraintViolation(t *testing.T) {
 	// Ack it again — this must NOT fail with a UNIQUE constraint error.
 	if err := st.AckAlert(ctx, reopened[0].ID, 1, time.Now().UTC()); err != nil {
 		t.Fatalf("second AckAlert() error = %v (this is the bug: acking a recurring alert must never fail)", err)
+	}
+}
+
+// Concurrent fast-path requests for the same rule and key used to race
+// between FindLatestAlert and InsertAlert: both saw no alert, both
+// inserted, and the second hit UNIQUE(rule_id, group_key, state).
+func TestRaise_ConcurrentSameKey_OneAlertNoError(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "siem.db")
+	db, err := store.Open("sqlite://" + dbPath)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	if err := store.Migrate(db); err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+	st := store.New(db)
+	ctx := context.Background()
+
+	rule, err := st.CreateRule(ctx, store.Rule{
+		Name: "r", Shape: "threshold", Severity: "warning",
+		Destinations: []string{"inapp"}, CooldownSec: 3600, IntervalSec: 60, Enabled: true,
+	}, nil)
+	if err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+	svc := NewService(st, sse.NewHub(), nil, "", testLogger())
+
+	const n = 20
+	errs := make(chan error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- svc.Raise(ctx, Candidate{RuleID: rule.ID, GroupKey: "10.0.0.5", Severity: "warning", Title: "t", Body: "b"})
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Errorf("Raise() error = %v", err)
+		}
+	}
+
+	open, err := st.ListAlerts(ctx, "open")
+	if err != nil {
+		t.Fatalf("ListAlerts() error = %v", err)
+	}
+	if len(open) != 1 {
+		t.Fatalf("open alerts = %d, want 1", len(open))
+	}
+	if open[0].EventCount != n {
+		t.Errorf("EventCount = %d, want %d", open[0].EventCount, n)
 	}
 }
