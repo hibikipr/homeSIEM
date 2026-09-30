@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -25,8 +24,8 @@ func (s *Server) handleFastpath(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var ev fastpathEvent
-	if err := json.NewDecoder(r.Body).Decode(&ev); err != nil {
+	events, err := decodeJSONStream[fastpathEvent](w, r)
+	if err != nil {
 		http.Error(w, "invalid json body", http.StatusBadRequest)
 		return
 	}
@@ -34,6 +33,14 @@ func (s *Server) handleFastpath(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	now := time.Now().UTC()
 
+	for _, ev := range events {
+		s.handleFastpathEvent(ctx, ev, now)
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *Server) handleFastpathEvent(ctx context.Context, ev fastpathEvent, now time.Time) {
 	if ev.ThreatIntel != nil && *ev.ThreatIntel != "" {
 		s.raiseFastpathCandidate(ctx, "threat-intel-hit", ev.SrcIP,
 			fmt.Sprintf("Threat intel hit: %s", ev.SrcIP),
@@ -47,8 +54,6 @@ func (s *Server) handleFastpath(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("%s -> %s:%d dropped at the gateway", ev.SrcIP, ev.DstIP, *ev.DstPort),
 			ev.Message, now)
 	}
-
-	w.WriteHeader(http.StatusAccepted)
 }
 
 func (s *Server) raiseFastpathCandidate(ctx context.Context, ruleName, groupKey, title, body, line string, now time.Time) {

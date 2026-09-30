@@ -103,3 +103,62 @@ func TestFastpath_ThreatIntelHit_RaisesAlert(t *testing.T) {
 		t.Fatalf("alerts = %+v, want one open alert for 203.0.113.9", alertsList)
 	}
 }
+
+// Vector's http sink with framing.method = "newline_delimited" packs a
+// whole batch into one body, one event per line - every event must be
+// processed, not just the first.
+func TestFastpath_NewlineDelimitedBatch_ProcessesEveryEvent(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+
+	if _, err := st.CreateRule(ctx, store.Rule{
+		Name: "wan-drop", Shape: "threshold", Severity: "warning",
+		Destinations: []string{"inapp"}, CooldownSec: 3600, IntervalSec: 60, Enabled: true,
+	}, nil); err != nil {
+		t.Fatalf("CreateRule() error = %v", err)
+	}
+
+	body := `{"src_ip":"10.0.0.5","dst_ip":"1.2.3.4","dst_port":22,"action":"drop","message":"a"}` + "\n" +
+		`{"src_ip":"10.0.0.6","dst_ip":"1.2.3.4","dst_port":22,"action":"drop","message":"b"}` + "\n" +
+		`{"src_ip":"10.0.0.7","dst_ip":"1.2.3.4","dst_port":22,"action":"drop","message":"c"}` + "\n"
+	req := httptest.NewRequest(http.MethodPost, "/ingest/fastpath", bytes.NewReader([]byte(body)))
+	req.Header.Set("X-Fastpath-Token", "test-fastpath-token")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202, body=%s", rec.Code, rec.Body.String())
+	}
+	alertsList, err := st.ListAlerts(ctx, "open")
+	if err != nil {
+		t.Fatalf("ListAlerts() error = %v", err)
+	}
+	if len(alertsList) != 3 {
+		t.Fatalf("len(alerts) = %d, want 3 (one per batched event)", len(alertsList))
+	}
+}
+
+func TestFastpath_BatchWithMalformedEvent_Rejected(t *testing.T) {
+	s, _ := newTestServer(t)
+	body := `{"src_ip":"10.0.0.5","action":"drop","dst_port":22}` + "\n" + `{not json`
+	req := httptest.NewRequest(http.MethodPost, "/ingest/fastpath", bytes.NewReader([]byte(body)))
+	req.Header.Set("X-Fastpath-Token", "test-fastpath-token")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestFastpath_EmptyBody_Rejected(t *testing.T) {
+	s, _ := newTestServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/ingest/fastpath", bytes.NewReader(nil))
+	req.Header.Set("X-Fastpath-Token", "test-fastpath-token")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}

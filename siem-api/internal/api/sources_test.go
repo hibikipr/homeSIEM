@@ -607,3 +607,35 @@ func TestListSources_EventsPerMinZeroWhenLokiUnset(t *testing.T) {
 		t.Fatalf("got = %+v, want events_per_min=0 when Loki is unset", got)
 	}
 }
+
+// See TestFastpath_NewlineDelimitedBatch_ProcessesEveryEvent - the
+// heartbeat sink uses the same newline-delimited batching.
+func TestSourceHeartbeat_NewlineDelimitedBatch_RegistersEverySource(t *testing.T) {
+	s, st := newTestServer(t)
+	ctx := context.Background()
+
+	body := strings.NewReader(
+		`{"name":"udm-ultra","address":"10.0.0.1","transport":"udp/514","parser":"unifi-os"}` + "\n" +
+			`{"name":"nas","address":"10.0.0.2","transport":"tcp/601","parser":"rfc5424"}` + "\n" +
+			`{"name":"udm-ultra","address":"10.0.0.1","transport":"udp/514","parser":"unifi-os"}` + "\n")
+	req := httptest.NewRequest(http.MethodPost, "/sources/heartbeat", body)
+	req.Header.Set("X-Fastpath-Token", "test-fastpath-token")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202, body=%s", rec.Code, rec.Body.String())
+	}
+	sources, err := st.ListSources(ctx)
+	if err != nil {
+		t.Fatalf("ListSources() error = %v", err)
+	}
+	if len(sources) != 2 {
+		t.Fatalf("len(sources) = %d, want 2 (duplicates in one batch collapse)", len(sources))
+	}
+	for _, src := range sources {
+		if src.LastSeenAt == nil {
+			t.Errorf("source %q LastSeenAt = nil, want it bumped", src.Name)
+		}
+	}
+}
