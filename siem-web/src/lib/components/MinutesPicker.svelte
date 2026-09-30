@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { formatMinuteLabel } from '$lib/minutePresets';
 
 	const CUSTOM = 'custom';
@@ -28,7 +29,7 @@
 	// `seconds` still equals, snapping the dropdown back before the input
 	// could ever appear.
 	let selectedPreset = $state(
-		presetsMinutes.includes(seconds / 60) ? String(seconds / 60) : CUSTOM
+		untrack(() => (presetsMinutes.includes(seconds / 60) ? String(seconds / 60) : CUSTOM))
 	);
 
 	function onPresetChange(event: Event) {

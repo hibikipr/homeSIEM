@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { debounce } from '$lib/debounce';
 	import AlertInbox from '$lib/components/AlertInbox.svelte';
 	import AlertDetail from '$lib/components/AlertDetail.svelte';
 	import RuleDetail from '$lib/components/RuleDetail.svelte';
@@ -21,12 +22,18 @@
 	// selection is already URL-driven, so this is just which pane shows.
 	let hasSelection = $derived(Boolean(data.selectedAlert || data.selectedRule));
 
+	// Each SSE message (a raise, an ack/mute from another session) used to
+	// trigger its own full invalidateAll - a burst of 20 alerts meant 20
+	// back-to-back reloads of this page's and the layout's data. Coalesce a
+	// burst into one reload shortly after it settles.
 	$effect(() => {
+		const reload = debounce(() => invalidateAll(), 500);
 		const source = new EventSource(resolve('/api/alerts-proxy'));
-		source.onmessage = () => {
-			invalidateAll();
+		source.onmessage = reload.call;
+		return () => {
+			source.close();
+			reload.cancel();
 		};
-		return () => source.close();
 	});
 </script>
 

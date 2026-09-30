@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import RoleMappingTable from '$lib/components/RoleMappingTable.svelte';
 	import RoleMappingForm from '$lib/components/RoleMappingForm.svelte';
 	import type { RoleMappingResponse } from '$lib/server/siemApiClient';
@@ -38,8 +39,12 @@
 		formSeed = null;
 	}
 
+	// The notification and Ollama fields below are seeded from `data` once,
+	// on purpose: saving a role mapping reloads `data` (invalidateAll), and
+	// re-deriving these from it would wipe any unsaved edits here.
+	const seed = untrack(() => data);
 	let minSeverity = $state<'info' | 'warning' | 'critical'>(
-		(data.notificationSettings.min_severity as 'info' | 'warning' | 'critical') ?? 'info'
+		(seed.notificationSettings.min_severity as 'info' | 'warning' | 'critical') ?? 'info'
 	);
 	let savingSeverity = $state(false);
 	let severitySaveError = $state<string | null>(null);
@@ -76,11 +81,11 @@
 		}
 	}
 
-	let systemPrompt = $state(data.ollamaSettings.system_prompt);
-	let temperature = $state(data.ollamaSettings.temperature);
-	let topP = $state(data.ollamaSettings.top_p);
-	let numPredict = $state(data.ollamaSettings.num_predict);
-	let numCtx = $state(data.ollamaSettings.num_ctx);
+	let systemPrompt = $state(seed.ollamaSettings.system_prompt);
+	let temperature = $state(seed.ollamaSettings.temperature);
+	let topP = $state(seed.ollamaSettings.top_p);
+	let numPredict = $state(seed.ollamaSettings.num_predict);
+	let numCtx = $state(seed.ollamaSettings.num_ctx);
 	let showDefaultPrompt = $state(false);
 	let savingOllama = $state(false);
 	let ollamaSaveError = $state<string | null>(null);
