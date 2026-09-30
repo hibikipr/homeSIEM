@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -580,4 +582,96 @@ type fakeAlertListerErr struct{ err error }
 
 func (f *fakeAlertListerErr) ListAlerts(ctx context.Context, state string) ([]store.Alert, error) {
 	return nil, f.err
+}
+
+// blockingChatter holds every Chat call until release is closed, counting
+// calls and recording whether its ctx was cancelled.
+type blockingChatter struct {
+	calls     atomic.Int32
+	started   chan struct{}
+	release   chan struct{}
+	cancelled atomic.Bool
+}
+
+func (b *blockingChatter) Chat(ctx context.Context, systemPrompt, userPrompt string, opts ollama.ChatOptions) (string, error) {
+	if b.calls.Add(1) == 1 {
+		close(b.started)
+	}
+	<-b.release
+	if ctx.Err() != nil {
+		b.cancelled.Store(true)
+	}
+	return validResponse, nil
+}
+
+func TestGenerateNow_ConcurrentCallers_ShareOnePass(t *testing.T) {
+	chat := &blockingChatter{started: make(chan struct{}), release: make(chan struct{})}
+	ins := &fakeInsightStore{}
+	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
+
+	const callers = 5
+	results := make(chan int, callers)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		n, _ := svc.GenerateNow(context.Background())
+		results <- n
+	}()
+	<-chat.started
+	for i := 1; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			n, _ := svc.GenerateNow(context.Background())
+			results <- n
+		}()
+	}
+	time.Sleep(20 * time.Millisecond) // let the joiners attach
+	close(chat.release)
+	wg.Wait()
+	close(results)
+
+	if got := chat.calls.Load(); got != 1 {
+		t.Errorf("Chat calls = %d, want 1 (one shared pass)", got)
+	}
+	for n := range results {
+		if n != 1 {
+			t.Errorf("caller got generated = %d, want 1", n)
+		}
+	}
+	if len(ins.inserted) != 1 {
+		t.Errorf("inserted = %d, want 1", len(ins.inserted))
+	}
+}
+
+func TestGenerateNow_CallerCancelled_PassStillCompletes(t *testing.T) {
+	chat := &blockingChatter{started: make(chan struct{}), release: make(chan struct{})}
+	ins := &fakeInsightStore{}
+	svc := NewService(testPromptBuilder(), chat, ins, defaultTestSettings(), time.Hour, testLogger(&bytes.Buffer{}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := svc.GenerateNow(ctx)
+		errCh <- err
+	}()
+	<-chat.started
+	cancel()
+	if err := <-errCh; !errors.Is(err, context.Canceled) {
+		t.Fatalf("GenerateNow() error = %v, want context.Canceled for the departed caller", err)
+	}
+
+	close(chat.release)
+	// A later caller joins or starts fresh; either way the first pass must
+	// have run to completion with an uncancelled ctx.
+	if _, err := svc.GenerateNow(context.Background()); err != nil {
+		t.Fatalf("follow-up GenerateNow() error = %v", err)
+	}
+	if chat.cancelled.Load() {
+		t.Error("the pass saw a cancelled ctx; it should be detached from the caller")
+	}
+	if len(ins.inserted) == 0 {
+		t.Error("first pass stored nothing; want it to complete after its caller left")
+	}
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -276,5 +277,33 @@ func TestMuteAlert(t *testing.T) {
 	}
 	if !found {
 		t.Error("no alert.mute audit entry found")
+	}
+}
+
+func TestMigrate_AlertSamplesIndexedByAlertID(t *testing.T) {
+	st := newTestStore(t)
+	// Migrate runs on every startup; a second pass must be a no-op.
+	if err := Migrate(st.db); err != nil {
+		t.Fatalf("second Migrate() error = %v", err)
+	}
+
+	rows, err := st.db.Query(`EXPLAIN QUERY PLAN
+		SELECT id FROM alert_samples WHERE alert_id = ? ORDER BY ts DESC LIMIT 10`, 1)
+	if err != nil {
+		t.Fatalf("EXPLAIN error = %v", err)
+	}
+	defer rows.Close()
+	var plan []string
+	for rows.Next() {
+		var id, parent, unused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+			t.Fatalf("scan error = %v", err)
+		}
+		plan = append(plan, detail)
+	}
+	joined := strings.Join(plan, "; ")
+	if !strings.Contains(joined, "idx_alert_samples_alert") {
+		t.Errorf("query plan = %q, want it to use idx_alert_samples_alert", joined)
 	}
 }

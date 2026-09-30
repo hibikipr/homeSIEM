@@ -123,3 +123,34 @@ func TestMigrate_AddsInsightsToExistingDatabase(t *testing.T) {
 		t.Fatalf("insights table not found after Migrate(): %v", err)
 	}
 }
+
+// busy_timeout and foreign_keys are per-connection; they must hold on a
+// connection opened after the first one, not just the one Open started with.
+func TestOpen_PragmasApplyToEveryConnection(t *testing.T) {
+	db, err := Open("sqlite://" + filepath.Join(t.TempDir(), "siem.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	db.SetMaxIdleConns(0) // every query below gets a brand-new connection
+
+	for i := 0; i < 2; i++ {
+		var fk, busy int
+		if err := db.QueryRow(`PRAGMA foreign_keys`).Scan(&fk); err != nil {
+			t.Fatalf("PRAGMA foreign_keys error = %v", err)
+		}
+		if err := db.QueryRow(`PRAGMA busy_timeout`).Scan(&busy); err != nil {
+			t.Fatalf("PRAGMA busy_timeout error = %v", err)
+		}
+		if fk != 1 || busy != 5000 {
+			t.Errorf("connection %d: foreign_keys=%d busy_timeout=%d, want 1 and 5000", i, fk, busy)
+		}
+	}
+	var mode string
+	if err := db.QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil {
+		t.Fatalf("PRAGMA journal_mode error = %v", err)
+	}
+	if mode != "wal" {
+		t.Errorf("journal_mode = %q, want wal", mode)
+	}
+}

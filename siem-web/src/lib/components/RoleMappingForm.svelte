@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import type { RoleMappingResponse } from '$lib/server/siemApiClient';
 
@@ -14,8 +15,10 @@
 		onClose: () => void;
 	} = $props();
 
-	let groupClaim = $state(initial?.group_claim ?? '');
-	let role = $state(initial?.role ?? 'viewer');
+	// Seeded once on purpose - see RuleForm's matching comment.
+	const seed = untrack(() => initial);
+	let groupClaim = $state(seed?.group_claim ?? '');
+	let role = $state(seed?.role ?? 'viewer');
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 

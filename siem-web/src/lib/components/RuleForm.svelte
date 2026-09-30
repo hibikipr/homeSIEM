@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { RULE_TEMPLATES, parseGroupBy, type RuleShape } from '$lib/ruleTemplates';
 	import type { AlertSeverity } from '$lib/severity';
 	import type { RuleResponse } from '$lib/server/siemApiClient';
@@ -51,15 +52,19 @@
 			"Alerts when Ollama's Insights pass finds something new at or above the severity below - lets you opt in to a phone notification for insights instead of only seeing them on the Insights tab. Only fires for a finding's first occurrence, never for a recurrence of one already surfaced."
 	};
 
-	let name = $state(initial?.name ?? defaultName);
-	let logql = $state(initial?.logql ?? defaultLogql);
-	let shape = $state<RuleShape>((initial?.shape as RuleShape | undefined) ?? BLANK_SHAPE);
-	let windowSec = $state(initial?.window_sec ?? BLANK_WINDOW_SEC);
-	let threshold = $state(initial?.threshold ?? BLANK_THRESHOLD);
-	let groupBy = $state(initial?.group_by.join(', ') ?? BLANK_GROUP_BY);
-	let severity = $state<AlertSeverity>(initial?.severity ?? BLANK_SEVERITY);
-	let cooldownSec = $state(initial?.cooldown_sec ?? BLANK_COOLDOWN_SEC);
-	let intervalSec = $state(initial?.interval_sec ?? BLANK_INTERVAL_SEC);
+	// Fields are seeded from props once, on purpose: the form is a modal, so
+	// its seed can't change while it's open, and re-deriving from props
+	// would throw away what the user has typed.
+	const seed = untrack(() => ({ initial, defaultName, defaultLogql }));
+	let name = $state(seed.initial?.name ?? seed.defaultName);
+	let logql = $state(seed.initial?.logql ?? seed.defaultLogql);
+	let shape = $state<RuleShape>((seed.initial?.shape as RuleShape | undefined) ?? BLANK_SHAPE);
+	let windowSec = $state(seed.initial?.window_sec ?? BLANK_WINDOW_SEC);
+	let threshold = $state(seed.initial?.threshold ?? BLANK_THRESHOLD);
+	let groupBy = $state(seed.initial?.group_by.join(', ') ?? BLANK_GROUP_BY);
+	let severity = $state<AlertSeverity>(seed.initial?.severity ?? BLANK_SEVERITY);
+	let cooldownSec = $state(seed.initial?.cooldown_sec ?? BLANK_COOLDOWN_SEC);
+	let intervalSec = $state(seed.initial?.interval_sec ?? BLANK_INTERVAL_SEC);
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 

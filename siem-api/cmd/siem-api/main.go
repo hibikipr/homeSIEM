@@ -125,7 +125,10 @@ func main() {
 		Logger: logger,
 	})
 
-	httpServer := &http.Server{Addr: cfg.Addr, Handler: server.Handler()}
+	// ReadHeaderTimeout stops a client that opens a connection and trickles
+	// headers from holding it forever. No Read/WriteTimeout: the SSE
+	// endpoints (live tail, alerts) are deliberately long-lived responses.
+	httpServer := &http.Server{Addr: cfg.Addr, Handler: server.Handler(), ReadHeaderTimeout: 10 * time.Second}
 
 	go func() {
 		logger.Info("siem-api listening", "addr", cfg.Addr)

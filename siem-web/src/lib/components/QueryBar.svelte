@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import ClearableField from '$lib/components/ClearableField.svelte';
@@ -26,13 +27,17 @@
 		onAlertOnThis: () => void;
 	} = $props();
 
-	let source = $state(filters.source);
-	let host = $state(filters.host);
-	let program = $state(filters.program);
-	let severity = $state(filters.severity);
-	let facility = $state(filters.facility);
-	let q = $state(filters.q);
-	let includeInternal = $state(filters.includeInternal);
+	// Editable copies of the URL's filters, seeded once: the Search page
+	// remounts this component ({#key data.logql}) whenever the applied
+	// query changes, so a new search always starts from fresh values.
+	const seed = untrack(() => filters);
+	let source = $state(seed.source);
+	let host = $state(seed.host);
+	let program = $state(seed.program);
+	let severity = $state(seed.severity);
+	let facility = $state(seed.facility);
+	let q = $state(seed.q);
+	let includeInternal = $state(seed.includeInternal);
 
 	const RANGES: SearchFilters['range'][] = ['15m', '24h', '7d'];
 
