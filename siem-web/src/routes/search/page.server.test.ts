@@ -89,101 +89,22 @@ describe('Search load', () => {
 		await expect(result.claimedSources).resolves.toEqual([]);
 	});
 
-	it('has no selected entry or context summary when ?preview= is absent', async () => {
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return {
-				search: vi.fn().mockResolvedValue(fakeSearchResult()),
-				getSources: fakeGetSources()
-			};
-		});
-
-		const result = (await load({
-			locals: { sessionToken: 'token-123' },
-			url: new URL('https://siem.townsville.cc/search')
-		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
-
-		expect(result.selectedEntry).toBeNull();
-		expect(result.contextSummary).toBeNull();
-	});
-
-	it('resolves the selected entry from ?preview= and fetches a context summary when src_ip is present', async () => {
-		const searchMock = vi
-			.fn()
-			.mockResolvedValueOnce(
-				fakeSearchResult({
-					entries: [
-						{
-							Timestamp: '2026-08-05T00:00:00Z',
-							Labels: { severity: 'critical' },
-							Line: '{"src_ip":"10.0.0.5"}'
-						}
-					]
-				})
-			)
-			.mockResolvedValueOnce(fakeSearchResult({ count: 4, entries: [] }));
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { search: searchMock, getSources: fakeGetSources() };
-		});
-
-		const result = (await load({
-			locals: { sessionToken: 'token-123' },
-			url: new URL('https://siem.townsville.cc/search?preview=0')
-		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
-
-		expect(result.selectedEntry?.Line).toBe('{"src_ip":"10.0.0.5"}');
-		// contextSummary is streamed when there's a src_ip to look up (not
-		// awaited before load() returns) - see the module-level comment.
-		await expect(result.contextSummary).resolves.toEqual({ count: 4 });
-		expect(searchMock).toHaveBeenCalledTimes(2);
-		expect(searchMock).toHaveBeenNthCalledWith(
-			2,
-			'token-123',
-			expect.objectContaining({ entries: 'false', volume: 'false' })
-		);
-	});
-
-	it('degrades contextSummary to null without throwing when the context lookup fails', async () => {
-		const searchMock = vi
-			.fn()
-			.mockResolvedValueOnce(
-				fakeSearchResult({
-					entries: [
-						{
-							Timestamp: '2026-08-05T00:00:00Z',
-							Labels: { severity: 'critical' },
-							Line: '{"src_ip":"10.0.0.5"}'
-						}
-					]
-				})
-			)
-			.mockRejectedValueOnce(new SiemApiError(500, 'loki unavailable'));
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return { search: searchMock, getSources: fakeGetSources() };
-		});
-
-		const result = (await load({
-			locals: { sessionToken: 'token-123' },
-			url: new URL('https://siem.townsville.cc/search?preview=0')
-		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
-
-		expect(result.selectedEntry?.Line).toBe('{"src_ip":"10.0.0.5"}');
-		await expect(result.contextSummary).resolves.toBeNull();
-	});
-
-	it('resolves previewIndex to null when ?preview= is non-numeric', async () => {
+	it('never reads ?preview=, so selecting a row does not rerun the Loki search', async () => {
 		const searchMock = vi.fn().mockResolvedValue(fakeSearchResult());
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return { search: searchMock, getSources: fakeGetSources() };
 		});
+		const url = new URL('https://siem.townsville.cc/search?preview=0');
+		const getSpy = vi.spyOn(url.searchParams, 'get');
 
 		const result = (await load({
 			locals: { sessionToken: 'token-123' },
-			url: new URL('https://siem.townsville.cc/search?preview=abc')
+			url
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
-		expect(result.previewIndex).toBeNull();
-		expect(result.selectedEntry).toBeNull();
-		expect(result.contextSummary).toBeNull();
+		expect(getSpy).not.toHaveBeenCalledWith('preview');
+		expect(result).not.toHaveProperty('selectedEntry');
+		expect(result).not.toHaveProperty('contextSummary');
 		expect(searchMock).toHaveBeenCalledTimes(1);
 	});
 

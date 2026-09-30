@@ -49,9 +49,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// client-side, which came back empty in ordinary use even when
 	// enrich_geo was enriching correctly (geoip-bearing events are a small
 	// fraction of overall volume, easily squeezed out of any small sample).
-	// entries=false/volume=false skip fetching data this call never uses.
+	// entries/volume/count=false and facets=country skip every Loki scan
+	// this call never reads - it used to also run the severity, program and
+	// source facet aggregates plus a total count, all over the same 24h.
 	const countryBreakdown: Promise<CountryCount[]> = client
-		.search(token, { entries: 'false', volume: 'false', facets: 'true' })
+		.search(token, { entries: 'false', volume: 'false', count: 'false', facets: 'country' })
 		.then((result) =>
 			(result.facets?.country ?? []).map((c) => ({ country: c.value, count: c.count }))
 		)

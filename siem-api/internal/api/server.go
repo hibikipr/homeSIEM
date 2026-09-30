@@ -53,13 +53,9 @@ type Deps struct {
 }
 
 // MaxConcurrentLokiQueries bounds how many Loki requests this server fires
-// at once across all in-flight requests, not just within a single
-// queryHourlyBySource call - see stats.go's handleEventsStats, which can
-// have three queryHourlyBySource calls in flight at the same time, each
-// wanting to fire 25 of its own. Firing all of those unbounded risks
-// overwhelming a modest homelab Loki instance (trading "slow" for "flaky")
-// in exchange for marginal extra speedup once concurrency is already this
-// high.
+// at once across all in-flight requests for fan-outs that take lokiSem
+// (stats.go's hourly series). Firing unbounded risks overwhelming a modest
+// homelab Loki instance (trading "slow" for "flaky").
 //
 // Exported so cmd/siem-api can size the Loki HTTP client's connection pool
 // (MaxIdleConnsPerHost) to match - otherwise the default of 2 idle

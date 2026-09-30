@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -664,5 +666,66 @@ func TestEventsTail_StreamsHubMessages(t *testing.T) {
 
 	if !strings.Contains(rec.Body.String(), `"line":"hi"`) {
 		t.Errorf("body = %q, want it to contain the published message", rec.Body.String())
+	}
+}
+
+// The Wall's country breakdown asks for facets=country&count=false with no
+// entries/volume - exactly one Loki query (the country aggregate) should
+// run, not the four facet scans plus a total count it used to trigger.
+func TestEventsSearch_FacetSubsetAndCountFalse_RunsOnlyRequestedQueries(t *testing.T) {
+	var mu sync.Mutex
+	var queries []string
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		queries = append(queries, r.URL.Path+" "+r.URL.Query().Get("query"))
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"success","data":{"result":[
+			{"metric":{"cc":"US"},"value":[1700000000,"7"]}
+		]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search?entries=false&volume=false&facets=country&count=false", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if len(queries) != 1 || !strings.Contains(queries[0], "sum by (cc)") {
+		t.Fatalf("Loki queries = %q, want exactly the one country aggregate", queries)
+	}
+	var resp searchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(resp.Facets) != 1 || len(resp.Facets["country"]) != 1 || resp.Facets["country"][0].Count != 7 {
+		t.Errorf("Facets = %+v, want only country=[US:7]", resp.Facets)
+	}
+	if resp.Count != 0 {
+		t.Errorf("Count = %d, want 0 when count=false", resp.Count)
+	}
+}
+
+func TestParseFacetsParam(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want []string
+	}{
+		{"", allFacets},
+		{"true", allFacets},
+		{"false", nil},
+		{"country", []string{"country"}},
+		{"source, severity,source,bogus", []string{"source", "severity"}},
+	} {
+		if got := parseFacetsParam(tc.in); !slices.Equal(got, tc.want) {
+			t.Errorf("parseFacetsParam(%q) = %v, want %v", tc.in, got, tc.want)
+		}
 	}
 }

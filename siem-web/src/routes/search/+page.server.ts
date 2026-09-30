@@ -2,13 +2,15 @@ import { error, redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types';
 import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
-import {
-	parseFiltersFromURL,
-	filtersToSearchParams,
-	rangeToSeconds,
-	extractSrcIp
-} from '$lib/search';
+import { parseFiltersFromURL, filtersToSearchParams, rangeToSeconds } from '$lib/search';
 
+// Deliberately never reads `?preview=` (the selected row) - SvelteKit
+// tracks which search params a load reads and only reruns it when one of
+// those changes, so selecting a row (see +page.ts) no longer re-runs this
+// whole search (entries + count + volume + four facet scans) against
+// Loki. That rerun also re-anchored the time window to a new "now", so on
+// a busy system `preview=N` could land on a different event than the one
+// clicked; with no rerun, the entries - and the index - stay put.
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
 	const token = locals.sessionToken as string;
@@ -60,46 +62,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		throw err;
 	}
 
-	const previewParam = url.searchParams.get('preview');
-	const parsedPreview = previewParam !== null ? Number(previewParam) : null;
-	const previewIndex =
-		parsedPreview !== null && Number.isInteger(parsedPreview) ? parsedPreview : null;
-	const selectedEntry =
-		previewIndex !== null && previewIndex >= 0 && previewIndex < result.entries.length
-			? result.entries[previewIndex]
-			: null;
-
-	// Supplementary callout, same streamed-not-blocking posture as
-	// claimedSources above - null (not a promise) when there's nothing to
-	// look up, which {#await} in +page.svelte treats as an
-	// already-resolved value.
-	let contextSummary: Promise<{ count: number } | null> | null = null;
-	if (selectedEntry) {
-		const srcIp = extractSrcIp(selectedEntry.Line);
-		if (srcIp) {
-			// entries=false/volume=false: this callout only ever shows
-			// contextResult.count - fetching up to 5000 full log entries
-			// (and a volume histogram) just to read their length was
-			// measurably slower than asking siem-api for a real
-			// aggregate count directly.
-			contextSummary = client
-				.search(token, {
-					q: srcIp,
-					start: new Date(end.getTime() - 24 * 60 * 60 * 1000).toISOString(),
-					end: end.toISOString(),
-					entries: 'false',
-					volume: 'false'
-				})
-				.then((contextResult) => ({ count: contextResult.count }))
-				.catch((err) => {
-					// Context callout is supplementary — a failure here
-					// shouldn't take down the rest of the page.
-					console.error('search: context summary lookup failed', err);
-					return null;
-				});
-		}
-	}
-
 	return {
 		filters,
 		logql: result.logql,
@@ -107,9 +69,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		entries: result.entries,
 		volume: result.volume,
 		facets: result.facets,
-		previewIndex,
-		selectedEntry,
-		contextSummary,
 		claimedSources
 	};
 };
