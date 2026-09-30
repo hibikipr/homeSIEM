@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hibikipr/homeSIEM/siem-api/internal/ollama"
@@ -38,6 +39,18 @@ type Service struct {
 	Settings SettingsStore
 	Lookback time.Duration
 	Logger   *slog.Logger
+
+	// mu guards current, the pass in progress (nil when idle) - see
+	// GenerateNow.
+	mu      sync.Mutex
+	current *pass
+}
+
+// pass is one in-flight generation; done closes once n/err are set.
+type pass struct {
+	done chan struct{}
+	n    int
+	err  error
 }
 
 func NewService(prompt *PromptBuilder, chat Chatter, st InsightStore, settings SettingsStore, lookback time.Duration, logger *slog.Logger) *Service {
@@ -65,7 +78,43 @@ type modelInsight struct {
 // convention already established for alert severity).
 var validSeverities = map[string]bool{"info": true, "warning": true, "critical": true}
 
-// GenerateNow runs one full pass: build the prompt from current data, ask
+// GenerateNow runs one generation pass, or joins the one already running.
+// A pass can take minutes against a local model, and the scheduler and
+// the console's "Generate now" button can both call this; without the
+// join, repeated clicks or a click during a scheduled pass each ran their
+// own full Ollama pass concurrently, duplicating work and racing each
+// other's fingerprint dedup. Joined callers get the running pass's result.
+//
+// The pass runs detached from ctx's cancellation (ctx only bounds how long
+// this caller waits), so a user navigating away from the console doesn't
+// abort a pass that other callers may be waiting on; it's still bounded
+// by the Ollama client's own timeout.
+func (s *Service) GenerateNow(ctx context.Context) (int, error) {
+	s.mu.Lock()
+	p := s.current
+	if p == nil {
+		p = &pass{done: make(chan struct{})}
+		s.current = p
+		go func() {
+			n, err := s.generate(context.WithoutCancel(ctx))
+			s.mu.Lock()
+			p.n, p.err = n, err
+			s.current = nil
+			s.mu.Unlock()
+			close(p.done)
+		}()
+	}
+	s.mu.Unlock()
+
+	select {
+	case <-p.done:
+		return p.n, p.err
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+}
+
+// generate runs one full pass: build the prompt from current data, ask
 // the model, parse its response, and store whatever insights come back. A
 // malformed/unparseable model response is logged and produces zero
 // insights for this pass - never a crash, never a partial insert. Errors
@@ -89,7 +138,7 @@ var validSeverities = map[string]bool{"info": true, "warning": true, "critical":
 // Without this, a real, persistent condition (the kind of thing this
 // service exists to surface) would otherwise get a fresh row every single
 // pass forever, flooding the Insights tab with duplicates of itself.
-func (s *Service) GenerateNow(ctx context.Context) (int, error) {
+func (s *Service) generate(ctx context.Context) (int, error) {
 	settings, err := s.Settings.GetOllamaSettings(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("insights: get ollama settings: %w", err)
