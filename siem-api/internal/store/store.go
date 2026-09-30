@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"net/url"
 	"strings"
 
 	_ "modernc.org/sqlite"
@@ -23,29 +24,37 @@ func New(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
+// connPragmas are applied by the driver to every connection it opens (via
+// the DSN), not just the first. busy_timeout and foreign_keys are
+// per-connection settings: set once with db.Exec, they'd silently vanish
+// if database/sql ever replaced the pooled connection (e.g. after a bad
+// connection error), leaving foreign keys unenforced and writes failing
+// fast with SQLITE_BUSY.
+var connPragmas = []string{
+	"journal_mode(WAL)",
+	"busy_timeout(5000)",
+	"foreign_keys(1)",
+}
+
 // Open accepts a DATABASE_URL of the form "sqlite:///path/to/file.db"
-// (query params, if any, are ignored — pragmas are applied explicitly
-// below rather than via DSN, since that's portable across driver versions).
+// (query params, if any, are ignored - pragmas are set by connPragmas).
 func Open(databaseURL string) (*sql.DB, error) {
 	path := strings.TrimPrefix(databaseURL, "sqlite://")
 	if idx := strings.IndexByte(path, '?'); idx >= 0 {
 		path = path[:idx]
 	}
 
-	db, err := sql.Open("sqlite", path)
+	params := url.Values{}
+	for _, p := range connPragmas {
+		params.Add("_pragma", p)
+	}
+	db, err := sql.Open("sqlite", path+"?"+params.Encode())
 	if err != nil {
 		return nil, fmt.Errorf("store: open %s: %w", path, err)
 	}
-
-	for _, pragma := range []string{
-		"PRAGMA journal_mode = WAL",
-		"PRAGMA busy_timeout = 5000",
-		"PRAGMA foreign_keys = ON",
-	} {
-		if _, err := db.Exec(pragma); err != nil {
-			db.Close()
-			return nil, fmt.Errorf("store: %s: %w", pragma, err)
-		}
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("store: open %s: %w", path, err)
 	}
 
 	// SQLite locking is unreliable across multiple connections issuing

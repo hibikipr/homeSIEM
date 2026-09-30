@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -727,5 +728,38 @@ func TestParseFacetsParam(t *testing.T) {
 		if got := parseFacetsParam(tc.in); !slices.Equal(got, tc.want) {
 			t.Errorf("parseFacetsParam(%q) = %v, want %v", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestEventsSearch_LimitClampedToMax(t *testing.T) {
+	var mu sync.Mutex
+	var gotLimit string
+	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/loki/api/v1/query_range" && r.URL.Query().Get("limit") != "" {
+			mu.Lock()
+			gotLimit = r.URL.Query().Get("limit")
+			mu.Unlock()
+			w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+			return
+		}
+		w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+	}))
+	defer fakeLoki.Close()
+
+	s, st := newTestServer(t)
+	s.deps.Loki = loki.New(fakeLoki.URL, fakeLoki.Client())
+
+	token := authToken(t, st, "viewer", 100)
+	req := httptest.NewRequest(http.MethodGet, "/events/search?limit=1000000&volume=false&facets=false&count=false", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if gotLimit != strconv.Itoa(maxSearchLimit) {
+		t.Errorf("Loki limit = %q, want %d", gotLimit, maxSearchLimit)
 	}
 }

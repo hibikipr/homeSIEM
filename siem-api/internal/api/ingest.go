@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -40,4 +41,13 @@ func decodeJSONStream[T any](w http.ResponseWriter, r *http.Request) ([]T, error
 		return nil, errors.New("empty body")
 	}
 	return out, nil
+}
+
+// validFastpathToken checks the shared secret Vector sends to the ingest
+// endpoints, in constant time so response timing can't be used to guess it
+// byte by byte. An unconfigured (empty) token rejects everything.
+func (s *Server) validFastpathToken(r *http.Request) bool {
+	want := s.deps.FastpathToken
+	got := r.Header.Get("X-Fastpath-Token")
+	return want != "" && subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }

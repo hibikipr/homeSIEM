@@ -187,7 +187,7 @@ type sourceHeartbeatRequest struct {
 }
 
 func (s *Server) handleSourceHeartbeat(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("X-Fastpath-Token") != s.deps.FastpathToken || s.deps.FastpathToken == "" {
+	if !s.validFastpathToken(r) {
 		http.Error(w, "invalid fastpath token", http.StatusUnauthorized)
 		return
 	}

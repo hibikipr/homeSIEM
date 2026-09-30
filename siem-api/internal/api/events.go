@@ -52,6 +52,14 @@ type searchResponse struct {
 	Facets map[string][]facetCount `json:"facets"`
 }
 
+// maxSearchLimit caps how many raw entries one search may ask Loki for.
+// Loki rejects anything over its max_entries_limit_per_query (the homelab
+// config sets 10000) with an error this handler would surface as a 502,
+// and even below that, thousands of full enriched lines were measured
+// timing out Loki on unfiltered 24h searches - so larger requests are
+// clamped rather than passed through.
+const maxSearchLimit = 5000
+
 func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filters := loki.Filters{
@@ -85,7 +93,7 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	limit := 1000
 	if v := q.Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			limit = n
+			limit = min(n, maxSearchLimit)
 		}
 	}
 
