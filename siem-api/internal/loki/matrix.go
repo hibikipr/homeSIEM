@@ -110,14 +110,8 @@ type instantQueryResponse struct {
 // returns it in the same MatrixResult shape QueryMatrix uses (each series
 // carries exactly one sample, timestamped at - or very near - `at`).
 //
-// Added as a workaround, not a general-purpose alternative to QueryMatrix:
-// this Loki deployment's /query_range endpoint collapses metric (matrix)
-// queries to a single, incorrectly-timestamped sample regardless of the
-// requested start/end/step, confirmed directly against Loki itself (a
-// plain non-metric log query and this instant endpoint were both
-// unaffected) - not a bug in how QueryMatrix builds its request. Callers
-// that need a real per-bucket series (see stats.go's queryHourlyBySource)
-// call this once per bucket instead.
+// Use it for single-point aggregates (a rolling total "as of now");
+// QueryMatrix is the right call for a per-bucket series.
 func (c *Client) QueryInstant(ctx context.Context, logql string, at time.Time) (MatrixResult, error) {
 	q := url.Values{}
 	q.Set("query", logql)

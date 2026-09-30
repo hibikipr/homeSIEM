@@ -904,10 +904,14 @@ source = '''
 ## `[{...}]` and 202 for `{...}`. This was invisible against the stub
 ## receiver (Task 2-4's harness), which just logs whatever JSON it parses
 ## regardless of shape, so it never caught the mismatch. `framing.method =
-## "newline_delimited"` makes each event its own request body, unwrapped.
-## Applies to both http sinks below (`siem_api`, the pre-existing fast_path
-## sink from Task 4, and `siem_heartbeat`, new in this task) since both
-## send single-object bodies to handlers with the same decode shape.
+## "newline_delimited"` drops the array wrapper: each event is a bare JSON
+## object on its own line. Note it does NOT mean one event per request -
+## the sink still batches (default: flush ~every 1s), so a request body
+## can carry many newline-separated events. Both handlers therefore drain
+## the whole body (siem-api's decodeJSONStream); an earlier version decoded
+## only the first object and silently dropped the rest of every batch.
+## Applies to both http sinks below (`siem_api`, the fast_path sink, and
+## `siem_heartbeat`).
 [sinks.siem_api]
 type = "http"
 inputs = ["fast_path"]

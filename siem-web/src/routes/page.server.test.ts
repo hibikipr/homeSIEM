@@ -73,7 +73,8 @@ describe('Wall load', () => {
 		expect(searchMock).toHaveBeenCalledWith('token-123', {
 			entries: 'false',
 			volume: 'false',
-			facets: 'true'
+			count: 'false',
+			facets: 'country'
 		});
 		const insights = await result.insights;
 		expect(insights).toHaveLength(1);

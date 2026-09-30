@@ -192,8 +192,8 @@ func (s *Server) handleSourceHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req sourceHeartbeatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	reqs, err := decodeJSONStream[sourceHeartbeatRequest](w, r)
+	if err != nil {
 		http.Error(w, "invalid json body", http.StatusBadRequest)
 		return
 	}
@@ -205,19 +205,30 @@ func (s *Server) handleSourceHeartbeat(w http.ResponseWriter, r *http.Request) {
 	// source's initial row.
 	const defaultHeartbeatSec = 900
 
-	if _, err := s.deps.Store.UpsertSource(ctx, store.Source{
-		Name: req.Name, Address: req.Address, Transport: req.Transport,
-		Parser: req.Parser, HeartbeatSec: defaultHeartbeatSec,
-	}); err != nil {
-		s.deps.Logger.Error("source heartbeat: upsert failed", "name", req.Name, "error", err)
-		http.Error(w, "heartbeat failed", http.StatusInternalServerError)
-		return
+	// A Vector batch often carries many heartbeats for the same few
+	// sources; only the last one per name matters, so collapse them
+	// before touching SQLite.
+	latest := make(map[string]sourceHeartbeatRequest, len(reqs))
+	for _, req := range reqs {
+		latest[req.Name] = req
 	}
 
-	if err := s.deps.Store.TouchSourceLastSeen(ctx, req.Name, time.Now().UTC()); err != nil {
-		s.deps.Logger.Error("source heartbeat: touch last_seen failed", "name", req.Name, "error", err)
-		http.Error(w, "heartbeat failed", http.StatusInternalServerError)
-		return
+	now := time.Now().UTC()
+	for _, req := range latest {
+		if _, err := s.deps.Store.UpsertSource(ctx, store.Source{
+			Name: req.Name, Address: req.Address, Transport: req.Transport,
+			Parser: req.Parser, HeartbeatSec: defaultHeartbeatSec,
+		}); err != nil {
+			s.deps.Logger.Error("source heartbeat: upsert failed", "name", req.Name, "error", err)
+			http.Error(w, "heartbeat failed", http.StatusInternalServerError)
+			return
+		}
+
+		if err := s.deps.Store.TouchSourceLastSeen(ctx, req.Name, now); err != nil {
+			s.deps.Logger.Error("source heartbeat: touch last_seen failed", "name", req.Name, "error", err)
+			http.Error(w, "heartbeat failed", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusAccepted)

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,47 +15,60 @@ import (
 )
 
 func TestEventsStats_ReturnsTotalAndHeatGrid(t *testing.T) {
-	// queryTotal24h and queryHourlyBySource both evaluate via QueryInstant
-	// (Loki's /query endpoint, one call per hour bucket for the latter,
-	// fired concurrently - see queryHourlyBySource's own doc comment)
-	// rather than a single QueryMatrix/query_range call - see stats.go's
-	// doc comments for why. Every hour bucket gets the SAME response here
-	// (uniform per severity/volume, not tied to any specific "first"
-	// timestamp) precisely because requests now arrive out of order under
-	// concurrency - a fixture keyed on arrival order would be flaky. Gap-
-	// filling for a genuinely quiet hour is already covered directly at
-	// the buildHourlyTotals level (TestBuildHourlyTotals_FillsGapsForQuietHours),
-	// so it doesn't need re-proving through this HTTP round trip too.
+	// The 24h total is one instant /query call; each hourly-by-source
+	// series is one /query_range call at a 1h step. The fake answers every
+	// range query with a sample at every hour across the requested
+	// (hour-aligned) start..end, like Loki does. Gap-filling for a quiet
+	// hour is covered directly at the buildHourlyTotals level
+	// (TestBuildHourlyTotals_FillsGapsForQuietHours).
+	var mu sync.Mutex
+	var paths []string
 	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
 		w.Header().Set("Content-Type", "application/json")
+		mu.Lock()
+		paths = append(paths, r.URL.Path)
+		mu.Unlock()
 
-		if r.URL.Path != "/loki/api/v1/query" {
-			t.Errorf("unexpected request path %q, want /loki/api/v1/query (instant) only", r.URL.Path)
-		}
-
-		timeNanos, _ := strconv.ParseInt(r.URL.Query().Get("time"), 10, 64)
-		at := timeNanos / int64(time.Second)
-
-		switch {
-		case !strings.Contains(query, "by (source)"):
-			// 24h grand total, no grouping - a single instant call at "end".
+		if r.URL.Path == "/loki/api/v1/query" {
+			if strings.Contains(query, "by (source)") {
+				t.Errorf("hourly query %q went to the instant endpoint, want /query_range", query)
+			}
 			fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[
 				{"metric":{},"value":[1700003600,"1240000"]}
 			]}}`)
+			return
+		}
+		if r.URL.Path != "/loki/api/v1/query_range" {
+			t.Errorf("unexpected request path %q", r.URL.Path)
+		}
+		if step := r.URL.Query().Get("step"); step != "3600" {
+			t.Errorf("step = %q, want 3600", step)
+		}
+		startNanos, _ := strconv.ParseInt(r.URL.Query().Get("start"), 10, 64)
+		endNanos, _ := strconv.ParseInt(r.URL.Query().Get("end"), 10, 64)
+		start, end := startNanos/int64(time.Second), endNanos/int64(time.Second)
+		if start%3600 != 0 || end%3600 != 0 {
+			t.Errorf("start/end = %d/%d, want hour-aligned", start, end)
+		}
+		series := func(source, value string) string {
+			var vals []string
+			for ts := start; ts <= end; ts += 3600 {
+				vals = append(vals, fmt.Sprintf(`[%d,%q]`, ts, value))
+			}
+			return fmt.Sprintf(`{"metric":{"source":%q},"values":[%s]}`, source, strings.Join(vals, ","))
+		}
+
+		var result []string
+		switch {
 		case strings.Contains(query, `severity="critical"`):
-			fmt.Fprintf(w, `{"status":"success","data":{"resultType":"vector","result":[
-				{"metric":{"source":"udm-ultra"},"value":[%d,"1"]}
-			]}}`, at)
+			result = []string{series("udm-ultra", "1")}
 		case strings.Contains(query, `severity="warning"`):
-			fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
 		default:
 			// total volume per source, no severity filter
-			fmt.Fprintf(w, `{"status":"success","data":{"resultType":"vector","result":[
-				{"metric":{"source":"udm-ultra"},"value":[%d,"1"]},
-				{"metric":{"source":"host-1"},"value":[%d,"60"]}
-			]}}`, at, at)
+			result = []string{series("udm-ultra", "1"), series("host-1", "60")}
 		}
+		fmt.Fprintf(w, `{"status":"success","data":{"resultType":"matrix","result":[%s]}}`, strings.Join(result, ","))
 	}))
 	defer fakeLoki.Close()
 
@@ -114,6 +128,10 @@ func TestEventsStats_ReturnsTotalAndHeatGrid(t *testing.T) {
 		}
 	}
 
+	if len(paths) != 4 {
+		t.Errorf("Loki requests = %d (%v), want 4 (1 total + 3 hourly series)", len(paths), paths)
+	}
+
 	if len(resp.HourlyTotals) != 25 {
 		t.Fatalf("len(HourlyTotals) = %d, want 25 (dense 24h+1 series), got %+v", len(resp.HourlyTotals), resp.HourlyTotals)
 	}
@@ -125,14 +143,10 @@ func TestEventsStats_ReturnsTotalAndHeatGrid(t *testing.T) {
 }
 
 func TestEventsStats_QueriesLokiConcurrently(t *testing.T) {
-	// Each of the ~76 Loki instant queries this handler makes (1 total +
-	// 3*25 hourly-by-source) artificially takes lokiLatency here. Run
-	// sequentially, that's ~76*lokiLatency; run concurrently (bounded by
-	// MaxConcurrentLokiQueries), it should take a small, roughly constant
-	// number of "rounds" regardless of how many buckets there are. This is
-	// the actual regression test for the fix - it would fail again if
-	// someone reverts to a sequential loop.
-	const lokiLatency = 20 * time.Millisecond
+	// Each of the 4 Loki queries this handler makes (1 total + 3 hourly
+	// series) artificially takes lokiLatency here. They're independent, so
+	// they should overlap rather than run back to back.
+	const lokiLatency = 150 * time.Millisecond
 	fakeLoki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(lokiLatency)
 		w.Header().Set("Content-Type", "application/json")
@@ -156,12 +170,9 @@ func TestEventsStats_QueriesLokiConcurrently(t *testing.T) {
 		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
 	}
 
-	// Sequential would be ~76*20ms = 1.52s. Fully unbounded-concurrent would
-	// be ~2 "rounds" (one per queryHourlyBySource's own 25 buckets, all
-	// three of which overlap). Generous upper bound that still clearly
-	// distinguishes "parallelized" from "sequential" without being flaky
-	// under CI load.
-	const maxExpected = 500 * time.Millisecond
+	// Sequential would be ~4*lokiLatency; concurrent is ~1. Bound sits in
+	// between so it distinguishes the two without being flaky under load.
+	const maxExpected = 3 * lokiLatency
 	if elapsed > maxExpected {
 		t.Errorf("handleEventsStats took %v, want under %v - Loki queries don't appear to be running concurrently", elapsed, maxExpected)
 	}

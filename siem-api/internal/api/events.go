@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,11 +106,20 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	// as if it were a total rather than a page size.
 	includeEntries := q.Get("entries") != "false"
 
-	// includeFacets computes real per-label aggregate counts (severity,
-	// program, source) alongside the main query - see queryFacetCounts and
-	// the Facets field doc. Skippable for callers (the context-summary
-	// lookup) that only want a total count, same reasoning as includeVolume.
-	includeFacets := q.Get("facets") != "false"
+	// facets selects which real per-label aggregate counts to compute
+	// alongside the main query - see queryFacetCounts and the Facets field
+	// doc. Each facet is its own full-window Loki scan, so callers ask only
+	// for what they render: "false" skips them all (the context-summary
+	// lookup), a comma-separated subset like "country" computes just those
+	// (the Wall's country breakdown), and absent/"true" computes every one
+	// (the Search screen's facet rail).
+	requestedFacets := parseFacetsParam(q.Get("facets"))
+	includeFacets := len(requestedFacets) > 0
+
+	// includeCount lets a caller that never reads Count (the Wall's
+	// country breakdown) skip the full-window total-count scan. Defaults
+	// to true; Count is reported as 0 when skipped.
+	includeCount := q.Get("count") != "false"
 
 	// The entries query, the count query, the volume-bucket query, and each
 	// facet query are all independent Loki requests over the same
@@ -134,11 +145,13 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		totalCount, countErr = s.queryTotalCount(r.Context(), logql, start, end)
-	}()
+	if includeCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			totalCount, countErr = s.queryTotalCount(r.Context(), logql, start, end)
+		}()
+	}
 
 	if includeVolume {
 		wg.Add(1)
@@ -152,7 +165,7 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			facets, facetsErr = s.queryFacets(r.Context(), filters, start, end)
+			facets, facetsErr = s.queryFacets(r.Context(), filters, requestedFacets, start, end)
 		}()
 	}
 
@@ -230,39 +243,66 @@ func (s *Server) queryTotalCount(ctx context.Context, logql string, start, end t
 // the comment on Filters.Facility), and free text isn't a facet at all.
 var facetLabels = []string{"severity", "program", "source"}
 
-// queryFacets runs one real Loki-side aggregate query per entry in
-// facetLabels, concurrently, each with that facet's own filter excluded
+// countryFacet is aggregated from each line's geoip JSON rather than a
+// stream label (see queryCountryFacetCounts), so it isn't in facetLabels.
+const countryFacet = "country"
+
+// allFacets is every facet the search endpoint can compute.
+var allFacets = append(append([]string{}, facetLabels...), countryFacet)
+
+// parseFacetsParam turns the `facets` query param into the set of facets
+// to compute: "" or "true" means all of them, "false" none, otherwise a
+// comma-separated list (unknown names ignored).
+func parseFacetsParam(v string) []string {
+	switch v {
+	case "", "true":
+		return allFacets
+	case "false":
+		return nil
+	}
+	var out []string
+	for _, name := range strings.Split(v, ",") {
+		name = strings.TrimSpace(name)
+		if slices.Contains(allFacets, name) && !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// queryFacets runs one real Loki-side aggregate query per requested facet,
+// concurrently, each with that facet's own filter excluded
 // from the query it's computed with - so e.g. the severity facet reports
 // counts across every severity given the other active filters, not just
 // whichever severity happens to already be selected. A single facet's
 // failure doesn't fail the others; it's simply omitted from the result.
-func (s *Server) queryFacets(ctx context.Context, filters loki.Filters, start, end time.Time) (map[string][]facetCount, error) {
+func (s *Server) queryFacets(ctx context.Context, filters loki.Filters, requested []string, start, end time.Time) (map[string][]facetCount, error) {
 	type facetResult struct {
 		label  string
 		counts []facetCount
 		err    error
 	}
 
-	results := make(chan facetResult, len(facetLabels)+1)
+	results := make(chan facetResult, len(requested))
 	var wg sync.WaitGroup
-	for _, label := range facetLabels {
+	for _, label := range requested {
 		wg.Add(1)
 		go func(label string) {
 			defer wg.Done()
-			counts, err := s.queryFacetCounts(ctx, filters, label, start, end)
+			var counts []facetCount
+			var err error
+			if label == countryFacet {
+				counts, err = s.queryCountryFacetCounts(ctx, filters, start, end)
+			} else {
+				counts, err = s.queryFacetCounts(ctx, filters, label, start, end)
+			}
 			results <- facetResult{label: label, counts: counts, err: err}
 		}(label)
 	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		counts, err := s.queryCountryFacetCounts(ctx, filters, start, end)
-		results <- facetResult{label: "country", counts: counts, err: err}
-	}()
 	wg.Wait()
 	close(results)
 
-	out := make(map[string][]facetCount, len(facetLabels))
+	out := make(map[string][]facetCount, len(requested))
 	var firstErr error
 	for res := range results {
 		if res.err != nil {

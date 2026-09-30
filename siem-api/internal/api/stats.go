@@ -8,8 +8,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-
-	"github.com/hibikipr/homeSIEM/siem-api/internal/loki"
 )
 
 type statsResponse struct {
@@ -38,14 +36,17 @@ const (
 
 func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	end := time.Now().UTC()
+	now := time.Now().UTC()
+	// The hourly grid is anchored on hour boundaries, ending at the top of
+	// the next hour so its last bucket covers the hour in progress. Loki
+	// aligns /query_range evaluation timestamps to multiples of `step`
+	// anyway; aligning the window ourselves makes the timestamps it returns
+	// exactly the buckets buildHeatGrid/buildHourlyTotals walk.
+	end := now.Truncate(time.Hour).Add(time.Hour)
 	start := end.Add(-24 * time.Hour)
 
 	// The four queries below are independent of each other, so they run
-	// concurrently instead of one after another - each already fires up to
-	// 25 of its own concurrent Loki requests (see queryHourlyBySource), all
-	// sharing this server's single lokiSem cap, so this doesn't multiply
-	// peak Loki load, just how much of it can overlap in time.
+	// concurrently instead of one after another.
 	var (
 		total                     int64
 		critical, warning, volume bySourceHourly
@@ -56,7 +57,7 @@ func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		total, totalErr = s.queryTotal24h(ctx, start, end)
+		total, totalErr = s.queryTotal24h(ctx, now)
 	}()
 	go func() {
 		defer wg.Done()
@@ -101,16 +102,12 @@ func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// queryTotal24h and queryHourlyBySource both evaluate via QueryInstant
-// (Loki's /query endpoint) rather than QueryMatrix (/query_range): this
-// Loki deployment's /query_range collapses metric queries to a single,
-// incorrectly-timestamped sample regardless of the requested
-// start/end/step - confirmed directly against Loki itself, unrelated to
-// how this client builds its request. See QueryInstant's own doc comment
-// in internal/loki/matrix.go for the full story.
-func (s *Server) queryTotal24h(ctx context.Context, start, end time.Time) (int64, error) {
+// queryTotal24h is a single instant query over the rolling 24h ending at
+// `at` (not the hour-aligned grid window, which can end up to an hour in
+// the future).
+func (s *Server) queryTotal24h(ctx context.Context, at time.Time) (int64, error) {
 	logql := fmt.Sprintf(`sum(count_over_time({job=%q}[24h]))`, s.deps.JobLabel)
-	result, err := s.deps.Loki.QueryInstant(ctx, logql, end)
+	result, err := s.deps.Loki.QueryInstant(ctx, logql, at)
 	if err != nil {
 		return 0, err
 	}
@@ -123,20 +120,16 @@ func (s *Server) queryTotal24h(ctx context.Context, start, end time.Time) (int64
 // bySourceHourly maps source -> hour-bucket unix timestamp -> value.
 type bySourceHourly map[string]map[int64]float64
 
-// queryHourlyBySource issues one instant query per hour bucket from start
-// to end (inclusive) instead of a single QueryMatrix call - more requests
-// (25 for a 24h window instead of 1), but each is a cheap single-point
-// aggregation. These 25 fire concurrently (bounded by the server's shared
-// lokiSem, since handleEventsStats can have up to three of these calls
-// overlapping too) rather than one at a time - sequentially, 25 requests
-// at real-world Loki latency was measured adding several seconds to every
-// single Wall page load. Bucket-index results are collected into a plain
-// slice (one slot per bucket, filled by its own goroutine) rather than a
-// shared map, so no locking is needed for the fan-out itself; the final
-// bySourceHourly map is only assembled afterward, once all goroutines have
-// finished. Map keys are each bucket's own timestamp, not whatever Loki
-// echoes back in the response, so they line up exactly with
-// buildHourlyTotals' identical start-to-end hourly walk.
+// queryHourlyBySource returns per-source hourly counts for every hour
+// bucket from start to end (inclusive; both hour-aligned) with a single
+// /query_range call at a 1h step - one Loki request per series instead of
+// the 25 per-bucket instant queries this used to fire. (That workaround
+// assumed /query_range collapsed metric queries to one sample; verified
+// against the homelab's Loki 3.7.8, it returns a real per-hour series.)
+//
+// Sample timestamps are snapped to the nearest hour before being used as
+// map keys, so they line up exactly with buildHeatGrid/buildHourlyTotals'
+// start-to-end hourly walk even if Loki returns a fractional timestamp.
 func (s *Server) queryHourlyBySource(ctx context.Context, labelFilter string, start, end time.Time) (bySourceHourly, error) {
 	selector := fmt.Sprintf(`{job=%q}`, s.deps.JobLabel)
 	if labelFilter != "" {
@@ -144,61 +137,32 @@ func (s *Server) queryHourlyBySource(ctx context.Context, labelFilter string, st
 	}
 	logql := fmt.Sprintf(`sum by (source) (count_over_time(%s[1h]))`, selector)
 
-	var buckets []time.Time
-	for bucket := start; !bucket.After(end); bucket = bucket.Add(time.Hour) {
-		buckets = append(buckets, bucket)
-	}
-
-	results := make([]loki.MatrixResult, len(buckets))
-	errs := make([]error, len(buckets))
-
-	var wg sync.WaitGroup
-	wg.Add(len(buckets))
-	for i, bucket := range buckets {
-		go func(i int, bucket time.Time) {
-			defer wg.Done()
-			s.lokiSem <- struct{}{}
-			defer func() { <-s.lokiSem }()
-			results[i], errs[i] = s.deps.Loki.QueryInstant(ctx, logql, bucket)
-		}(i, bucket)
-	}
-	wg.Wait()
-
-	for _, err := range errs {
-		if err != nil {
-			return nil, err
-		}
+	s.lokiSem <- struct{}{}
+	result, err := s.deps.Loki.QueryMatrix(ctx, logql, start, end, time.Hour)
+	<-s.lokiSem
+	if err != nil {
+		return nil, err
 	}
 
 	out := bySourceHourly{}
-	for i, result := range results {
-		bucketTs := buckets[i].Unix()
-		for _, series := range result.Series {
-			source := series.Labels["source"]
-			hours := out[source]
-			if hours == nil {
-				hours = map[int64]float64{}
-				out[source] = hours
+	for _, series := range result.Series {
+		source := series.Labels["source"]
+		hours := out[source]
+		if hours == nil {
+			hours = map[int64]float64{}
+			out[source] = hours
+		}
+		for _, sample := range series.Samples {
+			ts := sample.Timestamp.Round(time.Hour)
+			if ts.Before(start) || ts.After(end) {
+				continue
 			}
-			for _, sample := range series.Samples {
-				hours[bucketTs] = sample.Value
-			}
+			hours[ts.Unix()] = sample.Value
 		}
 	}
 	return out, nil
 }
 
-// buildHeatGrid walks every hourly bucket from start to end explicitly for
-// each source, the same gap-filling buildHourlyTotals already does (see its
-// own comment) - not just the buckets present in `volume`. A source with
-// any genuinely quiet hour (zero of ITS OWN traffic, even while other
-// sources are busy) would otherwise silently lose that hour's cell instead
-// of getting a real "none"-tier one: found via a source that had only
-// existed for a couple of hours within the 24h window, whose row was
-// missing 20+ hours of cells entirely rather than showing them as quiet.
-// Indexing a nil map (a source with no critical/warning events at all)
-// with [ts] is safe in Go and returns the zero value, so no existence
-// checks are needed here.
 func buildHeatGrid(critical, warning, volume bySourceHourly, start, end time.Time) []sourceHeatRow {
 	sources := map[string]struct{}{}
 	for source := range volume {
