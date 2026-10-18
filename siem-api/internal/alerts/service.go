@@ -210,7 +210,7 @@ func (s *Service) buildNotifyMessage(alertID int64, c Candidate, rule store.Rule
 	if s.appURL != "" {
 		click := fmt.Sprintf("%s/alerts?id=%d", s.appURL, alertID)
 		msg.Click = click
-		msg.Icon = s.appURL + "/icons/homesiem-192.png"
+		msg.Icon = ntfy.IconURL(s.appURL)
 		msg.Actions = []ntfy.Action{{Label: "Open in homeSIEM", URL: click}}
 	}
 	return msg

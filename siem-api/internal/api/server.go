@@ -36,6 +36,8 @@ type Deps struct {
 	NtfyURL         string
 	NtfyTopic       string
 	Ntfy            *ntfy.Client
+	// AppURL is siem-web's public URL, for the test notification's icon.
+	AppURL string
 	// Insights is nil when OLLAMA_URL is unset - handleGenerateInsights
 	// checks for that and 400s, matching handleTestNotification's existing
 	// not-configured shape. GET/dismiss still work with Insights nil, since

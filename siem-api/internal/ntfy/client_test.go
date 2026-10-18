@@ -132,3 +132,16 @@ func TestPublish_ServerError(t *testing.T) {
 		t.Fatal("Publish() error = nil, want error for 500 response")
 	}
 }
+
+func TestIconURL(t *testing.T) {
+	cases := map[string]string{
+		"":                          "",
+		"https://siem.example.com":  "https://siem.example.com/icons/homesiem-192.png",
+		"https://siem.example.com/": "https://siem.example.com/icons/homesiem-192.png",
+	}
+	for appURL, want := range cases {
+		if got := IconURL(appURL); got != want {
+			t.Errorf("IconURL(%q) = %q, want %q", appURL, got, want)
+		}
+	}
+}

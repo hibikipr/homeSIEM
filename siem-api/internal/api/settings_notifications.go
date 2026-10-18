@@ -65,6 +65,7 @@ func (s *Server) handleTestNotification(w http.ResponseWriter, r *http.Request) 
 			" to confirm ntfy is reachable.",
 		Priority: 3, // default
 		Tags:     []string{"test_tube"},
+		Icon:     ntfy.IconURL(s.deps.AppURL),
 		Markdown: true,
 	}
 

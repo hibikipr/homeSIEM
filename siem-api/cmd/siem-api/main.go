@@ -118,7 +118,7 @@ func main() {
 		Verifier: verifier, SessionEst: sessionEst, LocalAuth: localAuth,
 		FastpathToken: cfg.FastpathToken,
 		OIDCIssuer:    cfg.OIDCIssuer, OIDCClientID: cfg.OIDCClientID, OIDCGroupsScope: cfg.OIDCGroupsScope,
-		NtfyURL: cfg.NtfyURL, NtfyTopic: cfg.NtfyTopic, Ntfy: ntfyClient,
+		NtfyURL: cfg.NtfyURL, NtfyTopic: cfg.NtfyTopic, Ntfy: ntfyClient, AppURL: cfg.AppURL,
 		Insights:  insightsSvc,
 		OllamaURL: cfg.OllamaURL, OllamaModel: cfg.OllamaModel, OllamaTimeoutSec: cfg.OllamaTimeoutSec,
 		InsightsIntervalSec: cfg.InsightsIntervalSec, InsightsLookbackMin: cfg.InsightsLookbackMin,

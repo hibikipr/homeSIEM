@@ -32,6 +32,17 @@ type Message struct {
 	Markdown bool     // render Body as Markdown
 }
 
+// IconURL is homeSIEM's icon under siem-web's public URL, shown next to every
+// notification. The phone fetches it with no credentials; that works because
+// siem-web's adapter serves static/ before the sign-in hook runs. Empty when
+// appURL is unset.
+func IconURL(appURL string) string {
+	if appURL == "" {
+		return ""
+	}
+	return strings.TrimRight(appURL, "/") + "/icons/homesiem-192.png"
+}
+
 type Client struct {
 	baseURL    string
 	topic      string
