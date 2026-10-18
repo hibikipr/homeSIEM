@@ -147,6 +147,38 @@ func TestTestNotification_Success(t *testing.T) {
 	}
 }
 
+func TestTestNotification_SendsTheAppIcon(t *testing.T) {
+	var gotIcon string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Icon string `json:"icon"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		gotIcon = body.Icon
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	s, st := newTestServer(t)
+	s.deps.NtfyURL = srv.URL
+	s.deps.NtfyTopic = "homesiem"
+	s.deps.Ntfy = ntfy.New(srv.URL, "homesiem", "", srv.Client())
+	s.deps.AppURL = "https://siem.example.com"
+	token := authToken(t, st, "admin", 5)
+
+	req := httptest.NewRequest(http.MethodPost, "/settings/notifications/test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if want := "https://siem.example.com/icons/homesiem-192.png"; gotIcon != want {
+		t.Errorf("icon = %q, want %q", gotIcon, want)
+	}
+}
+
 func TestTestNotification_PublishFailureReturns502(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
