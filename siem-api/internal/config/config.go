@@ -12,7 +12,7 @@ type Config struct {
 	DatabaseURL            string
 	LokiURL                string
 	LokiJobLabel           string
-	VectorGraphQLURL       string
+	VectorMetricsURL       string
 	NtfyURL                string
 	NtfyTopic              string
 	NtfyToken              string
@@ -58,7 +58,7 @@ func Load() (Config, error) {
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
 		LokiURL:          os.Getenv("LOKI_URL"),
 		LokiJobLabel:     getenv("LOKI_JOB_LABEL", "siem"),
-		VectorGraphQLURL: getenv("VECTOR_GRAPHQL_URL", "http://siem-ingest:8686"),
+		VectorMetricsURL: getenv("VECTOR_METRICS_URL", "http://siem-ingest:9598"),
 		NtfyURL:          os.Getenv("NTFY_URL"),
 		NtfyTopic:        os.Getenv("NTFY_TOPIC"),
 		NtfyToken:        os.Getenv("NTFY_TOKEN"),

@@ -22,47 +22,10 @@ type ingestHealthResponse struct {
 	Degraded                   bool    `json:"degraded"`
 }
 
-const ingestHealthQuery = `{
-	sources { nodes { componentId metrics { receivedEventsTotal { receivedEventsTotal } } } }
-	sinks { nodes { componentId metrics { sentEventsTotal { sentEventsTotal } } } }
-	transforms { nodes { componentId metrics { receivedEventsTotal { receivedEventsTotal } sentEventsTotal { sentEventsTotal } } } }
-}`
-
-type ingestHealthGraphQLData struct {
-	Sources struct {
-		Nodes []struct {
-			ComponentID string `json:"componentId"`
-			Metrics     struct {
-				ReceivedEventsTotal *struct {
-					ReceivedEventsTotal float64 `json:"receivedEventsTotal"`
-				} `json:"receivedEventsTotal"`
-			} `json:"metrics"`
-		} `json:"nodes"`
-	} `json:"sources"`
-	Sinks struct {
-		Nodes []struct {
-			ComponentID string `json:"componentId"`
-			Metrics     struct {
-				SentEventsTotal *struct {
-					SentEventsTotal float64 `json:"sentEventsTotal"`
-				} `json:"sentEventsTotal"`
-			} `json:"metrics"`
-		} `json:"nodes"`
-	} `json:"sinks"`
-	Transforms struct {
-		Nodes []struct {
-			ComponentID string `json:"componentId"`
-			Metrics     struct {
-				ReceivedEventsTotal *struct {
-					ReceivedEventsTotal float64 `json:"receivedEventsTotal"`
-				} `json:"receivedEventsTotal"`
-				SentEventsTotal *struct {
-					SentEventsTotal float64 `json:"sentEventsTotal"`
-				} `json:"sentEventsTotal"`
-			} `json:"metrics"`
-		} `json:"nodes"`
-	} `json:"transforms"`
-}
+const (
+	metricReceivedEvents = "vector_component_received_events_total"
+	metricSentEvents     = "vector_component_sent_events_total"
+)
 
 func (s *Server) handleIngestHealth(w http.ResponseWriter, r *http.Request) {
 	resp := ingestHealthResponse{ReceivedEventsPerSource: map[string]float64{}}
@@ -73,40 +36,34 @@ func (s *Server) handleIngestHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	raw, err := s.deps.Vector.Query(r.Context(), ingestHealthQuery)
+	samples, err := s.deps.Vector.Metrics(r.Context(), metricReceivedEvents, metricSentEvents)
 	if err != nil {
-		s.deps.Logger.Error("ingest health: vector query failed", "error", err)
+		s.deps.Logger.Error("ingest health: vector metrics failed", "error", err)
 		resp.Degraded = true
 		writeJSON(w, resp)
 		return
 	}
 
-	var data ingestHealthGraphQLData
-	if err := json.Unmarshal(raw, &data); err != nil {
-		s.deps.Logger.Error("ingest health: decode vector response failed", "error", err)
-		resp.Degraded = true
-		writeJSON(w, resp)
-		return
-	}
-
-	for _, node := range data.Sources.Nodes {
-		if node.Metrics.ReceivedEventsTotal != nil {
-			resp.ReceivedEventsPerSource[node.ComponentID] = node.Metrics.ReceivedEventsTotal.ReceivedEventsTotal
+	var blankReceived, blankSent float64
+	for _, m := range samples {
+		id, kind := m.Labels["component_id"], m.Labels["component_kind"]
+		switch {
+		// Vector's own internal_metrics source (feeding the exporter this
+		// reads) is plumbing, not a log feed - leave it out of the per-source
+		// counts the Sources page shows.
+		case kind == "source" && m.Name == metricReceivedEvents && m.Labels["component_type"] != "internal_metrics":
+			resp.ReceivedEventsPerSource[id] += m.Value
+		case kind == "sink" && id == "loki" && m.Name == metricSentEvents:
+			resp.LokiSentEventsTotal += m.Value
+		// sent is reported per output; summing covers transforms with more
+		// than the one _default output.
+		case kind == "transform" && id == "drop_blank_messages" && m.Name == metricReceivedEvents:
+			blankReceived += m.Value
+		case kind == "transform" && id == "drop_blank_messages" && m.Name == metricSentEvents:
+			blankSent += m.Value
 		}
 	}
-	for _, node := range data.Sinks.Nodes {
-		if node.ComponentID == "loki" && node.Metrics.SentEventsTotal != nil {
-			resp.LokiSentEventsTotal = node.Metrics.SentEventsTotal.SentEventsTotal
-		}
-	}
-	for _, node := range data.Transforms.Nodes {
-		if node.ComponentID != "drop_blank_messages" {
-			continue
-		}
-		if node.Metrics.ReceivedEventsTotal != nil && node.Metrics.SentEventsTotal != nil {
-			resp.BlankMessagesFilteredTotal = node.Metrics.ReceivedEventsTotal.ReceivedEventsTotal - node.Metrics.SentEventsTotal.SentEventsTotal
-		}
-	}
+	resp.BlankMessagesFilteredTotal = blankReceived - blankSent
 
 	writeJSON(w, resp)
 }

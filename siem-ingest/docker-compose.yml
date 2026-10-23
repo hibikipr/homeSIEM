@@ -34,6 +34,7 @@ services:
       - "6514:6514/tcp"
     expose:
       - "8686"
+      - "9598"
     environment:
       - TZ=${DOCKER_TZ:-America/New_York}
       - LOKI_ENDPOINT=http://loki:3100

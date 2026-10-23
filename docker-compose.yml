@@ -162,6 +162,7 @@ services:
       - "6514:6514/tcp"
     expose:
       - "8686"
+      - "9598"
     environment:
       - TZ=${TZ:-UTC}
       - LOKI_ENDPOINT=http://loki:3100

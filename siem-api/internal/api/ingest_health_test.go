@@ -11,21 +11,17 @@ import (
 
 func TestIngestHealth_ReturnsMetricsFromVector(t *testing.T) {
 	fakeVector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"data":{
-			"sources":{"nodes":[
-				{"componentId":"unifi","metrics":{"receivedEventsTotal":{"receivedEventsTotal":1234}}},
-				{"componentId":"hosts_tcp","metrics":{"receivedEventsTotal":{"receivedEventsTotal":56}}}
-			]},
-			"sinks":{"nodes":[
-				{"componentId":"loki","metrics":{"sentEventsTotal":{"sentEventsTotal":1290}}},
-				{"componentId":"siem_api","metrics":{"sentEventsTotal":null}}
-			]},
-			"transforms":{"nodes":[
-				{"componentId":"enrich_geo","metrics":{"receivedEventsTotal":{"receivedEventsTotal":1300},"sentEventsTotal":{"sentEventsTotal":1300}}},
-				{"componentId":"drop_blank_messages","metrics":{"receivedEventsTotal":{"receivedEventsTotal":1300},"sentEventsTotal":{"sentEventsTotal":1290}}}
-			]}
-		}}`))
+		w.Write([]byte(`# TYPE vector_component_received_events_total counter
+vector_component_received_events_total{component_id="unifi",component_kind="source",component_type="syslog",host="h"} 1234 1792786573500
+vector_component_received_events_total{component_id="hosts_tcp",component_kind="source",component_type="syslog",host="h"} 56 1792786573500
+vector_component_received_events_total{component_id="vector_metrics",component_kind="source",component_type="internal_metrics",host="h"} 999 1792786573500
+vector_component_sent_events_total{component_id="loki",component_kind="sink",component_type="loki",host="h"} 1290 1792786573500
+vector_component_sent_events_total{component_id="siem_api",component_kind="sink",component_type="http",host="h"} 40 1792786573500
+vector_component_received_events_total{component_id="enrich_geo",component_kind="transform",component_type="remap",host="h"} 1300 1792786573500
+vector_component_sent_events_total{component_id="enrich_geo",component_kind="transform",component_type="remap",host="h",output="_default"} 1300 1792786573500
+vector_component_received_events_total{component_id="drop_blank_messages",component_kind="transform",component_type="filter",host="h"} 1300 1792786573500
+vector_component_sent_events_total{component_id="drop_blank_messages",component_kind="transform",component_type="filter",host="h",output="_default"} 1290 1792786573500
+`))
 	}))
 	defer fakeVector.Close()
 
@@ -48,7 +44,7 @@ func TestIngestHealth_ReturnsMetricsFromVector(t *testing.T) {
 	if got.Degraded {
 		t.Fatal("Degraded = true, want false on a successful Vector response")
 	}
-	if got.ReceivedEventsPerSource["unifi"] != 1234 || got.ReceivedEventsPerSource["hosts_tcp"] != 56 {
+	if len(got.ReceivedEventsPerSource) != 2 || got.ReceivedEventsPerSource["unifi"] != 1234 || got.ReceivedEventsPerSource["hosts_tcp"] != 56 {
 		t.Fatalf("ReceivedEventsPerSource = %+v", got.ReceivedEventsPerSource)
 	}
 	if got.LokiSentEventsTotal != 1290 {
@@ -61,12 +57,7 @@ func TestIngestHealth_ReturnsMetricsFromVector(t *testing.T) {
 
 func TestIngestHealth_ZeroBlankMessagesFilteredWhenTransformAbsent(t *testing.T) {
 	fakeVector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"data":{
-			"sources":{"nodes":[]},
-			"sinks":{"nodes":[]},
-			"transforms":{"nodes":[]}
-		}}`))
+		w.Write([]byte("# no component metrics yet\n"))
 	}))
 	defer fakeVector.Close()
 
