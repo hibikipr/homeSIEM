@@ -16,7 +16,7 @@ services:
   # homeSIEM stack that publishes host ports, because devices dial it directly.
   siem-ingest:
     container_name: siem-ingest
-    image: timberio/vector:0.49.0-alpine
+    image: timberio/vector:0.60.0-alpine
     # Required: without this, the image silently falls back to its own
     # bundled demo config instead of the mounted vector.toml below
     # (verified empirically — it starts up cleanly with no error, so this
@@ -39,6 +39,8 @@ services:
       - LOKI_ENDPOINT=http://loki:3100
       - SIEM_API_URL=http://siem-api:8080
       - SIEM_FASTPATH_TOKEN=${SIEM_FASTPATH_TOKEN}
+      # Vector 0.5x+ only substitutes ${VAR} in vector.toml with this set.
+      - VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true
     volumes:
       - ${MY_DOCKER_DATA_DIR}/homesiem/vector:/etc/vector:ro
       - ${MY_DOCKER_DATA_DIR}/homesiem/geoip:/geoip:ro

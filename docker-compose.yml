@@ -82,6 +82,8 @@ services:
       - OIDC_GROUPS_SCOPE=groups
       - SIEM_SESSION_SECRET=${SIEM_SESSION_SECRET}
       - SIEM_FASTPATH_TOKEN=${SIEM_FASTPATH_TOKEN}
+      # Vector 0.5x+ only substitutes ${VAR} in vector.toml with this set.
+      - VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true
       - APP_URL=${SIEM_APP_URL:-http://localhost:8080}
       # Optional LLM-powered insights (siem-insights) - unset OLLAMA_URL
       # (the default) leaves the feature entirely off. No ":-" default on
@@ -143,7 +145,7 @@ services:
 
   siem-ingest:
     container_name: siem-ingest
-    image: timberio/vector:0.49.0-alpine
+    image: timberio/vector:0.60.0-alpine
     command: ["--config-toml", "/etc/vector/vector.toml"]
     profiles: ["ingest"]
     restart: unless-stopped
