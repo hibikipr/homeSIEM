@@ -108,7 +108,9 @@ source = '''
       ## as "unnecessary error coalescing" since field access on a map can't fail.
       cef_severity = to_int(fields[5]) ?? 0
       .severity = if cef_severity >= 9 { "crit" } else if cef_severity >= 7 { "err" } else if cef_severity >= 4 { "warning" } else { "info" }
-      extension = join(slice!(fields, 6), "|") ?? ""
+      ## join! rather than join ?? "": 0.60 knows split() yields strings, so it rejects the
+      ## ?? as unnecessary, while 0.49 still types join as fallible. join! passes both.
+      extension = join!(slice!(fields, 6), "|")
       ## This vendor's CEF extension values aren't space-escaped per spec - observed on
       ## real devices: UNIFIdeviceName=Townsville CGU, UNIFIvpnName=Townsville CGU,
       ## suser=Victor Galloza's Mobile Phone. field_delimiter: " " alone truncates every
