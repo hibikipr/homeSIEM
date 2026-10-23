@@ -67,7 +67,7 @@ func main() {
 	// sequential but starts causing connection/DNS churn on every Wall page
 	// load once several requests are in flight together.
 	lokiClient := loki.New(cfg.LokiURL, loki.NewHTTPClient(30*time.Second, api.MaxConcurrentLokiQueries))
-	vectorClient := vector.New(cfg.VectorGraphQLURL, &http.Client{Timeout: 10 * time.Second})
+	vectorClient := vector.New(cfg.VectorMetricsURL, &http.Client{Timeout: 10 * time.Second})
 	ntfyClient := ntfy.New(cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyToken, &http.Client{Timeout: 10 * time.Second})
 	hub := sse.NewHub()
 	alertsSvc := alerts.NewService(st, hub, ntfyClient, cfg.AppURL, logger)

@@ -963,3 +963,17 @@ internal_noise = "{{ internal_noise }}"
 [sinks.loki.buffer]
 type = "disk"
 max_size = 536870912
+
+# ---------------------------------------------------------------- self-metrics
+
+# Vector's own per-component counters, served in Prometheus text format for
+# siem-api's /sources/ingest-health (VECTOR_METRICS_URL). Vector 0.60 turned
+# the [api] above into gRPC-only, so its GraphQL metrics query is gone; this
+# exporter is the version-independent replacement. Not published to the host.
+[sources.vector_metrics]
+type = "internal_metrics"
+
+[sinks.vector_metrics_exporter]
+type = "prometheus_exporter"
+inputs = ["vector_metrics"]
+address = "0.0.0.0:9598"
