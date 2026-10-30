@@ -218,6 +218,38 @@ func (s *Store) MuteAlert(ctx context.Context, id int64, userID int64, until tim
 	return tx.Commit()
 }
 
+// AlertSummary is the rollup behind GET /ha/summary: how many alerts were
+// active in a window, how many of those were critical, and the most
+// recently active one (nil when there were none).
+type AlertSummary struct {
+	Count    int
+	Critical int
+	Latest   *Alert
+}
+
+// SummarizeAlerts covers alerts last seen at or after since. Muted alerts are
+// left out - someone silenced them on purpose, so a glanceable display
+// shouldn't keep counting them. Acked ones still count: they happened.
+func (s *Store) SummarizeAlerts(ctx context.Context, since time.Time) (AlertSummary, error) {
+	const where = ` WHERE last_seen_at >= ? AND state != 'muted'`
+	var sum AlertSummary
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*), COALESCE(SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END), 0) FROM alerts`+where,
+		formatTime(since)).Scan(&sum.Count, &sum.Critical); err != nil {
+		return AlertSummary{}, err
+	}
+	if sum.Count == 0 {
+		return sum, nil
+	}
+	latest, err := scanAlert(s.db.QueryRowContext(ctx,
+		alertSelect+where+` ORDER BY last_seen_at DESC, id DESC LIMIT 1`, formatTime(since)))
+	if err != nil {
+		return AlertSummary{}, err
+	}
+	sum.Latest = &latest
+	return sum, nil
+}
+
 func (s *Store) GetAlert(ctx context.Context, id int64) (Alert, error) {
 	row := s.db.QueryRowContext(ctx, alertSelect+` WHERE id = ?`, id)
 	return scanAlert(row)

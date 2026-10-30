@@ -22,6 +22,7 @@ type Config struct {
 	GeoIPDB                string
 	SessionSecret          []byte
 	FastpathToken          string
+	ReadonlyToken          string // optional: enables GET /ha/summary (Home Assistant)
 	LocalAdminUsername     string
 	LocalAdminPasswordHash string
 	// BootstrapAdminGroup, if set, seeds a single admin role mapping for
@@ -67,6 +68,7 @@ func Load() (Config, error) {
 		OIDCGroupsScope:  getenv("OIDC_GROUPS_SCOPE", "groups"),
 		GeoIPDB:          os.Getenv("GEOIP_DB"),
 		FastpathToken:    os.Getenv("SIEM_FASTPATH_TOKEN"),
+		ReadonlyToken:    os.Getenv("SIEM_READONLY_TOKEN"),
 		AppURL:           os.Getenv("APP_URL"),
 
 		OllamaURL:           os.Getenv("OLLAMA_URL"),

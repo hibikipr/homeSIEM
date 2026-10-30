@@ -29,6 +29,7 @@ type Deps struct {
 	SessionEst      *auth.SessionEstablisher
 	LocalAuth       *auth.LocalAuthenticator
 	FastpathToken   string
+	ReadonlyToken   string // GET /ha/summary only (ha_summary.go); empty refuses all
 	Logger          *slog.Logger
 	OIDCIssuer      string
 	OIDCClientID    string
@@ -86,6 +87,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealthz)
 	s.mux.HandleFunc("GET /metrics", s.handleMetrics)
 	s.mux.HandleFunc("POST /ingest/fastpath", s.handleFastpath)
+	s.mux.HandleFunc("GET /ha/summary", s.handleHASummary)
 	s.mux.HandleFunc("POST /sources/heartbeat", s.handleSourceHeartbeat)
 	s.mux.Handle("GET /events/search", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleEventsSearch)))
 	s.mux.Handle("GET /events/tail", protect(s.deps.Verifier, s.deps.Store, auth.RoleViewer, http.HandlerFunc(s.handleEventsTail)))
