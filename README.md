@@ -57,6 +57,23 @@ openssl rand -base64 32
 openssl rand -hex 32
 ```
 
+### Home Assistant summary (optional)
+
+Set `SIEM_READONLY_TOKEN` (also `openssl rand -hex 32`) to enable
+`GET /ha/summary` on siem-api, a read-only rollup for dashboards such as a
+Home Assistant REST sensor:
+
+```json
+{"alerts_24h": 3, "high_24h": 1, "last": {"title": "SSH brute force · 192.0.2.4", "severity": "critical", "at": "2026-10-30T19:04:00Z"}}
+```
+
+- Send `Authorization: Bearer <SIEM_READONLY_TOKEN>`. The token works on this
+  route only; session logins don't work here, and it doesn't work anywhere else.
+- Counts cover alerts last seen in the past 24 hours, excluding muted ones;
+  `high_24h` is the `critical` tier. `last` is `null` when there are none.
+- siem-api isn't published by siem-web, so your reverse proxy has to route
+  `/ha/summary` to `siem-api:8080` itself.
+
 Register an OIDC client with your provider: a **public** client (no secret),
 authorization-code + PKCE, redirect URI `${SIEM_APP_URL}/auth/callback`
 (`http://localhost:8080/auth/callback` if you're keeping the default

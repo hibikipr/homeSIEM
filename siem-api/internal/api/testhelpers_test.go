@@ -45,6 +45,7 @@ func newTestServer(t *testing.T) (*Server, *store.Store) {
 		Alerts:        alertsSvc,
 		Verifier:      auth.NewTokenVerifier([]byte(testSessionSecret)),
 		FastpathToken: "test-fastpath-token",
+		ReadonlyToken: "test-readonly-token",
 		JobLabel:      "siem",
 		Logger:        apiTestLogger(),
 	}
