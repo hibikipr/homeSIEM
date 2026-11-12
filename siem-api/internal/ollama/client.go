@@ -73,6 +73,11 @@ type chatRequest struct {
 	Messages []chatMessage `json:"messages"`
 	Stream   bool          `json:"stream"`
 	Options  ChatOptions   `json:"options"`
+	// Think is always sent as false. siem-insights wants one JSON answer inside
+	// num_predict tokens; a thinking model (qwen3) would otherwise spend part of
+	// that budget on reasoning and run several times slower. A model that cannot
+	// think ignores it. Deliberately not omitempty: false must reach Ollama.
+	Think bool `json:"think"`
 }
 
 type chatResponse struct {

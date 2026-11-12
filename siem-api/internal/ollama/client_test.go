@@ -64,6 +64,39 @@ func TestChat_SendsExpectedRequest(t *testing.T) {
 	}
 }
 
+// siem-insights wants one complete JSON answer inside a bounded number of tokens.
+// A thinking-capable model (qwen3) reasons first by default, and those reasoning
+// tokens count against num_predict, so a long prompt can leave no room for the
+// answer. The request therefore turns thinking off explicitly; a model that cannot
+// think ignores the flag.
+func TestChat_DisablesThinking(t *testing.T) {
+	var raw map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(chatResponse{
+			Message: chatMessage{Role: "assistant", Content: "ok"},
+			Done:    true,
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "qwen3:14b", srv.Client())
+	if _, err := c.Chat(context.Background(), "s", "u", ChatOptions{Temperature: 0.2, TopP: 0.9, NumPredict: 2048, NumCtx: 8192}); err != nil {
+		t.Fatalf("Chat() error = %v", err)
+	}
+
+	think, present := raw["think"]
+	if !present {
+		t.Fatal(`request has no "think" field, want "think": false`)
+	}
+	if think != false {
+		t.Errorf(`"think" = %v, want false`, think)
+	}
+}
+
 func TestChat_NonOKStatus_ReturnsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

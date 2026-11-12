@@ -191,6 +191,10 @@ Two things worth knowing before pointing this at a real Ollama instance:
 - A model name mismatch isn't something `Load()` can validate (any string
   passes) — it just makes every pass fail with a 404 from Ollama's own
   `/api/chat` until `OLLAMA_MODEL` matches a model you've actually pulled.
+- siem-api always sends `"think": false`. A thinking-capable model such as
+  `qwen3` would otherwise spend part of the output limit (Settings →
+  `num_predict`, default 2048) reasoning before it answers, and run several
+  times slower. Models that can't think ignore the flag.
 
 See
 [`docs/superpowers/specs/2026-08-10-siem-insights-llm-design.md`](docs/superpowers/specs/2026-08-10-siem-insights-llm-design.md)
