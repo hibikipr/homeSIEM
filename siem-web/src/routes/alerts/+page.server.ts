@@ -1,11 +1,11 @@
 import { error, redirect } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_URL } from '$app/env/private';
 import type { PageServerLoad } from './$types';
-import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
-import { deriveAlertStats } from '$lib/alerts';
+import { SiemApiClient, SiemApiError } from '#lib/server/siemApiClient.ts';
+import { deriveAlertStats } from '#lib/alerts.ts';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 
 	const tabParam = url.searchParams.get('state');
@@ -67,6 +67,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		tab !== 'rules' && selectedId
 			? (alerts.find((a) => a.id === Number(selectedId)) ?? null)
 			: null;
+
 	const selectedRule =
 		tab === 'rules' && selectedId ? (rules.find((r) => r.id === Number(selectedId)) ?? null) : null;
 

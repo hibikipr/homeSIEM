@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { computeVolumeTiers } from '$lib/search';
-	import type { VolumeBucket } from '$lib/server/siemApiClient';
+	import { computeVolumeTiers } from '#lib/search.ts';
+	import type { VolumeBucket } from '#lib/server/siemApiClient.ts';
 
 	let { volume }: { volume: VolumeBucket[] } = $props();
 

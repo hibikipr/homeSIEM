@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { IngestHealthResponse } from '$lib/server/siemApiClient';
+	import type { IngestHealthResponse } from '#lib/server/siemApiClient.ts';
 
 	let { health }: { health: IngestHealthResponse } = $props();
 

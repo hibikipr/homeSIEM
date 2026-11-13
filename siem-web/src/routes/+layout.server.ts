@@ -1,5 +1,5 @@
-import { env } from '$env/dynamic/private';
-import { SiemApiClient } from '$lib/server/siemApiClient';
+import { API_URL, TZ } from '$app/env/private';
+import { SiemApiClient } from '#lib/server/siemApiClient.ts';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
@@ -14,7 +14,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 	let alertCount = 0;
 	if (locals.user && locals.sessionToken) {
 		try {
-			const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+			const client = new SiemApiClient({ baseUrl: API_URL as string });
 			const summary = await client.getNavSummary(locals.sessionToken as string);
 			ingestRate = summary.events_per_min;
 			alertCount = summary.open_alert_count;
@@ -34,6 +34,6 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		// files already sets, e.g. "America/New_York") - not the viewer's own
 		// browser time zone, so everyone looking at the console sees the same
 		// wall-clock time regardless of where they are.
-		displayTimezone: (env.TZ as string) || 'UTC'
+		displayTimezone: (TZ as string) || 'UTC'
 	};
 };

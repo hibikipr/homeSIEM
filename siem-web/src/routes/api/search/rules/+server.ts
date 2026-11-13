@@ -1,11 +1,11 @@
 import { json } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_URL } from '$app/env/private';
 import type { RequestHandler } from './$types';
-import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
-import type { CreateRuleRequest } from '$lib/server/siemApiClient';
+import { SiemApiClient, SiemApiError } from '#lib/server/siemApiClient.ts';
+import type { CreateRuleRequest } from '#lib/server/siemApiClient.ts';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 	const body = (await request.json()) as CreateRuleRequest;
 

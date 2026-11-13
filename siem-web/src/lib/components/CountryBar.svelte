@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { CountryCount } from '$lib/wall';
+	import type { CountryCount } from '#lib/wall.ts';
 
 	let { countries, loading = false }: { countries: CountryCount[]; loading?: boolean } = $props();
 	let max = $derived(Math.max(1, ...countries.map((c) => c.count)));

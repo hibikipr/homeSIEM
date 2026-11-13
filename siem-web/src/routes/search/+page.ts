@@ -1,5 +1,5 @@
 import type { PageLoad } from './$types';
-import { extractSrcIp } from '$lib/search';
+import { extractSrcIp } from '#lib/search.ts';
 
 // Row selection lives here, not in +page.server.ts: this load reads
 // `?preview=` and the server load deliberately doesn't, so clicking a row

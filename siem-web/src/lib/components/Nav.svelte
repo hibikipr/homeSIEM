@@ -98,7 +98,10 @@
 	);
 </script>
 
-<svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
+<svelte:window
+	onclick={handleWindowClick}
+	onkeydown={handleWindowKeydown}
+></svelte:window>
 
 <header class="nav">
 	<button
@@ -158,7 +161,12 @@
 				onkeydown={handleMenuKeydown}
 			>
 				{#if userPicture && !imgFailed}
-					<img class="avatar" src={userPicture} alt="" onerror={() => (imgFailed = true)} />
+					<img
+						class="avatar"
+						src={userPicture}
+						alt=""
+						onerror={() => imgFailed = true}
+					/>
 				{:else}
 					<span class="avatar"></span>
 				{/if}
@@ -175,7 +183,7 @@
 								class="avatar avatar-large"
 								src={userPicture}
 								alt=""
-								onerror={() => (imgFailed = true)}
+								onerror={() => imgFailed = true}
 							/>
 						{:else}
 							<span class="avatar avatar-large"></span>
@@ -186,7 +194,11 @@
 							<span class="account-menu-role">{userRole}</span>
 						</div>
 					</div>
-					<a href={resolve('/auth/logout')} class="account-menu-signout"> Sign out </a>
+
+					<a
+						href={resolve('auth/logout')}
+						class="account-menu-signout"
+					>Sign out</a>
 				</div>
 			{/if}
 		</div>

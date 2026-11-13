@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { debounce } from '$lib/debounce';
-	import AlertInbox from '$lib/components/AlertInbox.svelte';
-	import AlertDetail from '$lib/components/AlertDetail.svelte';
-	import RuleDetail from '$lib/components/RuleDetail.svelte';
-	import RuleForm from '$lib/components/RuleForm.svelte';
-	import type { RuleResponse } from '$lib/server/siemApiClient';
+	import { debounce } from '#lib/debounce.ts';
+	import AlertInbox from '#lib/components/AlertInbox.svelte';
+	import AlertDetail from '#lib/components/AlertDetail.svelte';
+	import RuleDetail from '#lib/components/RuleDetail.svelte';
+	import RuleForm from '#lib/components/RuleForm.svelte';
+	import type { RuleResponse } from '#lib/server/siemApiClient.ts';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -28,7 +28,7 @@
 	// burst into one reload shortly after it settles.
 	$effect(() => {
 		const reload = debounce(() => invalidateAll(), 500);
-		const source = new EventSource(resolve('/api/alerts-proxy'));
+		const source = new EventSource(resolve('api/alerts-proxy'));
 		source.onmessage = reload.call;
 		return () => {
 			source.close();
@@ -44,14 +44,16 @@
 			alerts={data.alerts}
 			rules={data.rules}
 			selectedId={data.selectedAlert?.id ?? data.selectedRule?.id ?? null}
-			onNewRule={() => (showRuleForm = true)}
+			onNewRule={() => showRuleForm = true}
 			canCreateRule={canManageRules}
 		/>
 	</div>
 	<div class="pane pane-detail">
-		<a href={resolve(`/alerts?state=${data.tab}`)} class="back-link">
-			<i class="ph ph-arrow-left"></i> Back
-		</a>
+		<a
+			href={resolve(`alerts?state=${data.tab}`)}
+			class="back-link"
+		><i class="ph ph-arrow-left"></i> Back</a>
+
 		{#if data.selectedAlert && data.stats}
 			{#await Promise.all([data.sourceDisplayNames, data.liveSourcesByName])}
 				<AlertDetail
@@ -69,8 +71,8 @@
 					samples={data.selectedSamples}
 					stats={data.stats}
 					rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
-					{sourceDisplayNames}
-					{liveSources}
+					sourceDisplayNames={sourceDisplayNames}
+					liveSources={liveSources}
 					canEdit={canManageRules}
 				/>
 			{/await}
@@ -79,8 +81,8 @@
 				rule={data.selectedRule}
 				canEdit={canManageRules}
 				onToggled={() => invalidateAll()}
-				onEdit={() => (editingRule = data.selectedRule ?? null)}
-				onDeleted={() => goto(resolve(`/alerts?state=rules`))}
+				onEdit={() => editingRule = data.selectedRule ?? null}
+				onDeleted={() => goto(resolve(`alerts?state=rules`))}
 			/>
 		{:else}
 			<div class="empty">
@@ -95,19 +97,19 @@
 		mode="create"
 		defaultName=""
 		defaultLogql=""
-		onClose={() => (showRuleForm = false)}
+		onClose={() => showRuleForm = false}
 		onSaved={(id) => {
 			showRuleForm = false;
 			// Switches to the Rules tab and selects the new rule, even if the
 			// form was opened from the Open/Acked tab.
-			goto(resolve(`/alerts?state=rules&id=${id}`));
+			goto(resolve(`alerts?state=rules&id=${id}`));
 		}}
 	/>
 {:else if editingRule}
 	<RuleForm
 		mode="edit"
 		initial={editingRule}
-		onClose={() => (editingRule = null)}
+		onClose={() => editingRule = null}
 		onSaved={() => {
 			editingRule = null;
 			invalidateAll();

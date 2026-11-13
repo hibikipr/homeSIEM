@@ -39,8 +39,9 @@
 	<form class="card" onsubmit={submit}>
 		<h1>Local admin sign-in</h1>
 		<p class="hint">
-			Break-glass access for when the OIDC provider is unreachable. If you're here by mistake,
-			<a href={resolve('/auth/login')}>sign in with SSO</a> instead.
+			Break-glass access for when the OIDC provider is unreachable. If you're here by mistake, 
+			<a href={resolve('auth/login')}>sign in with SSO</a>
+			instead.
 		</p>
 		<label>
 			Username

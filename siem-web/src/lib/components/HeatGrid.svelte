@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { heatTierColor, heatTierGlyph } from '$lib/wall';
+	import { heatTierColor, heatTierGlyph } from '#lib/wall.ts';
 
 	let {
 		rows,

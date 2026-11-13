@@ -2,17 +2,17 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { SvelteSet } from 'svelte/reactivity';
-	import QueryBar from '$lib/components/QueryBar.svelte';
-	import VolumeRibbon from '$lib/components/VolumeRibbon.svelte';
-	import FacetRail from '$lib/components/FacetRail.svelte';
-	import ResultTable from '$lib/components/ResultTable.svelte';
-	import EventInspector from '$lib/components/EventInspector.svelte';
-	import RuleForm from '$lib/components/RuleForm.svelte';
-	import ColumnToggle from '$lib/components/ColumnToggle.svelte';
-	import type { LogEntry } from '$lib/server/siemApiClient';
+	import QueryBar from '#lib/components/QueryBar.svelte';
+	import VolumeRibbon from '#lib/components/VolumeRibbon.svelte';
+	import FacetRail from '#lib/components/FacetRail.svelte';
+	import ResultTable from '#lib/components/ResultTable.svelte';
+	import EventInspector from '#lib/components/EventInspector.svelte';
+	import RuleForm from '#lib/components/RuleForm.svelte';
+	import ColumnToggle from '#lib/components/ColumnToggle.svelte';
+	import type { LogEntry } from '#lib/server/siemApiClient.ts';
 	import type { PageData } from './$types';
-	import { extractSrcIp, SEARCH_COLUMNS } from '$lib/search';
-	import { loadHiddenColumns, saveHiddenColumns } from '$lib/columnPrefs';
+	import { extractSrcIp, SEARCH_COLUMNS } from '#lib/search.ts';
+	import { loadHiddenColumns, saveHiddenColumns } from '#lib/columnPrefs.ts';
 
 	let { data }: { data: PageData } = $props();
 
@@ -39,14 +39,14 @@
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
 		const params = new URLSearchParams(window.location.search);
 		params.set('preview', String(index));
-		goto(resolve(`/search?${params.toString()}`), { noScroll: true, keepFocus: true });
+		goto(resolve(`search?${params.toString()}`), { reset: false });
 	}
 
 	function closeSelection() {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
 		const params = new URLSearchParams(window.location.search);
 		params.delete('preview');
-		goto(resolve(`/search?${params.toString()}`), { noScroll: true, keepFocus: true });
+		goto(resolve(`search?${params.toString()}`), { reset: false });
 	}
 
 	function filterToSrc(srcIp: string) {
@@ -54,7 +54,7 @@
 		const params = new URLSearchParams(window.location.search);
 		params.delete('preview');
 		params.set('q', srcIp);
-		goto(resolve(`/search?${params.toString()}`));
+		goto(resolve(`search?${params.toString()}`));
 	}
 
 	function facetClick(field: string, value: string) {
@@ -62,7 +62,7 @@
 		const params = new URLSearchParams(window.location.search);
 		params.delete('preview');
 		params.set(field, value);
-		goto(resolve(`/search?${params.toString()}`));
+		goto(resolve(`search?${params.toString()}`));
 	}
 
 	function alertOnThis() {
@@ -149,7 +149,7 @@
 			// Rules only live in Alerts -> Rules, not on this page - land the
 			// user there with the new rule selected instead of leaving them
 			// on Search with no indication of where it went.
-			goto(resolve(`/alerts?state=rules&id=${id}`));
+			goto(resolve(`alerts?state=rules&id=${id}`));
 		}}
 	/>
 {/if}

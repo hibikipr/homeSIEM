@@ -1,13 +1,17 @@
 import { json } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_URL, SESSION_SECRET } from '$app/env/private';
 import type { RequestHandler } from './$types';
-import { mintSessionToken, SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from '$lib/server/session';
-import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
+import {
+	mintSessionToken,
+	SESSION_COOKIE_NAME,
+	SESSION_COOKIE_OPTIONS
+} from '#lib/server/session.ts';
+import { SiemApiClient, SiemApiError } from '#lib/server/siemApiClient.ts';
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
 	const { username, password } = (await request.json()) as { username: string; password: string };
 
-	const apiClient = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const apiClient = new SiemApiClient({ baseUrl: API_URL as string });
 	let session;
 	try {
 		session = await apiClient.localLogin({ username, password });
@@ -18,7 +22,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		throw err;
 	}
 
-	const secret = Buffer.from(env.SESSION_SECRET as string, 'base64');
+	const secret = Buffer.from(SESSION_SECRET as string, 'base64');
 	const token = await mintSessionToken(
 		{
 			// No OIDC subject exists for a local admin (store.User.Subject is

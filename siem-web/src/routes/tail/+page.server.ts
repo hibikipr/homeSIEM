@@ -1,10 +1,10 @@
 import { error, redirect } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_URL } from '$app/env/private';
 import type { PageServerLoad } from './$types';
-import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
+import { SiemApiClient, SiemApiError } from '#lib/server/siemApiClient.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 
 	let sources;

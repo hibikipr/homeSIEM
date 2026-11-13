@@ -1,11 +1,11 @@
 import { redirect, error } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_URL, GRAFANA_HOST_HEALTH_URL } from '$app/env/private';
 import type { PageServerLoad } from './$types';
-import { SiemApiClient, SiemApiError, type Insight } from '$lib/server/siemApiClient';
-import { topTriageAlerts, buildSourceLabels, type CountryCount } from '$lib/wall';
+import { SiemApiClient, SiemApiError, type Insight } from '#lib/server/siemApiClient.ts';
+import { topTriageAlerts, buildSourceLabels, type CountryCount } from '#lib/wall.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 
 	// Streamed to the client rather than awaited here - none of these three
@@ -90,6 +90,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// Not every deployment has Grafana's public-dashboard sharing set up -
 		// undefined here means the Wall omits the card entirely rather than
 		// embedding a broken iframe.
-		grafanaHostHealthUrl: (env.GRAFANA_HOST_HEALTH_URL as string) || undefined
+		grafanaHostHealthUrl: (GRAFANA_HOST_HEALTH_URL as string) || undefined
 	};
 };

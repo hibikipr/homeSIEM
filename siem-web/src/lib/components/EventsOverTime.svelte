@@ -4,7 +4,7 @@
 		formatHourLabel,
 		CHART_WIDTH,
 		CHART_HEIGHT
-	} from '$lib/eventsOverTime';
+	} from '#lib/eventsOverTime.ts';
 
 	let { totals }: { totals: { hour_start: string; count: number }[] } = $props();
 

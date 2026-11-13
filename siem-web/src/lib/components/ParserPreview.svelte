@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { LogEntry } from '$lib/server/siemApiClient';
-	import { formatTimestamp } from '$lib/search';
+	import type { LogEntry } from '#lib/server/siemApiClient.ts';
+	import { formatTimestamp } from '#lib/search.ts';
 
 	let { sourceName, samples }: { sourceName: string | null; samples: LogEntry[] } = $props();
 

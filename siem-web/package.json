@@ -19,8 +19,8 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.60.0",
-		"@sveltejs/adapter-node": "^5.5.7",
-		"@sveltejs/kit": "^2.70.3",
+		"@sveltejs/adapter-node": "^6.0.2",
+		"@sveltejs/kit": "^3.2.0",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@testing-library/svelte": "^5.4.2",
 		"@types/node": "^24",
@@ -32,7 +32,7 @@
 		"prettier": "^3.8.3",
 		"prettier-plugin-svelte": "^4.1.0",
 		"svelte": "^5.57.2",
-		"svelte-check": "^4.6.0",
+		"svelte-check": "^4.7.5",
 		"typescript": "^6.0.3",
 		"typescript-eslint": "^8.60.1",
 		"vite": "^8.3.5",
@@ -45,7 +45,6 @@
 	},
 	"pnpm": {
 		"overrides": {
-			"cookie": "^0.7.0",
 			"devalue": "^5.9.3",
 			"undici@>=7.0.0 <7.29.1": "^7.29.1",
 			"source-map-js": "^1.2.2",
@@ -54,5 +53,9 @@
 			"brace-expansion@>=4.0.0 <5.0.12": "^5.0.12",
 			"minimatch@>=10.0.0 <11.0.1": "^11.0.1"
 		}
+	},
+	"imports": {
+		"#lib": "./src/lib/index.js",
+		"#lib/*": "./src/lib/*"
 	}
 }

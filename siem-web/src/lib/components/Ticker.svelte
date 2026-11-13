@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { extractMessage } from '$lib/logline';
+	import { extractMessage } from '#lib/logline.ts';
 
 	interface TickerEntry {
 		time: string;
@@ -13,7 +13,7 @@
 	let entries = $state<TickerEntry[]>([]);
 
 	$effect(() => {
-		const source = new EventSource(resolve('/api/tail-proxy'));
+		const source = new EventSource(resolve('api/tail-proxy'));
 		source.onmessage = (event) => {
 			try {
 				const raw = JSON.parse(event.data);

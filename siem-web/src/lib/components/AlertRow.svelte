@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { AlertResponse } from '$lib/server/siemApiClient';
+	import type { AlertResponse } from '#lib/server/siemApiClient.ts';
 
 	let { alert, ruleName, selected }: { alert: AlertResponse; ruleName: string; selected: boolean } =
 		$props();
@@ -23,7 +23,7 @@
 <a
 	class="row severity-{alert.severity}"
 	class:selected
-	href={resolve(`/alerts?state=${alert.state}&id=${alert.id}`)}
+	href={resolve(`alerts?state=${alert.state}&id=${alert.id}`)}
 >
 	<div class="header">
 		<span class="eyebrow">{alert.severity}</span>

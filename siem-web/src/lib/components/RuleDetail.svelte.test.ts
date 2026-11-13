@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/svelte';
 import RuleDetail from './RuleDetail.svelte';
-import type { RuleResponse } from '$lib/server/siemApiClient';
+import type { RuleResponse } from '#lib/server/siemApiClient.ts';
 
 // @testing-library/svelte's own auto-cleanup only registers when `afterEach`
 // is a global (this project doesn't set vitest's `globals: true`), so

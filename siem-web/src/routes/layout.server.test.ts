@@ -1,13 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import { load } from './+layout.server';
-import * as siemApiClientModule from '$lib/server/siemApiClient';
+import * as siemApiClientModule from '#lib/server/siemApiClient.ts';
 
-vi.mock('$env/dynamic/private', () => ({
-	env: { API_URL: 'http://siem-api:8080', TZ: 'America/New_York' }
+vi.mock('$app/env/private', () => ({
+	API_URL: 'http://siem-api:8080',
+	TZ: 'America/New_York'
 }));
 
-vi.mock('$lib/server/siemApiClient', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('$lib/server/siemApiClient')>();
+vi.mock('#lib/server/siemApiClient.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/siemApiClient.ts')>();
 	return { ...actual, SiemApiClient: vi.fn() };
 });
 
@@ -68,8 +69,9 @@ describe('Root layout load', () => {
 
 	it('defaults displayTimezone to UTC when TZ is unset', async () => {
 		vi.resetModules();
-		vi.doMock('$env/dynamic/private', () => ({
-			env: { API_URL: 'http://siem-api:8080' }
+		vi.doMock('$app/env/private', () => ({
+			API_URL: 'http://siem-api:8080',
+			TZ: undefined
 		}));
 		const { load: loadWithNoTz } = await import('./+layout.server');
 

@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { LogEntry } from '$lib/server/siemApiClient';
-	import { computeVisibleRange, formatTimestamp, isScrolledToBottom } from '$lib/search';
-	import { severityColor } from '$lib/tail';
-	import { extractMessage, formatTimestampInZone } from '$lib/logline';
+	import type { LogEntry } from '#lib/server/siemApiClient.ts';
+	import { computeVisibleRange, formatTimestamp, isScrolledToBottom } from '#lib/search.ts';
+	import { severityColor } from '#lib/tail.ts';
+	import { extractMessage, formatTimestampInZone } from '#lib/logline.ts';
 
 	const ROW_HEIGHT = 28;
 

@@ -6,10 +6,10 @@
 		AlertSample,
 		RuleResponse,
 		SourceResponse
-	} from '$lib/server/siemApiClient';
-	import type { AlertStats } from '$lib/alerts';
-	import { extractMessage } from '$lib/logline';
-	import { formatMinuteLabel, formatSecondsAsMinutes } from '$lib/minutePresets';
+	} from '#lib/server/siemApiClient.ts';
+	import type { AlertStats } from '#lib/alerts.ts';
+	import { extractMessage } from '#lib/logline.ts';
+	import { formatMinuteLabel, formatSecondsAsMinutes } from '#lib/minutePresets.ts';
 
 	let {
 		alert,

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { SourceResponse } from '$lib/server/siemApiClient';
-	import { formatEventsPerMin, formatLastSeen } from '$lib/sources';
-	import { formatSecondsAsMinutes } from '$lib/minutePresets';
+	import type { SourceResponse } from '#lib/server/siemApiClient.ts';
+	import { formatEventsPerMin, formatLastSeen } from '#lib/sources.ts';
+	import { formatSecondsAsMinutes } from '#lib/minutePresets.ts';
 
 	let {
 		sources,
@@ -135,11 +135,15 @@
 					{:else}
 						<a
 							class="name-link"
-							href={resolve(`/sources?preview=${encodeURIComponent(source.name)}`)}
-							>{source.display_name || source.name}</a
-						>
+							href={resolve(`sources?preview=${encodeURIComponent(source.name)}`)}
+						>{source.display_name || source.name}</a>
+
 						{#if canRename}
-							<button class="rename-trigger" onclick={() => startRename(source)}>Rename</button>
+							<button
+								class="rename-trigger"
+								onclick={() => startRename(source)}
+							>Rename</button>
+
 							<button
 								class="rename-trigger"
 								onclick={() => forgetSource(source)}

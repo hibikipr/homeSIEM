@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { roleCapabilityLabel } from '$lib/settings';
-	import type { RoleMappingResponse } from '$lib/server/siemApiClient';
+	import { roleCapabilityLabel } from '#lib/settings.ts';
+	import type { RoleMappingResponse } from '#lib/server/siemApiClient.ts';
 
 	let {
 		mappings,

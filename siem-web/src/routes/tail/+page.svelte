@@ -2,17 +2,17 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { SvelteSet } from 'svelte/reactivity';
-	import TailViewport from '$lib/components/TailViewport.svelte';
-	import ColumnToggle from '$lib/components/ColumnToggle.svelte';
-	import type { LogEntry } from '$lib/server/siemApiClient';
+	import TailViewport from '#lib/components/TailViewport.svelte';
+	import ColumnToggle from '#lib/components/ColumnToggle.svelte';
+	import type { LogEntry } from '#lib/server/siemApiClient.ts';
 	import {
 		SYSLOG_SEVERITIES,
 		TAIL_COLUMNS,
 		TAIL_DEFAULT_HIDDEN_COLUMNS,
 		filterBySeverity,
 		serializeNdjson
-	} from '$lib/tail';
-	import { loadHiddenColumns, saveHiddenColumns } from '$lib/columnPrefs';
+	} from '#lib/tail.ts';
+	import { loadHiddenColumns, saveHiddenColumns } from '#lib/columnPrefs.ts';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();

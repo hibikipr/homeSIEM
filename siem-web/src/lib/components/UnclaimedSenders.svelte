@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { SvelteSet } from 'svelte/reactivity';
-	import type { SourceResponse } from '$lib/server/siemApiClient';
+	import type { SourceResponse } from '#lib/server/siemApiClient.ts';
 
 	let {
 		sources,

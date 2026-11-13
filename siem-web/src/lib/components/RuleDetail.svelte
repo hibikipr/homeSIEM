@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { RuleResponse } from '$lib/server/siemApiClient';
-	import { formatSecondsAsMinutes } from '$lib/minutePresets';
+	import type { RuleResponse } from '#lib/server/siemApiClient.ts';
+	import { formatSecondsAsMinutes } from '#lib/minutePresets.ts';
 
 	let {
 		rule,

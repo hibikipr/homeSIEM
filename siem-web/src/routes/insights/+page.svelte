@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { severityColor } from '$lib/tail';
-	import { uniquePrograms } from '$lib/insights';
+	import { severityColor } from '#lib/tail.ts';
+	import { uniquePrograms } from '#lib/insights.ts';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();

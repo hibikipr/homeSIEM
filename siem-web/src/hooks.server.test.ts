@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { handle } from './hooks.server';
-import { mintSessionToken, SESSION_COOKIE_NAME } from '$lib/server/session';
+import { mintSessionToken, SESSION_COOKIE_NAME } from '#lib/server/session.ts';
 
-vi.mock('$env/dynamic/private', () => ({
-	env: { SESSION_SECRET: Buffer.from('0123456789abcdef0123456789abcdef').toString('base64') }
+vi.mock('$app/env/private', () => ({
+	SESSION_SECRET: Buffer.from('0123456789abcdef0123456789abcdef').toString('base64')
 }));
 
 const secret = new TextEncoder().encode('0123456789abcdef0123456789abcdef');

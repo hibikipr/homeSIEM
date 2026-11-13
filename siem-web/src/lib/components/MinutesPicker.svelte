@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { formatMinuteLabel } from '$lib/minutePresets';
+	import { formatMinuteLabel } from '#lib/minutePresets.ts';
 
 	const CUSTOM = 'custom';
 

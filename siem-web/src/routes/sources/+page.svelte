@@ -1,8 +1,8 @@
 <script lang="ts">
-	import SourcesTable from '$lib/components/SourcesTable.svelte';
-	import ParserPreview from '$lib/components/ParserPreview.svelte';
-	import IngestHealthPanel from '$lib/components/IngestHealthPanel.svelte';
-	import UnclaimedSenders from '$lib/components/UnclaimedSenders.svelte';
+	import SourcesTable from '#lib/components/SourcesTable.svelte';
+	import ParserPreview from '#lib/components/ParserPreview.svelte';
+	import IngestHealthPanel from '#lib/components/IngestHealthPanel.svelte';
+	import UnclaimedSenders from '#lib/components/UnclaimedSenders.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
