@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GET } from './+server';
-import * as siemApiClientModule from '$lib/server/siemApiClient';
+import * as siemApiClientModule from '#lib/server/siemApiClient.ts';
 
-vi.mock('$env/dynamic/private', () => ({ env: { API_URL: 'http://siem-api:8080' } }));
+vi.mock('$app/env/private', () => ({ API_URL: 'http://siem-api:8080' }));
 
-vi.mock('$lib/server/siemApiClient', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('$lib/server/siemApiClient')>();
+vi.mock('#lib/server/siemApiClient.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/siemApiClient.ts')>();
 	return { ...actual, SiemApiClient: vi.fn() };
 });
 
@@ -35,7 +35,9 @@ describe('GET /api/insights/muted', () => {
 	it('propagates a SiemApiError status code as a JSON error response', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
-				listMutedInsights: vi.fn().mockRejectedValue(new siemApiClientModule.SiemApiError(403, 'denied'))
+				listMutedInsights: vi
+					.fn()
+					.mockRejectedValue(new siemApiClientModule.SiemApiError(403, 'denied'))
 			};
 		});
 

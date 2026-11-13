@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_URL } from '$app/env/private';
 import type { RequestHandler } from './$types';
-import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
+import { SiemApiClient, SiemApiError } from '#lib/server/siemApiClient.ts';
 
 // Backs Search's "N events from this IP in the last 24h" inspector
 // callout (see search/+page.ts). entries/volume/facets=false: the callout
@@ -12,7 +12,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		return json({ error: 'ip is required' }, { status: 400 });
 	}
 
-	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const end = new Date();
 	try {
 		const result = await client.search(locals.sessionToken as string, {

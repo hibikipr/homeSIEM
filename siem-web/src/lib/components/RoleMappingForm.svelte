@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
-	import type { RoleMappingResponse } from '$lib/server/siemApiClient';
+	import type { RoleMappingResponse } from '#lib/server/siemApiClient.ts';
 
 	let {
 		mode,

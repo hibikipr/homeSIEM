@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { severityColor } from '$lib/tail';
-	import { uniquePrograms } from '$lib/insights';
-	import type { Insight } from '$lib/server/siemApiClient';
+	import { severityColor } from '#lib/tail.ts';
+	import { uniquePrograms } from '#lib/insights.ts';
+	import type { Insight } from '#lib/server/siemApiClient.ts';
 
 	let { insights, loading = false }: { insights: Insight[]; loading?: boolean } = $props();
 
@@ -28,7 +28,7 @@
 <div class="panel">
 	<div class="panel-head">
 		<span class="title">Insights</span>
-		<a class="view-all" href={resolve('/insights')}>View all →</a>
+		<a class="view-all" href={resolve('insights')}>View all →</a>
 	</div>
 	{#if loading}
 		<p class="empty">Loading…</p>

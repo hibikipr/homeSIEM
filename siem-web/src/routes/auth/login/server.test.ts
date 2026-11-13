@@ -1,17 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GET } from './+server';
-import * as oidc from '$lib/server/oidc';
+import * as oidc from '#lib/server/oidc.ts';
 
-vi.mock('$env/dynamic/private', () => ({
-	env: {
-		OIDC_ISSUER: 'https://pocketid.townsville.cc',
-		OIDC_CLIENT_ID: 'homeSIEM',
-		APP_URL: 'https://siem.townsville.cc'
-	}
+vi.mock('$app/env/private', () => ({
+	OIDC_ISSUER: 'https://pocketid.townsville.cc',
+	OIDC_CLIENT_ID: 'homeSIEM',
+	APP_URL: 'https://siem.townsville.cc'
 }));
 
-vi.mock('$lib/server/oidc', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('$lib/server/oidc')>();
+vi.mock('#lib/server/oidc.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/oidc.ts')>();
 	return { ...actual, buildLoginRedirect: vi.fn() };
 });
 

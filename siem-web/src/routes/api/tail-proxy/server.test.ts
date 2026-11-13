@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GET } from './+server';
 
-vi.mock('$env/dynamic/private', () => ({ env: { API_URL: 'http://siem-api:8080' } }));
+vi.mock('$app/env/private', () => ({ API_URL: 'http://siem-api:8080' }));
 
 describe('GET /api/tail-proxy', () => {
 	it('forwards the Authorization header to siem-api and streams the response', async () => {

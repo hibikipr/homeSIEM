@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '@phosphor-icons/web/regular';
-	import '$lib/styles/tokens.css';
-	import Nav from '$lib/components/Nav.svelte';
+	import '#lib/styles/tokens.css';
+	import Nav from '#lib/components/Nav.svelte';
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
 

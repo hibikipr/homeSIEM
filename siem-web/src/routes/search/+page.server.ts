@@ -1,8 +1,8 @@
 import { error, redirect } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_URL } from '$app/env/private';
 import type { PageServerLoad } from './$types';
-import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
-import { parseFiltersFromURL, filtersToSearchParams, rangeToSeconds } from '$lib/search';
+import { SiemApiClient, SiemApiError } from '#lib/server/siemApiClient.ts';
+import { parseFiltersFromURL, filtersToSearchParams, rangeToSeconds } from '#lib/search.ts';
 
 // Deliberately never reads `?preview=` (the selected row) - SvelteKit
 // tracks which search params a load reads and only reruns it when one of
@@ -12,7 +12,7 @@ import { parseFiltersFromURL, filtersToSearchParams, rangeToSeconds } from '$lib
 // a busy system `preview=N` could land on a different event than the one
 // clicked; with no rerun, the entries - and the index - stay put.
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 
 	// The Source facet needs the full list of claimed sources, not just

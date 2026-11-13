@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import RoleMappingTable from '$lib/components/RoleMappingTable.svelte';
-	import RoleMappingForm from '$lib/components/RoleMappingForm.svelte';
-	import type { RoleMappingResponse } from '$lib/server/siemApiClient';
+	import RoleMappingTable from '#lib/components/RoleMappingTable.svelte';
+	import RoleMappingForm from '#lib/components/RoleMappingForm.svelte';
+	import type { RoleMappingResponse } from '#lib/server/siemApiClient.ts';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();

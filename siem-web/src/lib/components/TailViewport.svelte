@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
-	import type { LogEntry } from '$lib/server/siemApiClient';
-	import { filterBySeverity, severityColor } from '$lib/tail';
-	import { extractField, extractMessage, formatTimestampInZone } from '$lib/logline';
-	import { computeVisibleRange, isScrolledToBottom } from '$lib/search';
+	import type { LogEntry } from '#lib/server/siemApiClient.ts';
+	import { filterBySeverity, severityColor } from '#lib/tail.ts';
+	import { extractField, extractMessage, formatTimestampInZone } from '#lib/logline.ts';
+	import { computeVisibleRange, isScrolledToBottom } from '#lib/search.ts';
 
 	const MAX_BUFFER = 5000;
 	const ROW_HEIGHT = 28;
@@ -79,7 +79,7 @@
 	});
 
 	$effect(() => {
-		const source = new EventSource(resolve('/api/tail-proxy'));
+		const source = new EventSource(resolve('api/tail-proxy'));
 		source.onopen = () => {
 			connected = true;
 		};
@@ -131,7 +131,7 @@
 	let visibleEntries = $derived(rendered.slice(range.startIndex, range.endIndex));
 </script>
 
-<svelte:window onresize={measure} />
+<svelte:window onresize={measure}></svelte:window>
 
 <div class="viewport-wrap">
 	<div class="header-row">

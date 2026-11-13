@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { AlertResponse } from '$lib/server/siemApiClient';
+	import type { AlertResponse } from '#lib/server/siemApiClient.ts';
 
 	let { alert }: { alert: AlertResponse } = $props();
 
@@ -39,7 +39,11 @@
 	<div class="title">{alert.title}</div>
 	<div class="body">{alert.body}</div>
 	<div class="actions">
-		<a class="primary" href={resolve(`/alerts?id=${alert.id}`)}>Investigate</a>
+		<a
+			class="primary"
+			href={resolve(`alerts?id=${alert.id}`)}
+		>Investigate</a>
+
 		<button class="ghost" onclick={mute} disabled={muting}>Mute 1h</button>
 	</div>
 	{#if error}

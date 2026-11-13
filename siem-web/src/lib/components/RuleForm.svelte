@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { RULE_TEMPLATES, parseGroupBy, type RuleShape } from '$lib/ruleTemplates';
-	import type { AlertSeverity } from '$lib/severity';
-	import type { RuleResponse } from '$lib/server/siemApiClient';
-	import MinutesPicker from '$lib/components/MinutesPicker.svelte';
+	import { RULE_TEMPLATES, parseGroupBy, type RuleShape } from '#lib/ruleTemplates.ts';
+	import type { AlertSeverity } from '#lib/severity.ts';
+	import type { RuleResponse } from '#lib/server/siemApiClient.ts';
+	import MinutesPicker from '#lib/components/MinutesPicker.svelte';
 
 	let {
 		mode,

@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { LogEntry } from '$lib/server/siemApiClient';
-	import { extractSrcIp } from '$lib/search';
-	import { severityColor } from '$lib/tail';
-	import { parseLogLine } from '$lib/logline';
+	import type { LogEntry } from '#lib/server/siemApiClient.ts';
+	import { extractSrcIp } from '#lib/search.ts';
+	import { severityColor } from '#lib/tail.ts';
+	import { parseLogLine } from '#lib/logline.ts';
 
 	let {
 		entry,

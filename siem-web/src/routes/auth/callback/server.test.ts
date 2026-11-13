@@ -1,25 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET } from './+server';
-import * as oidc from '$lib/server/oidc';
-import * as siemApiClientModule from '$lib/server/siemApiClient';
+import * as oidc from '#lib/server/oidc.ts';
+import * as siemApiClientModule from '#lib/server/siemApiClient.ts';
 
-vi.mock('$env/dynamic/private', () => ({
-	env: {
-		OIDC_ISSUER: 'https://pocketid.townsville.cc',
-		OIDC_CLIENT_ID: 'homeSIEM',
-		APP_URL: 'https://siem.townsville.cc',
-		API_URL: 'http://siem-api:8080',
-		SESSION_SECRET: Buffer.from('0123456789abcdef0123456789abcdef').toString('base64')
-	}
+vi.mock('$app/env/private', () => ({
+	OIDC_ISSUER: 'https://pocketid.townsville.cc',
+	OIDC_CLIENT_ID: 'homeSIEM',
+	APP_URL: 'https://siem.townsville.cc',
+	API_URL: 'http://siem-api:8080',
+	SESSION_SECRET: Buffer.from('0123456789abcdef0123456789abcdef').toString('base64')
 }));
 
-vi.mock('$lib/server/oidc', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('$lib/server/oidc')>();
+vi.mock('#lib/server/oidc.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/oidc.ts')>();
 	return { ...actual, completeLogin: vi.fn() };
 });
 
-vi.mock('$lib/server/siemApiClient', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('$lib/server/siemApiClient')>();
+vi.mock('#lib/server/siemApiClient.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/siemApiClient.ts')>();
 	return { ...actual, SiemApiClient: vi.fn() };
 });
 

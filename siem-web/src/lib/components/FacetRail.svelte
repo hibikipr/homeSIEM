@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { deriveFacetCounts, deriveCountryFacet, mergeSourceFacet } from '$lib/search';
-	import type { KnownSource, FacetCount } from '$lib/search';
-	import { severityColor } from '$lib/tail';
-	import type { LogEntry, ApiFacetCount } from '$lib/server/siemApiClient';
+	import { deriveFacetCounts, deriveCountryFacet, mergeSourceFacet } from '#lib/search.ts';
+	import type { KnownSource, FacetCount } from '#lib/search.ts';
+	import { severityColor } from '#lib/tail.ts';
+	import type { LogEntry, ApiFacetCount } from '#lib/server/siemApiClient.ts';
 
 	let {
 		entries,

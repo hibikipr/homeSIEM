@@ -1,9 +1,15 @@
 import { redirect, error } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+
+import { OIDC_ISSUER, OIDC_CLIENT_ID, APP_URL, API_URL, SESSION_SECRET } from '$app/env/private';
+
 import type { RequestHandler } from './$types';
-import { completeLogin, PKCE_COOKIE_NAME, STATE_COOKIE_NAME } from '$lib/server/oidc';
-import { mintSessionToken, SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from '$lib/server/session';
-import { SiemApiClient, SiemApiError } from '$lib/server/siemApiClient';
+import { completeLogin, PKCE_COOKIE_NAME, STATE_COOKIE_NAME } from '#lib/server/oidc.ts';
+import {
+	mintSessionToken,
+	SESSION_COOKIE_NAME,
+	SESSION_COOKIE_OPTIONS
+} from '#lib/server/session.ts';
+import { SiemApiClient, SiemApiError } from '#lib/server/siemApiClient.ts';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
 	const codeVerifier = cookies.get(PKCE_COOKIE_NAME);
@@ -20,16 +26,16 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
 	const claims = await completeLogin(
 		{
-			issuer: env.OIDC_ISSUER!,
-			clientId: env.OIDC_CLIENT_ID!,
-			redirectUri: `${env.APP_URL!}/auth/callback`
+			issuer: OIDC_ISSUER!,
+			clientId: OIDC_CLIENT_ID!,
+			redirectUri: `${APP_URL!}/auth/callback`
 		},
 		url,
 		codeVerifier,
 		expectedState
 	);
 
-	const apiClient = new SiemApiClient({ baseUrl: env.API_URL! });
+	const apiClient = new SiemApiClient({ baseUrl: API_URL! });
 	let session;
 	try {
 		session = await apiClient.establishSession({
@@ -45,7 +51,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		throw err;
 	}
 
-	const secret = Buffer.from(env.SESSION_SECRET!, 'base64');
+	const secret = Buffer.from(SESSION_SECRET!, 'base64');
 	const token = await mintSessionToken(
 		{
 			sub: claims.sub,

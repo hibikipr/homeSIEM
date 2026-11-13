@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
 import AlertDetail from './AlertDetail.svelte';
-import type { AlertResponse } from '$lib/server/siemApiClient';
-import type { AlertStats } from '$lib/alerts';
+import type { AlertResponse } from '#lib/server/siemApiClient.ts';
+import type { AlertStats } from '#lib/alerts.ts';
 
 // See RuleDetail.svelte.test.ts for why this is needed - @testing-library/svelte's
 // auto-cleanup only self-registers when `afterEach` is a vitest global.

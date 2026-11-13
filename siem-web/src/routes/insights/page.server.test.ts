@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { load } from './+page.server';
-import * as siemApiClientModule from '$lib/server/siemApiClient';
-import { SiemApiError } from '$lib/server/siemApiClient';
+import * as siemApiClientModule from '#lib/server/siemApiClient.ts';
+import { SiemApiError } from '#lib/server/siemApiClient.ts';
 
-vi.mock('$env/dynamic/private', () => ({ env: { API_URL: 'http://siem-api:8080' } }));
+vi.mock('$app/env/private', () => ({ API_URL: 'http://siem-api:8080' }));
 
-vi.mock('$lib/server/siemApiClient', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('$lib/server/siemApiClient')>();
+vi.mock('#lib/server/siemApiClient.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/siemApiClient.ts')>();
 	return { ...actual, SiemApiClient: vi.fn() };
 });
 
@@ -15,17 +15,15 @@ describe('Insights load', () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
 				getInsights: vi.fn().mockResolvedValue([{ id: 1, title: 't', dismissed: false }]),
-				listMutedInsights: vi
-					.fn()
-					.mockResolvedValue([
-						{
-							fingerprint: 'abc123',
-							category: 'operational',
-							programs: 'UI-poller',
-							example_title: 'UI-poller repeated errors',
-							muted_at: 'x'
-						}
-					])
+				listMutedInsights: vi.fn().mockResolvedValue([
+					{
+						fingerprint: 'abc123',
+						category: 'operational',
+						programs: 'UI-poller',
+						example_title: 'UI-poller repeated errors',
+						muted_at: 'x'
+					}
+				])
 			};
 		});
 
@@ -46,9 +44,10 @@ describe('Insights load', () => {
 			};
 		});
 
-		await expect(
-			load({ locals: { sessionToken: 'stale-token' } } as never)
-		).rejects.toMatchObject({ status: 302, location: '/auth/logout' });
+		await expect(load({ locals: { sessionToken: 'stale-token' } } as never)).rejects.toMatchObject({
+			status: 302,
+			location: '/auth/logout'
+		});
 	});
 
 	it('surfaces a 502 when siem-api fails for a reason other than auth', async () => {

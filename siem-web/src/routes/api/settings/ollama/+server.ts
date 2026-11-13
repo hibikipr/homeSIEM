@@ -1,14 +1,14 @@
 import { json } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_URL } from '$app/env/private';
 import type { RequestHandler } from './$types';
 import {
 	SiemApiClient,
 	SiemApiError,
 	type UpdateOllamaSettingsRequest
-} from '$lib/server/siemApiClient';
+} from '#lib/server/siemApiClient.ts';
 
 export const GET: RequestHandler = async ({ locals }) => {
-	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 
 	try {
@@ -23,7 +23,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 };
 
 export const PUT: RequestHandler = async ({ request, locals }) => {
-	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 	const body = (await request.json()) as UpdateOllamaSettingsRequest;
 

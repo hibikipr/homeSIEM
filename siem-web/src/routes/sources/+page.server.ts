@@ -1,13 +1,13 @@
 import { redirect, error } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { API_URL } from '$app/env/private';
 import type { PageServerLoad } from './$types';
-import { SiemApiClient, SiemApiError, type LogEntry } from '$lib/server/siemApiClient';
-import { splitClaimedUnclaimed } from '$lib/sources';
+import { SiemApiClient, SiemApiError, type LogEntry } from '#lib/server/siemApiClient.ts';
+import { splitClaimedUnclaimed } from '#lib/sources.ts';
 
 const PREVIEW_SAMPLE_LIMIT = 10;
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const client = new SiemApiClient({ baseUrl: env.API_URL as string });
+	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 
 	let sources;

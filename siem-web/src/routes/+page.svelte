@@ -1,12 +1,12 @@
 <script lang="ts">
-	import StatRow from '$lib/components/StatRow.svelte';
-	import EventsOverTime from '$lib/components/EventsOverTime.svelte';
-	import HeatGrid from '$lib/components/HeatGrid.svelte';
-	import TriageCard from '$lib/components/TriageCard.svelte';
-	import CountryBar from '$lib/components/CountryBar.svelte';
-	import Ticker from '$lib/components/Ticker.svelte';
-	import InsightsPanel from '$lib/components/InsightsPanel.svelte';
-	import HostHealth from '$lib/components/HostHealth.svelte';
+	import StatRow from '#lib/components/StatRow.svelte';
+	import EventsOverTime from '#lib/components/EventsOverTime.svelte';
+	import HeatGrid from '#lib/components/HeatGrid.svelte';
+	import TriageCard from '#lib/components/TriageCard.svelte';
+	import CountryBar from '#lib/components/CountryBar.svelte';
+	import Ticker from '#lib/components/Ticker.svelte';
+	import InsightsPanel from '#lib/components/InsightsPanel.svelte';
+	import HostHealth from '#lib/components/HostHealth.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();

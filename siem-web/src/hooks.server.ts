@@ -1,6 +1,7 @@
-import { redirect, type Handle } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
-import { verifySessionToken, SESSION_COOKIE_NAME } from '$lib/server/session';
+import { redirect } from '@sveltejs/kit';
+import type { Handle } from '@sveltejs/kit/hooks';
+import { SESSION_SECRET } from '$app/env/private';
+import { verifySessionToken, SESSION_COOKIE_NAME } from '#lib/server/session.ts';
 
 const PUBLIC_PREFIXES = [
 	'/auth/login',
@@ -25,7 +26,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	try {
-		const secret = Buffer.from(env.SESSION_SECRET!, 'base64');
+		const secret = Buffer.from(SESSION_SECRET!, 'base64');
 		const claims = await verifySessionToken(token, secret);
 		event.locals.user = {
 			userId: claims.userId,

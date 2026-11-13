@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/svelte';
 import ParserPreview from './ParserPreview.svelte';
-import type { LogEntry } from '$lib/server/siemApiClient';
+import type { LogEntry } from '#lib/server/siemApiClient.ts';
 
 // See RuleDetail.svelte.test.ts for why this is needed - @testing-library/svelte's
 // auto-cleanup only self-registers when `afterEach` is a vitest global.
