@@ -63,8 +63,11 @@ describe('Wall load', () => {
 			void
 		>;
 
-		expect(result.eventCount24h).toBe(1240000);
-		expect(result.heatGrid).toEqual([{ source: 'udm-ultra', hours: ['critical', 'none'] }]);
+		// stats is streamed (the slow Loki-backed call), so it is awaited here.
+		const stats = await result.stats;
+		expect(stats?.eventCount24h).toBe(1240000);
+		expect(stats?.heatGrid).toEqual([{ source: 'udm-ultra', hours: ['critical', 'none'] }]);
+		expect(stats?.hourlyTotals).toEqual([]);
 		expect(result.openAlertCount).toBe(1);
 		expect(result.triageAlerts).toHaveLength(1);
 		// countryBreakdown, insights, and sourceLabels are streamed - not
@@ -154,8 +157,8 @@ describe('Wall load', () => {
 	it('redirects to /auth/logout when siem-api rejects the session with 401', async () => {
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
-				getEventsStats: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
-				getAlerts: vi.fn().mockResolvedValue([]),
+				getEventsStats: vi.fn().mockResolvedValue({ event_count_24h: 0, heat_grid: [] }),
+				getAlerts: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
 				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
 				getSources: vi.fn().mockResolvedValue([]),
 				getInsights: vi.fn().mockResolvedValue([])
@@ -185,10 +188,9 @@ describe('Wall load', () => {
 	});
 
 	it('surfaces a 502 when siem-api fails for a reason other than auth', async () => {
-		// getEventsStats/getAlerts are the only calls still on the blocking
-		// path (see the streamed-data comment above) - search/getSources/
-		// getInsights failures degrade gracefully instead of surfacing here,
-		// covered by their own "degrades to empty ... " tests.
+		// getAlerts is the only call still on the blocking path (it doubles as
+		// the auth gate) - stats/search/getSources/getInsights failures degrade
+		// gracefully instead of surfacing here, covered by their own tests.
 		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
 			return {
 				getEventsStats: vi.fn().mockResolvedValue({ event_count_24h: 0, heat_grid: [] }),
@@ -201,6 +203,43 @@ describe('Wall load', () => {
 
 		await expect(load({ locals: { sessionToken: 'token-123' } } as never)).rejects.toMatchObject({
 			status: 502
+		});
+	});
+
+	it('does not throw from load when the slow stats call fails; stats resolves to null', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getEventsStats: vi.fn().mockRejectedValue(new SiemApiError(500, 'loki timeout')),
+				getAlerts: vi.fn().mockResolvedValue([]),
+				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+				getSources: vi.fn().mockResolvedValue([]),
+				getInsights: vi.fn().mockResolvedValue([])
+			};
+		});
+
+		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as Exclude<
+			Awaited<ReturnType<typeof load>>,
+			void
+		>;
+
+		expect(result.openAlertCount).toBe(0);
+		await expect(result.stats).resolves.toBeNull();
+	});
+
+	it('still redirects on a 401 from the auth-gating alerts call even if stats also fails', async () => {
+		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+			return {
+				getEventsStats: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
+				getAlerts: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
+				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+				getSources: vi.fn().mockResolvedValue([]),
+				getInsights: vi.fn().mockResolvedValue([])
+			};
+		});
+
+		await expect(load({ locals: { sessionToken: 'stale-token' } } as never)).rejects.toMatchObject({
+			status: 302,
+			location: '/auth/logout'
 		});
 	});
 });

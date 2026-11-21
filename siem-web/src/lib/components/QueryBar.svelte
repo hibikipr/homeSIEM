@@ -10,7 +10,8 @@
 		logql,
 		count,
 		shown,
-		onAlertOnThis
+		onAlertOnThis,
+		loadFailed = false
 
 		// The real total over the full time range (a Loki-side aggregate,
 		// not derived from how many entries were fetched - see
@@ -22,10 +23,12 @@
 		// Search facet-undercount bug this was added alongside.
 	}: {
 		filters: SearchFilters;
-		logql: string;
-		count: number;
+		// null while the (streamed) search is still loading or failed.
+		logql: string | null;
+		count: number | null;
 		shown: number;
 		onAlertOnThis: () => void;
+		loadFailed?: boolean;
 	} = $props();
 
 	// Editable copies of the URL's filters, seeded once: the Search page
@@ -114,6 +117,7 @@
 		type="button"
 		class="action"
 		onclick={onAlertOnThis}
+		disabled={logql === null}
 		aria-label="New rule from this query"
 	>
 		New rule
@@ -122,13 +126,15 @@
 
 <div class="meta">
 	<span class="mono count">
-		{#if shown < count}
+		{#if count === null}
+			{loadFailed ? "couldn't load" : 'loading…'}
+		{:else if shown < count}
 			showing {shown.toLocaleString()} of {count.toLocaleString()} events
 		{:else}
 			{count.toLocaleString()} events
 		{/if}
 	</span>
-	<span class="logql mono">{logql}</span>
+	<span class="logql mono">{logql ?? ''}</span>
 </div>
 
 <style>

@@ -7,6 +7,7 @@
 	import Ticker from '#lib/components/Ticker.svelte';
 	import InsightsPanel from '#lib/components/InsightsPanel.svelte';
 	import HostHealth from '#lib/components/HostHealth.svelte';
+	import Skeleton from '#lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -14,12 +15,23 @@
 
 <div class="wall">
 	<div class="col-main">
-		<StatRow eventCount24h={data.eventCount24h} openAlertCount={data.openAlertCount} />
-		<EventsOverTime totals={data.hourlyTotals} />
-		{#await data.sourceLabels}
-			<HeatGrid rows={data.heatGrid} sourceLabels={{}} />
-		{:then sourceLabels}
-			<HeatGrid rows={data.heatGrid} {sourceLabels} />
+		{#await data.stats}
+			<StatRow eventCount24h={null} openAlertCount={data.openAlertCount} />
+			<Skeleton height="120px" />
+			<Skeleton height="200px" />
+		{:then stats}
+			{#if stats}
+				<StatRow eventCount24h={stats.eventCount24h} openAlertCount={data.openAlertCount} />
+				<EventsOverTime totals={stats.hourlyTotals} />
+				{#await data.sourceLabels}
+					<HeatGrid rows={stats.heatGrid} sourceLabels={{}} />
+				{:then sourceLabels}
+					<HeatGrid rows={stats.heatGrid} {sourceLabels} />
+				{/await}
+			{:else}
+				<StatRow eventCount24h={null} openAlertCount={data.openAlertCount} />
+				<p class="load-error">Couldn't load event stats.</p>
+			{/if}
 		{/await}
 		{#if data.grafanaHostHealthUrl}
 			<HostHealth url={data.grafanaHostHealthUrl} />
@@ -58,6 +70,10 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-5);
+	}
+	.load-error {
+		margin: 0;
+		color: var(--color-muted);
 	}
 	.triage-lane {
 		display: grid;

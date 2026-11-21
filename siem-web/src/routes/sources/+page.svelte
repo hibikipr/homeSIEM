@@ -3,6 +3,7 @@
 	import ParserPreview from '#lib/components/ParserPreview.svelte';
 	import IngestHealthPanel from '#lib/components/IngestHealthPanel.svelte';
 	import UnclaimedSenders from '#lib/components/UnclaimedSenders.svelte';
+	import Skeleton from '#lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -10,12 +11,29 @@
 
 <div class="sources-screen">
 	<div class="main">
-		<SourcesTable
-			sources={data.sources}
-			selectedName={data.previewName}
-			canRename={data.userRole === 'admin'}
-		/>
-		<ParserPreview sourceName={data.previewName} samples={data.previewSamples} />
+		{#await data.registry}
+			<div class="loading" aria-busy="true">
+				<Skeleton height="1.4rem" />
+				<Skeleton height="1.4rem" />
+				<Skeleton height="1.4rem" />
+				<Skeleton height="1.4rem" />
+			</div>
+		{:then registry}
+			{#if registry}
+				<SourcesTable
+					sources={registry.sources}
+					selectedName={registry.previewName}
+					canRename={data.userRole === 'admin'}
+				/>
+				{#await data.previewSamples}
+					<ParserPreview sourceName={registry.previewName} samples={[]} />
+				{:then samples}
+					<ParserPreview sourceName={registry.previewName} {samples} />
+				{/await}
+			{:else}
+				<p class="load-error">Couldn't load sources.</p>
+			{/if}
+		{/await}
 	</div>
 	<aside class="rail">
 		<section class="panel">
@@ -38,8 +56,21 @@
 				</div>
 			</dl>
 		</section>
-		<IngestHealthPanel health={data.health} />
-		<UnclaimedSenders sources={data.unclaimedSources} canClaim={data.userRole === 'admin'} />
+		{#await data.health}
+			<section class="panel"><Skeleton height="4rem" /></section>
+		{:then health}
+			<IngestHealthPanel {health} />
+		{/await}
+		{#await data.registry}
+			<section class="panel"><Skeleton height="3rem" /></section>
+		{:then registry}
+			{#if registry}
+				<UnclaimedSenders
+					sources={registry.unclaimedSources}
+					canClaim={data.userRole === 'admin'}
+				/>
+			{/if}
+		{/await}
 	</aside>
 </div>
 
@@ -70,6 +101,15 @@
 			flex: none;
 			width: 100%;
 		}
+	}
+	.loading {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.load-error {
+		margin: 0;
+		color: var(--color-muted);
 	}
 	.panel {
 		background: var(--color-surface-2);

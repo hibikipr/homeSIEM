@@ -34,129 +34,104 @@ function fakeHealth() {
 	};
 }
 
+type LoadResult = Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+function mockClient(overrides: Record<string, unknown> = {}) {
+	const client = {
+		getSources: vi.fn().mockResolvedValue([fakeSource()]),
+		getIngestHealth: vi.fn().mockResolvedValue(fakeHealth()),
+		search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] }),
+		getAlerts: vi.fn().mockResolvedValue([]),
+		...overrides
+	};
+	vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
+		return client;
+	});
+	return client;
+}
+
+async function run(search = '', token = 'token-123') {
+	return (await load({
+		locals: { sessionToken: token },
+		url: new URL(`https://siem.townsville.cc/sources${search}`)
+	} as never)) as LoadResult;
+}
+
 describe('Sources load', () => {
-	it('loads sources, health, and preview samples for the first source by default', async () => {
-		const searchMock = vi.fn().mockResolvedValue({
-			logql: '',
-			count: 2,
-			entries: [{ Line: '{"a":1}' }, { Line: '{"a":2}' }]
-		});
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return {
-				getSources: vi.fn().mockResolvedValue([fakeSource({ name: 'udm-ultra' })]),
-				getIngestHealth: vi.fn().mockResolvedValue(fakeHealth()),
-				search: searchMock
-			};
+	it('streams sources, health, and preview samples for the first source by default', async () => {
+		const client = mockClient({
+			getSources: vi.fn().mockResolvedValue([fakeSource({ name: 'udm-ultra' })]),
+			search: vi.fn().mockResolvedValue({
+				logql: '',
+				count: 2,
+				entries: [{ Line: '{"a":1}' }, { Line: '{"a":2}' }]
+			})
 		});
 
-		const result = (await load({
-			locals: { sessionToken: 'token-123' },
-			url: new URL('https://siem.townsville.cc/sources')
-		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
+		const result = await run();
+		const registry = await result.registry;
 
-		expect(result.previewName).toBe('udm-ultra');
-		expect(result.previewSamples).toEqual([{ Line: '{"a":1}' }, { Line: '{"a":2}' }]);
-		expect(searchMock).toHaveBeenCalledWith('token-123', { source: 'udm-ultra', limit: '10' });
+		expect(registry?.previewName).toBe('udm-ultra');
+		await expect(result.previewSamples).resolves.toEqual([
+			{ Line: '{"a":1}' },
+			{ Line: '{"a":2}' }
+		]);
+		await expect(result.health).resolves.toEqual(fakeHealth());
+		expect(client.search).toHaveBeenCalledWith('token-123', { source: 'udm-ultra', limit: '10' });
 	});
 
 	it('uses the ?preview= query param over the first source when given', async () => {
-		const searchMock = vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] });
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return {
-				getSources: vi
-					.fn()
-					.mockResolvedValue([
-						fakeSource({ id: 1, name: 'udm-ultra' }),
-						fakeSource({ id: 2, name: 'host-1' })
-					]),
-				getIngestHealth: vi.fn().mockResolvedValue(fakeHealth()),
-				search: searchMock
-			};
+		const client = mockClient({
+			getSources: vi
+				.fn()
+				.mockResolvedValue([
+					fakeSource({ id: 1, name: 'udm-ultra' }),
+					fakeSource({ id: 2, name: 'host-1' })
+				])
 		});
 
-		const result = (await load({
-			locals: { sessionToken: 'token-123' },
-			url: new URL('https://siem.townsville.cc/sources?preview=host-1')
-		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
-
-		expect(result.previewName).toBe('host-1');
-		expect(searchMock).toHaveBeenCalledWith('token-123', { source: 'host-1', limit: '10' });
+		const result = await run('?preview=host-1');
+		expect((await result.registry)?.previewName).toBe('host-1');
+		await result.previewSamples;
+		expect(client.search).toHaveBeenCalledWith('token-123', { source: 'host-1', limit: '10' });
 	});
 
 	it('splits sources into claimed and unclaimed', async () => {
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return {
-				getSources: vi
-					.fn()
-					.mockResolvedValue([
-						fakeSource({ id: 1, name: 'a', claimed: true }),
-						fakeSource({ id: 2, name: 'b', claimed: false })
-					]),
-				getIngestHealth: vi.fn().mockResolvedValue(fakeHealth()),
-				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] })
-			};
+		mockClient({
+			getSources: vi
+				.fn()
+				.mockResolvedValue([
+					fakeSource({ id: 1, name: 'a', claimed: true }),
+					fakeSource({ id: 2, name: 'b', claimed: false })
+				])
 		});
 
-		const result = (await load({
-			locals: { sessionToken: 'token-123' },
-			url: new URL('https://siem.townsville.cc/sources')
-		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
-
-		expect(result.claimedSources).toHaveLength(1);
-		expect(result.unclaimedSources).toHaveLength(1);
+		const registry = await (await run()).registry;
+		expect(registry?.claimedSources).toHaveLength(1);
+		expect(registry?.unclaimedSources).toHaveLength(1);
 	});
 
-	it('degrades preview samples to an empty array instead of failing the page on a search error', async () => {
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return {
-				getSources: vi.fn().mockResolvedValue([fakeSource()]),
-				getIngestHealth: vi.fn().mockResolvedValue(fakeHealth()),
-				search: vi.fn().mockRejectedValue(new SiemApiError(502, 'loki down'))
-			};
-		});
+	it('degrades preview samples to an empty array on a search error', async () => {
+		mockClient({ search: vi.fn().mockRejectedValue(new SiemApiError(502, 'loki down')) });
 
-		const result = (await load({
-			locals: { sessionToken: 'token-123' },
-			url: new URL('https://siem.townsville.cc/sources')
-		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
-
-		expect(result.previewSamples).toEqual([]);
-		expect(result.sources).toHaveLength(1);
+		const result = await run();
+		await expect(result.previewSamples).resolves.toEqual([]);
+		expect((await result.registry)?.sources).toHaveLength(1);
 	});
 
-	it('redirects to /auth/logout on a 401/403 from the primary sources fetch', async () => {
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return {
-				getSources: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
-				getIngestHealth: vi.fn().mockResolvedValue(fakeHealth()),
-				search: vi.fn()
-			};
-		});
+	it('does not throw from load when the slow sources call fails; registry resolves to null', async () => {
+		mockClient({ getSources: vi.fn().mockRejectedValue(new SiemApiError(500, 'loki timeout')) });
 
-		await expect(
-			load({
-				locals: { sessionToken: 'stale-token' },
-				url: new URL('https://siem.townsville.cc/sources')
-			} as never)
-		).rejects.toMatchObject({ status: 302, location: '/auth/logout' });
+		const result = await run();
+		await expect(result.registry).resolves.toBeNull();
+		await expect(result.previewSamples).resolves.toEqual([]);
 	});
 
-	it('degrades ingest health to a safe default instead of failing the page on a non-auth error', async () => {
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return {
-				getSources: vi.fn().mockResolvedValue([fakeSource()]),
-				getIngestHealth: vi.fn().mockRejectedValue(new SiemApiError(500, 'ingest-health down')),
-				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] })
-			};
-		});
+	it('degrades ingest health to a safe default on any error', async () => {
+		mockClient({ getIngestHealth: vi.fn().mockRejectedValue(new SiemApiError(500, 'down')) });
 
-		const result = (await load({
-			locals: { sessionToken: 'token-123' },
-			url: new URL('https://siem.townsville.cc/sources')
-		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
-
-		expect(result.sources).toHaveLength(1);
-		expect(result.health).toEqual({
+		const result = await run();
+		await expect(result.health).resolves.toEqual({
 			received_events_per_source: {},
 			loki_sent_events_total: 0,
 			blank_messages_filtered_total: 0,
@@ -164,37 +139,18 @@ describe('Sources load', () => {
 		});
 	});
 
-	it('redirects to /auth/logout on a 401/403 from the ingest-health fetch', async () => {
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return {
-				getSources: vi.fn().mockResolvedValue([fakeSource()]),
-				getIngestHealth: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')),
-				search: vi.fn().mockResolvedValue({ logql: '', count: 0, entries: [] })
-			};
-		});
+	it('redirects to /auth/logout on a 401/403 from the auth-gating call', async () => {
+		mockClient({ getAlerts: vi.fn().mockRejectedValue(new SiemApiError(401, 'invalid session')) });
 
-		await expect(
-			load({
-				locals: { sessionToken: 'stale-token' },
-				url: new URL('https://siem.townsville.cc/sources')
-			} as never)
-		).rejects.toMatchObject({ status: 302, location: '/auth/logout' });
+		await expect(run('', 'stale-token')).rejects.toMatchObject({
+			status: 302,
+			location: '/auth/logout'
+		});
 	});
 
-	it('surfaces a 502 when siem-api fails for a reason other than auth', async () => {
-		vi.mocked(siemApiClientModule.SiemApiClient).mockImplementation(function () {
-			return {
-				getSources: vi.fn().mockRejectedValue(new SiemApiError(500, 'boom')),
-				getIngestHealth: vi.fn().mockResolvedValue(fakeHealth()),
-				search: vi.fn()
-			};
-		});
+	it('surfaces a 502 when the auth-gating call fails for a reason other than auth', async () => {
+		mockClient({ getAlerts: vi.fn().mockRejectedValue(new SiemApiError(500, 'boom')) });
 
-		await expect(
-			load({
-				locals: { sessionToken: 'token-123' },
-				url: new URL('https://siem.townsville.cc/sources')
-			} as never)
-		).rejects.toMatchObject({ status: 502 });
+		await expect(run()).rejects.toMatchObject({ status: 502 });
 	});
 });
