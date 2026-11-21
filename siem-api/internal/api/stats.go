@@ -34,8 +34,23 @@ const (
 	heatLightThreshold = 5
 )
 
+// handleEventsStats serves the stats body from a 30s cache (statsCacheTTL).
+// One shared entry: the response has no parameters and does not vary by user.
+// A failed load is never cached.
 func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	body, err := s.respCache.Do(r.Context(), "stats", statsCacheTTL, func(ctx context.Context) ([]byte, bool, error) {
+		b, err := s.computeEventsStats(ctx)
+		return b, true, err
+	})
+	if err != nil {
+		http.Error(w, "query failed", http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(body)
+}
+
+func (s *Server) computeEventsStats(ctx context.Context) ([]byte, error) {
 	now := time.Now().UTC()
 	// The hourly grid is anchored on hour boundaries, ending at the top of
 	// the next hour so its last bucket covers the hour in progress. Loki
@@ -73,29 +88,17 @@ func (s *Server) handleEventsStats(w http.ResponseWriter, r *http.Request) {
 	}()
 	wg.Wait()
 
-	if totalErr != nil {
-		s.deps.Logger.Error("events stats: total query failed", "error", totalErr)
-		http.Error(w, "query failed", http.StatusBadGateway)
-		return
-	}
-	if criticalErr != nil {
-		s.deps.Logger.Error("events stats: critical query failed", "error", criticalErr)
-		http.Error(w, "query failed", http.StatusBadGateway)
-		return
-	}
-	if warningErr != nil {
-		s.deps.Logger.Error("events stats: warning query failed", "error", warningErr)
-		http.Error(w, "query failed", http.StatusBadGateway)
-		return
-	}
-	if volumeErr != nil {
-		s.deps.Logger.Error("events stats: volume query failed", "error", volumeErr)
-		http.Error(w, "query failed", http.StatusBadGateway)
-		return
+	for _, f := range []struct {
+		name string
+		err  error
+	}{{"total", totalErr}, {"critical", criticalErr}, {"warning", warningErr}, {"volume", volumeErr}} {
+		if f.err != nil {
+			s.deps.Logger.Error("events stats: "+f.name+" query failed", "error", f.err)
+			return nil, f.err
+		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(statsResponse{
+	return json.Marshal(statsResponse{
 		EventCount24h: total,
 		HeatGrid:      buildHeatGrid(critical, warning, volume, start, end),
 		HourlyTotals:  buildHourlyTotals(volume, start, end),
