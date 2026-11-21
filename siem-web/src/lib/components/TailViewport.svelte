@@ -13,7 +13,7 @@
 		activeSeverities = $bindable(),
 		paused = $bindable(false),
 		buffer = $bindable([]),
-		// eslint-disable-next-line no-useless-assignment -- read by the parent via bind:connected, not locally
+
 		connected = $bindable(true),
 		displayTimezone,
 		hiddenColumns
@@ -131,7 +131,7 @@
 	let visibleEntries = $derived(rendered.slice(range.startIndex, range.endIndex));
 </script>
 
-<svelte:window onresize={measure}></svelte:window>
+<svelte:window onresize={measure} />
 
 <div class="viewport-wrap">
 	<div class="header-row">
@@ -162,9 +162,9 @@
 							<span class="col-time mono">{entry.Timestamp}</span>
 						{/if}
 						{#if !hiddenColumns.has('localTime')}
-							<span class="col-time mono"
-								>{formatTimestampInZone(entry.Timestamp, displayTimezone)}</span
-							>
+							<span class="col-time mono">
+								{formatTimestampInZone(entry.Timestamp, displayTimezone)}
+							</span>
 						{/if}
 						{#if !hiddenColumns.has('severity')}
 							<span class="col-severity">
@@ -173,14 +173,14 @@
 							</span>
 						{/if}
 						{#if !hiddenColumns.has('host')}
-							<span class="col-host mono" title={entry.Labels.host ?? ''}
-								>{entry.Labels.host ?? ''}</span
-							>
+							<span class="col-host mono" title={entry.Labels.host ?? ''}>
+								{entry.Labels.host ?? ''}
+							</span>
 						{/if}
 						{#if !hiddenColumns.has('program')}
-							<span class="col-program mono" title={entry.Labels.program ?? ''}
-								>{entry.Labels.program ?? ''}</span
-							>
+							<span class="col-program mono" title={entry.Labels.program ?? ''}>
+								{entry.Labels.program ?? ''}
+							</span>
 						{/if}
 						{#if !hiddenColumns.has('facility')}
 							{@const facility = extractField(entry.Line, 'facility') ?? ''}

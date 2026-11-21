@@ -44,15 +44,14 @@
 			alerts={data.alerts}
 			rules={data.rules}
 			selectedId={data.selectedAlert?.id ?? data.selectedRule?.id ?? null}
-			onNewRule={() => showRuleForm = true}
+			onNewRule={() => (showRuleForm = true)}
 			canCreateRule={canManageRules}
 		/>
 	</div>
 	<div class="pane pane-detail">
-		<a
-			href={resolve(`alerts?state=${data.tab}`)}
-			class="back-link"
-		><i class="ph ph-arrow-left"></i> Back</a>
+		<a href={resolve(`alerts?state=${data.tab}`)} class="back-link">
+			<i class="ph ph-arrow-left"></i> Back
+		</a>
 
 		{#if data.selectedAlert && data.stats}
 			{#await Promise.all([data.sourceDisplayNames, data.liveSourcesByName])}
@@ -71,8 +70,8 @@
 					samples={data.selectedSamples}
 					stats={data.stats}
 					rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
-					sourceDisplayNames={sourceDisplayNames}
-					liveSources={liveSources}
+					{sourceDisplayNames}
+					{liveSources}
 					canEdit={canManageRules}
 				/>
 			{/await}
@@ -81,7 +80,7 @@
 				rule={data.selectedRule}
 				canEdit={canManageRules}
 				onToggled={() => invalidateAll()}
-				onEdit={() => editingRule = data.selectedRule ?? null}
+				onEdit={() => (editingRule = data.selectedRule ?? null)}
 				onDeleted={() => goto(resolve(`alerts?state=rules`))}
 			/>
 		{:else}
@@ -97,7 +96,7 @@
 		mode="create"
 		defaultName=""
 		defaultLogql=""
-		onClose={() => showRuleForm = false}
+		onClose={() => (showRuleForm = false)}
 		onSaved={(id) => {
 			showRuleForm = false;
 			// Switches to the Rules tab and selects the new rule, even if the
@@ -109,7 +108,7 @@
 	<RuleForm
 		mode="edit"
 		initial={editingRule}
-		onClose={() => editingRule = null}
+		onClose={() => (editingRule = null)}
 		onSaved={() => {
 			editingRule = null;
 			invalidateAll();

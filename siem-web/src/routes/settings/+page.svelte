@@ -266,35 +266,35 @@
 					<label>
 						Temperature
 						<input type="number" min="0" max="2" step="0.05" bind:value={temperature} />
-						<span class="muted"
-							>Lower is more consistent/grounded, higher is more creative. Recommended: 0.1-0.3 for
-							this analytical task - it shouldn't be inventing anything.</span
-						>
+						<span class="muted">
+							Lower is more consistent/grounded, higher is more creative. Recommended: 0.1-0.3 for
+							this analytical task - it shouldn't be inventing anything.
+						</span>
 					</label>
 					<label>
 						Top-p
 						<input type="number" min="0.01" max="1" step="0.05" bind:value={topP} />
-						<span class="muted"
-							>Nucleus sampling cutoff. 0.9 pairs well with a low temperature; rarely worth changing
-							on its own.</span
-						>
+						<span class="muted">
+							Nucleus sampling cutoff. 0.9 pairs well with a low temperature; rarely worth changing
+							on its own.
+						</span>
 					</label>
 					<label>
 						Max response tokens (num_predict)
 						<input type="number" min="1" max="8192" step="1" bind:value={numPredict} />
-						<span class="muted"
-							>Caps how long a response can run, independent of the HTTP timeout. 1024 comfortably
-							fits a handful of suggestions in the expected JSON shape.</span
-						>
+						<span class="muted">
+							Caps how long a response can run, independent of the HTTP timeout. 1024 comfortably
+							fits a handful of suggestions in the expected JSON shape.
+						</span>
 					</label>
 					<label>
 						Context window (num_ctx)
 						<input type="number" min="256" max="262144" step="256" bind:value={numCtx} />
-						<span class="muted"
-							>Ollama's own per-model default is often only 2048-4096, which can silently truncate
+						<span class="muted">
+							Ollama's own per-model default is often only 2048-4096, which can silently truncate
 							the alerts/rollup/samples data in the prompt. 8192 is a safer floor; raise it if your
-							model supports more and lookback/sample volume is large.</span
-						>
+							model supports more and lookback/sample volume is large.
+						</span>
 					</label>
 				</div>
 			</div>

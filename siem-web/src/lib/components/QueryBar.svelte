@@ -5,17 +5,22 @@
 	import ClearableField from '#lib/components/ClearableField.svelte';
 	import type { SearchFilters } from '#lib/search.ts';
 
-	let { filters, logql, count, shown, onAlertOnThis
+	let {
+		filters,
+		logql,
+		count,
+		shown,
+		onAlertOnThis
 
-	// The real total over the full time range (a Loki-side aggregate,
-	// not derived from how many entries were fetched - see
-	// searchResponse.Count's doc in siem-api).
-	// How many of those `count` events are actually in the current
-	// page of entries (capped at `limit`, 1000 by default). Shown
-	// separately from `count` whenever they differ so a capped page
-	// never gets presented as if it were the whole result - see the
-	// Search facet-undercount bug this was added alongside.
-	 }: { 
+		// The real total over the full time range (a Loki-side aggregate,
+		// not derived from how many entries were fetched - see
+		// searchResponse.Count's doc in siem-api).
+		// How many of those `count` events are actually in the current
+		// page of entries (capped at `limit`, 1000 by default). Shown
+		// separately from `count` whenever they differ so a capped page
+		// never gets presented as if it were the whole result - see the
+		// Search facet-undercount bug this was added alongside.
+	}: {
 		filters: SearchFilters;
 		logql: string;
 		count: number;

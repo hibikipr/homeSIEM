@@ -37,24 +37,21 @@
 		{/if}
 		<div class="tabs">
 			{#each tabs as t (t.value)}
-				<a
-					href={resolve(`alerts?state=${t.value}`)}
-					class:active={tab === t.value}
-				>{t.label}</a>
+				<a href={resolve(`alerts?state=${t.value}`)} class:active={tab === t.value}>{t.label}</a>
 			{/each}
 		</div>
 	</div>
 	<div class="rows">
 		{#if tab === 'rules'}
 			{#each rules as rule (rule.id)}
-				<RuleRow rule={rule} selected={selectedId === rule.id} />
+				<RuleRow {rule} selected={selectedId === rule.id} />
 			{:else}
 				<div class="empty-list">No rules configured yet.</div>
 			{/each}
 		{:else}
 			{#each alerts as alert (alert.id)}
 				<AlertRow
-					alert={alert}
+					{alert}
 					ruleName={ruleNames.get(alert.rule_id) ?? `rule #${alert.rule_id}`}
 					selected={selectedId === alert.id}
 				/>

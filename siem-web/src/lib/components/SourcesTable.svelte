@@ -136,13 +136,12 @@
 						<a
 							class="name-link"
 							href={resolve(`sources?preview=${encodeURIComponent(source.name)}`)}
-						>{source.display_name || source.name}</a>
+						>
+							{source.display_name || source.name}
+						</a>
 
 						{#if canRename}
-							<button
-								class="rename-trigger"
-								onclick={() => startRename(source)}
-							>Rename</button>
+							<button class="rename-trigger" onclick={() => startRename(source)}>Rename</button>
 
 							<button
 								class="rename-trigger"
@@ -182,15 +181,20 @@
 							>
 								{savingHeartbeat ? '…' : 'Save'}
 							</button>
-							<button class="rename-action" onclick={cancelEditHeartbeat} disabled={savingHeartbeat}
-								>Cancel</button
+							<button
+								class="rename-action"
+								onclick={cancelEditHeartbeat}
+								disabled={savingHeartbeat}
 							>
+								Cancel
+							</button>
 						</div>
 					{:else}
 						<span class="mono">{formatSecondsAsMinutes(source.heartbeat_sec)}</span>
 						{#if canRename}
-							<button class="rename-trigger" onclick={() => startEditHeartbeat(source)}>Edit</button
-							>
+							<button class="rename-trigger" onclick={() => startEditHeartbeat(source)}>
+								Edit
+							</button>
 						{/if}
 					{/if}
 				</td>

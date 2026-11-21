@@ -5,11 +5,7 @@
 	let { rule, selected }: { rule: RuleResponse; selected: boolean } = $props();
 </script>
 
-<a
-	class="row"
-	class:selected
-	href={resolve(`alerts?state=rules&id=${rule.id}`)}
->
+<a class="row" class:selected href={resolve(`alerts?state=rules&id=${rule.id}`)}>
 	<div class="header">
 		<span class="name">{rule.name}</span>
 		<span class="enabled" class:off={!rule.enabled}>{rule.enabled ? 'enabled' : 'disabled'}</span>

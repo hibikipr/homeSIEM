@@ -58,9 +58,9 @@
 	<div class="legend">
 		{#each LEGEND_TIERS as tier (tier)}
 			<span class="legend-item">
-				<span class="legend-swatch" style="background: {heatTierColor(tier)}"
-					><span class="glyph" aria-hidden="true">{heatTierGlyph(tier)}</span></span
-				>
+				<span class="legend-swatch" style="background: {heatTierColor(tier)}">
+					<span class="glyph" aria-hidden="true">{heatTierGlyph(tier)}</span>
+				</span>
 				{tier}
 			</span>
 		{/each}
@@ -68,9 +68,9 @@
 	{#if hovered}
 		<div class="hover-tooltip">
 			<span class="tooltip-source">{labelFor(hovered.source)}</span>
-			<span class="tooltip-tier"
-				><span class="tier-name">{hovered.tier}</span> · {ageLabel(hovered.hoursAgo)}</span
-			>
+			<span class="tooltip-tier">
+				<span class="tier-name">{hovered.tier}</span> · {ageLabel(hovered.hoursAgo)}
+			</span>
 		</div>
 	{/if}
 </div>

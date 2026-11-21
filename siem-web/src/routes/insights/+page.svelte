@@ -115,14 +115,15 @@
 							<div class="row-title-line">
 								<span class="row-title">{insight.title}</span>
 								{#if insight.occurrence_count > 1}
-									<span class="occurrence-badge" title="{insight.occurrence_count} occurrences"
-										>×{insight.occurrence_count}</span
-									>
+									<span class="occurrence-badge" title="{insight.occurrence_count} occurrences">
+										×{insight.occurrence_count}
+									</span>
 								{/if}
 								<span class="category">{insight.category}</span>
 								{#if insight.recommended_fix}
-									<span class="fix-badge" title="A recommended fix is available">Fix available</span
-									>
+									<span class="fix-badge" title="A recommended fix is available">
+										Fix available
+									</span>
 								{/if}
 								{#if insight.dismissed}
 									<span class="dismissed-badge">Dismissed</span>
@@ -136,9 +137,9 @@
 								{/if}
 							</span>
 							{#if uniquePrograms(insight.evidence).length > 0}
-								<span class="row-programs" title="Program(s) in this insight's evidence"
-									>{uniquePrograms(insight.evidence).join(', ')}</span
-								>
+								<span class="row-programs" title="Program(s) in this insight's evidence">
+									{uniquePrograms(insight.evidence).join(', ')}
+								</span>
 							{/if}
 						</div>
 					</button>
