@@ -268,5 +268,8 @@
 			font-size: var(--text-table);
 			cursor: pointer;
 		}
+		.back-link:hover {
+			color: var(--color-gold);
+		}
 	}
 </style>

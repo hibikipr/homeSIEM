@@ -75,6 +75,8 @@
 	}
 	.title {
 		font-size: var(--text-section-head);
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		color: var(--color-muted);
 	}
 	.dot {
@@ -84,7 +86,9 @@
 		border-radius: 50%;
 	}
 	.raw {
+		font-family: var(--font-mono);
 		background: var(--color-surface-2);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-3);
 		font-size: var(--text-log-row);
@@ -100,11 +104,13 @@
 		font-size: var(--text-label);
 	}
 	dt {
+		font-family: var(--font-mono);
 		color: var(--color-muted);
 	}
 	dd {
 		margin: 0;
-		color: var(--color-accent-lighter);
+		font-family: var(--font-mono);
+		color: var(--color-severity-info-text);
 		overflow-wrap: anywhere;
 	}
 	.actions {
@@ -113,16 +119,26 @@
 		margin-bottom: var(--space-3);
 	}
 	.actions button {
-		background: var(--color-surface-2);
-		color: var(--color-text);
-		border: none;
-		border-radius: var(--radius-sm);
+		background: transparent;
+		border: 1px solid var(--color-line-2);
+		color: var(--color-text-2);
+		border-radius: var(--radius-default);
+		font-family: var(--font-ui);
+		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s,
+			background-color 0.2s;
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--text-label);
-		cursor: pointer;
+	}
+	.actions button:hover {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
 	}
 	.context {
-		background: var(--color-accent-tint);
+		background: var(--row-selected-bg);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-3);
 		font-size: var(--text-table);

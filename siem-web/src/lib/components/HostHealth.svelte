@@ -23,9 +23,9 @@
 
 <style>
 	.panel {
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
-		box-shadow: var(--shadow-flat);
 		padding: var(--space-4);
 		display: flex;
 		flex-direction: column;
@@ -38,8 +38,9 @@
 	}
 	.title {
 		font-size: var(--text-eyebrow);
+		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
+		letter-spacing: 0.06em;
 		color: var(--color-muted-2);
 	}
 	.badge {
@@ -47,9 +48,10 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--color-muted-2);
+		font-family: var(--font-mono);
 		border: 1px solid var(--color-line-2);
-		border-radius: var(--radius-sm);
-		padding: 1px 6px;
+		border-radius: var(--radius-pill);
+		padding: 1px 8px;
 	}
 	.frame-wrap {
 		border-radius: var(--radius-sm);
@@ -78,7 +80,11 @@
 	.open-link {
 		align-self: flex-end;
 		font-size: 10.5px;
-		color: var(--color-accent-light);
+		color: var(--saber-blue);
 		text-decoration: none;
+		transition: color 0.2s;
+	}
+	.open-link:hover {
+		color: var(--color-gold);
 	}
 </style>

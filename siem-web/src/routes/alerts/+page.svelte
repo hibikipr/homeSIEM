@@ -168,5 +168,8 @@
 			text-decoration: none;
 			font-size: var(--text-table);
 		}
+		.back-link:hover {
+			color: var(--color-gold);
+		}
 	}
 </style>

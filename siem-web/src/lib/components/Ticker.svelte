@@ -53,7 +53,7 @@
 <style>
 	.ticker {
 		background: var(--color-bg-alt);
-		box-shadow: inset var(--shadow-flat);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		font-family: var(--font-mono);
 		font-size: 11px;
@@ -65,6 +65,8 @@
 	.eyebrow {
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
+		font-family: var(--font-mono);
+		letter-spacing: 0.1em;
 		color: var(--color-muted-2);
 		margin-bottom: var(--space-2);
 	}

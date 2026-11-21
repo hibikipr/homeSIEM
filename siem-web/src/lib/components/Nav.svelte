@@ -116,7 +116,14 @@
 	</button>
 
 	<div class="brand">
-		<span class="brand-icon"><i class="ph ph-shield-check"></i></span>
+		<img
+			class="brand-icon"
+			src="/icons/homesiem-64.png"
+			srcset="/icons/homesiem-64.png 1x, /icons/homesiem-180.png 2x"
+			alt=""
+			width="28"
+			height="28"
+		/>
 		<span class="brand-name">homeSIEM</span>
 	</div>
 
@@ -217,20 +224,20 @@
 	}
 
 	.brand-icon {
-		width: 24px;
-		height: 24px;
-		border-radius: var(--radius-sm) calc(var(--radius-sm) + 3px);
-		background: var(--color-accent-tint);
-		color: var(--color-accent-light);
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border-radius: 23%;
+		display: block;
+		box-shadow: 0 0 14px color-mix(in srgb, var(--saber) 35%, transparent);
 	}
 
 	.brand-name {
-		font-size: 20px;
-		font-weight: 500;
-		letter-spacing: -0.02em;
+		font-family: var(--font-display);
+		font-size: 15px;
+		font-weight: 400;
+		letter-spacing: 0.08em;
+		color: var(--color-gold);
+		text-shadow: var(--glow-gold-text);
 	}
 
 	.links {
@@ -242,21 +249,33 @@
 	.links a {
 		color: var(--color-muted);
 		text-decoration: none;
-		padding-bottom: var(--space-2);
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-sm);
 		border-bottom: 2px solid transparent;
+		transition:
+			color 0.2s,
+			background-color 0.2s,
+			border-color 0.2s;
+	}
+
+	.links a:hover {
+		color: var(--color-gold);
 	}
 
 	.links a.active {
 		color: var(--color-text);
-		border-bottom-color: var(--color-accent);
+		background: var(--row-selected-bg);
+		border-bottom-color: var(--saber-blue);
+		box-shadow: 0 6px 12px -8px var(--saber-blue);
 	}
 
 	.pill {
+		font-family: var(--font-mono);
 		font-size: var(--text-eyebrow);
-		background: var(--color-accent-light);
-		color: var(--color-bg-alt);
-		border-radius: var(--radius-sm);
-		padding: 0 var(--space-2);
+		background: var(--color-status-danger-soft);
+		color: var(--saber-red);
+		border-radius: var(--radius-pill);
+		padding: 0 var(--space-3);
 		margin-left: var(--space-1);
 	}
 
@@ -273,8 +292,12 @@
 		width: 6px;
 		height: 6px;
 		border-radius: 50%;
-		background: var(--color-severity-healthy);
+		background: var(--saber-green);
 		display: inline-block;
+	}
+
+	.ingest-text {
+		font-family: var(--font-mono);
 	}
 
 	.user .role {
@@ -308,9 +331,10 @@
 		top: calc(100% + var(--space-2));
 		right: 0;
 		min-width: 220px;
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
-		box-shadow: var(--shadow-flat);
+		box-shadow: var(--shadow-raised);
 		padding: var(--space-3);
 		display: flex;
 		flex-direction: column;
@@ -336,9 +360,11 @@
 	.account-menu-name {
 		font-size: var(--text-table);
 		color: var(--color-text);
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 	}
 	.account-menu-email {
+		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		color: var(--color-muted);
 		overflow: hidden;
@@ -362,7 +388,7 @@
 		padding-top: var(--space-3);
 	}
 	.account-menu-signout:hover {
-		color: var(--color-text);
+		color: var(--color-gold);
 		background: var(--row-hover-bg);
 	}
 
@@ -419,7 +445,8 @@
 			gap: var(--space-2);
 			padding: var(--space-6) var(--space-5);
 			background: var(--color-surface-2);
-			box-shadow: var(--shadow-flat);
+			border: 1px solid var(--color-line);
+			box-shadow: var(--shadow-overlay);
 			z-index: 30;
 			overflow-y: auto;
 		}
@@ -432,6 +459,7 @@
 		}
 		.links a.active {
 			border-bottom-color: var(--color-line-2);
+			box-shadow: inset 3px 0 0 var(--saber-blue);
 		}
 		.links-status {
 			display: flex;

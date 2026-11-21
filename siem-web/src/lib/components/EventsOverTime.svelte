@@ -114,9 +114,9 @@
 
 <style>
 	.events-over-time {
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
-		box-shadow: var(--shadow-flat);
 		padding: var(--space-4);
 		position: relative;
 	}
@@ -143,13 +143,13 @@
 		cursor: crosshair;
 	}
 	.area {
-		fill: var(--color-accent-tint-2);
-		opacity: 0.5;
+		fill: var(--saber-blue);
+		opacity: 0.18;
 		stroke: none;
 	}
 	.line {
 		fill: none;
-		stroke: var(--color-accent-light);
+		stroke: var(--saber-blue);
 		stroke-width: 2;
 	}
 	.crosshair {
@@ -157,7 +157,7 @@
 		stroke-width: 1;
 	}
 	.marker {
-		fill: var(--color-accent-light);
+		fill: var(--saber-blue);
 		vector-effect: non-scaling-stroke;
 	}
 	.tooltip {
@@ -167,17 +167,20 @@
 		flex-direction: column;
 		gap: 2px;
 		background: var(--color-surface-3);
-		box-shadow: var(--shadow-flat);
+		border: 1px solid var(--color-line-2);
+		box-shadow: var(--shadow-raised);
 		border-radius: var(--radius-sm);
 		padding: var(--space-2) var(--space-3);
 		pointer-events: none;
 		white-space: nowrap;
 	}
 	.tooltip-hour {
+		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		color: var(--color-muted);
 	}
 	.tooltip-count {
+		font-family: var(--font-mono);
 		font-size: var(--text-table);
 		color: var(--color-text);
 	}
@@ -187,6 +190,7 @@
 	}
 	.axis-label {
 		position: absolute;
+		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		color: var(--color-muted-2);
 		white-space: nowrap;
@@ -195,6 +199,7 @@
 		position: absolute;
 		top: var(--space-4);
 		right: var(--space-4);
+		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		color: var(--color-muted-2);
 	}

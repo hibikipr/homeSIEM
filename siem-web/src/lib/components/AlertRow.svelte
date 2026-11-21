@@ -41,12 +41,19 @@
 <style>
 	.row {
 		display: block;
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
 		border-left: 3px solid var(--color-severity-info);
 		text-decoration: none;
 		color: inherit;
+		transition:
+			background-color 0.2s,
+			border-color 0.2s;
+	}
+	.row:hover {
+		background: var(--row-hover-bg);
 	}
 	.row.severity-warning {
 		border-left-color: var(--color-severity-warning);
@@ -55,33 +62,44 @@
 		border-left-color: var(--color-severity-critical);
 	}
 	.row.selected {
-		background: var(--color-accent-tint);
+		background: var(--row-selected-bg);
 		box-shadow: 0 0 0 1px var(--color-accent-deep);
 	}
 	.header {
 		display: flex;
 		justify-content: space-between;
+		align-items: center;
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
+	}
+	.eyebrow {
+		background: var(--row-selected-bg);
 		color: var(--color-severity-info-text);
+		border-radius: var(--radius-pill);
+		padding: 1px var(--space-3);
+		letter-spacing: 0.06em;
 	}
-	.row.severity-warning .header {
-		color: var(--color-severity-warning);
+	.row.severity-warning .eyebrow {
+		background: var(--color-status-warn-bg);
+		color: var(--color-gold);
 	}
-	.row.severity-critical .header {
-		color: var(--color-severity-critical);
+	.row.severity-critical .eyebrow {
+		background: var(--color-status-danger-soft);
+		color: var(--saber-red);
 	}
 	.age {
+		font-family: var(--font-mono);
 		color: var(--color-muted);
 		text-transform: none;
 	}
 	.age.muted {
-		color: var(--color-accent-deep);
+		color: var(--color-severity-info-text);
 		font-weight: 600;
 	}
 	.title {
 		font-size: 13.5px;
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		margin-top: var(--space-2);
 	}
 	.body {

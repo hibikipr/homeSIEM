@@ -146,18 +146,27 @@
 		gap: var(--space-3);
 	}
 	h1 {
+		font-family: var(--font-display);
 		font-size: var(--text-page-title);
+		font-weight: 400;
+		letter-spacing: 0.06em;
+		color: var(--color-text);
 		margin: 0;
 	}
 	.status {
 		display: flex;
 		align-items: center;
-		gap: var(--space-1);
+		gap: var(--space-2);
+		font-family: var(--font-mono);
 		font-size: var(--text-label);
-		color: var(--color-severity-healthy);
+		background: var(--color-status-success-bg);
+		color: var(--saber-green);
+		border-radius: var(--radius-pill);
+		padding: 1px var(--space-3);
 	}
 	.status.disconnected {
-		color: var(--color-severity-warning);
+		background: var(--color-status-warn-bg);
+		color: var(--color-gold);
 	}
 	.status .dot {
 		width: 6px;
@@ -172,18 +181,26 @@
 	}
 	.chip {
 		background: transparent;
-		box-shadow: inset 0 0 0 1px var(--color-line-2);
+		border: 1px solid var(--color-line-2);
 		color: var(--color-muted);
-		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		padding: var(--space-1) var(--space-3);
+		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s,
+			background-color 0.2s;
+	}
+	.chip:hover {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
 	}
 	.chip.active {
-		background: var(--color-accent-tint);
-		box-shadow: inset 0 0 0 1px var(--color-accent-deep);
-		color: var(--color-accent-lighter);
+		background: var(--row-selected-bg);
+		border-color: var(--saber-blue);
+		color: var(--color-severity-info-text);
 	}
 	.actions {
 		display: flex;
@@ -191,14 +208,24 @@
 		margin-left: auto;
 	}
 	.action {
-		background: var(--color-surface-2);
-		color: var(--color-text);
-		border: none;
-		border-radius: var(--radius-sm);
+		background: transparent;
+		border: 1px solid var(--color-line-2);
+		color: var(--color-text-2);
+		border-radius: var(--radius-default);
+		font-family: var(--font-ui);
+		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s,
+			background-color 0.2s;
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--text-label);
-		cursor: pointer;
 	}
+	.action:hover:not(:disabled) {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
+	}
+
 	.action:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
@@ -207,8 +234,10 @@
 		display: flex;
 		justify-content: space-between;
 		font-size: var(--text-label);
+		font-family: var(--font-mono);
 		color: var(--color-muted-2);
 		background: var(--color-surface-3);
+		border: 1px solid var(--color-line);
 		padding: var(--space-2) var(--space-3);
 		margin-top: var(--space-2);
 		border-radius: var(--radius-sm);

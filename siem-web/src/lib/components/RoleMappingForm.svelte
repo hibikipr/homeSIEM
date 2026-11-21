@@ -91,7 +91,7 @@
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
+		background: color-mix(in srgb, var(--color-bg) 75%, transparent);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -99,8 +99,9 @@
 	}
 	.mapping-form {
 		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-raised);
+		box-shadow: var(--shadow-overlay);
 		padding: var(--space-6);
 		width: 340px;
 		display: flex;
@@ -110,6 +111,8 @@
 	h2 {
 		margin: 0;
 		font-size: var(--text-section-head);
+		font-weight: 600;
+		letter-spacing: 0.02em;
 	}
 	label {
 		display: flex;
@@ -121,7 +124,7 @@
 	input,
 	select {
 		background: var(--color-surface-2);
-		border: none;
+		border: 1px solid var(--color-line-2);
 		border-radius: var(--radius-sm);
 		color: var(--color-text);
 		padding: var(--space-2);
@@ -132,7 +135,7 @@
 		opacity: 0.6;
 	}
 	.error {
-		color: var(--color-severity-critical);
+		color: var(--saber-red);
 		font-size: var(--text-label);
 		margin: 0;
 	}
@@ -143,18 +146,35 @@
 		margin-top: var(--space-2);
 	}
 	.actions button {
-		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-default);
 		padding: var(--space-1) var(--space-3);
+		font-family: var(--font-ui);
 		font-size: var(--text-label);
 		cursor: pointer;
+		transition:
+			background-color 0.2s,
+			border-color 0.2s,
+			color 0.2s;
 	}
 	.actions button[type='submit'] {
-		background: var(--color-accent-tint-2);
-		color: var(--color-accent-lighter);
+		background: var(--saber-blue);
+		border: 1px solid var(--saber-blue);
+		color: var(--color-on-saber);
+		font-weight: 600;
+		letter-spacing: 0.02em;
+	}
+	.actions button[type='submit']:hover:not(:disabled) {
+		background: var(--color-btn-primary-hover);
+		border-color: var(--color-btn-primary-hover);
+		box-shadow: var(--glow-primary-hover);
 	}
 	.actions button[type='button'] {
-		background: var(--color-surface-2);
+		background: transparent;
+		border: 1px solid var(--color-line-2);
+		color: var(--color-text-2);
+	}
+	.actions button[type='button']:hover:not(:disabled) {
+		border-color: var(--saber-blue);
 		color: var(--color-text);
 	}
 	.actions button:disabled {

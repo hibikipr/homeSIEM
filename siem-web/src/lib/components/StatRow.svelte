@@ -39,11 +39,11 @@
 	}
 	.value {
 		font-size: var(--text-big-stat);
-		font-weight: 500;
-		letter-spacing: -0.03em;
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
 	.value.critical {
-		color: var(--color-severity-critical);
+		color: var(--saber-red);
 	}
 	.unit {
 		font-size: 22px;

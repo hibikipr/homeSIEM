@@ -59,13 +59,16 @@
 
 <style>
 	.panel {
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
 		margin-top: var(--space-4);
 	}
 	h2 {
 		font-size: var(--text-section-head);
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		color: var(--color-muted);
 		margin: 0 0 var(--space-3);
 	}
@@ -89,21 +92,36 @@
 		font-size: var(--text-table);
 	}
 	.name {
+		font-family: var(--font-mono);
 		font-weight: 500;
 	}
 	.meta {
+		font-family: var(--font-mono);
 		color: var(--color-muted-2);
 		font-size: var(--text-label);
 	}
 	button {
-		background: var(--color-accent-tint-2);
-		color: var(--color-accent-lighter);
-		border: none;
-		border-radius: var(--radius-sm);
+		background: var(--saber-blue);
+		border: 1px solid var(--saber-blue);
+		color: var(--color-on-saber);
+		font-family: var(--font-ui);
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		cursor: pointer;
+		transition:
+			background-color 0.2s,
+			border-color 0.2s,
+			color 0.2s;
+		border-radius: var(--radius-default);
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--text-label);
-		cursor: pointer;
 	}
+	button:hover:not(:disabled) {
+		background: var(--color-btn-primary-hover);
+		border-color: var(--color-btn-primary-hover);
+		box-shadow: var(--glow-primary-hover);
+	}
+
 	button:disabled {
 		opacity: 0.6;
 		cursor: default;
@@ -112,6 +130,6 @@
 		display: block;
 		margin-top: var(--space-2);
 		font-size: var(--text-label);
-		color: var(--color-severity-critical);
+		color: var(--saber-red);
 	}
 </style>

@@ -211,13 +211,15 @@
 		gap: var(--space-3);
 		padding: var(--space-2) var(--space-3);
 		background: var(--color-surface-3);
-		font-size: var(--text-eyebrow);
+		font-family: var(--font-mono);
+		font-size: 0.86em;
 		text-transform: uppercase;
+		letter-spacing: 0.1em;
 		color: var(--color-muted-2);
 	}
 	.viewport {
 		background: var(--color-bg-alt);
-		box-shadow: inset var(--shadow-flat);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		height: 60vh;
 		overflow-y: auto;
@@ -238,7 +240,7 @@
 		font-size: 12px;
 	}
 	.row:nth-child(odd) {
-		background: rgba(255, 255, 255, 0.015);
+		background: color-mix(in srgb, var(--color-text) 2%, transparent);
 	}
 	.mono {
 		font-family: var(--font-mono);
@@ -322,14 +324,24 @@
 		bottom: var(--space-4);
 		left: 50%;
 		transform: translateX(-50%);
-		background: var(--color-accent);
-		color: var(--color-bg);
-		border: none;
-		border-radius: 999px;
+		background: var(--saber-blue);
+		color: var(--color-on-saber);
+		border: 1px solid var(--saber-blue);
+		border-radius: var(--radius-pill);
 		padding: var(--space-1) var(--space-4);
+		font-family: var(--font-ui);
 		font-size: var(--text-label);
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		cursor: pointer;
 		box-shadow: var(--shadow-raised);
+		transition:
+			background-color 0.2s,
+			border-color 0.2s;
+	}
+	.new-pill:hover {
+		background: var(--color-btn-primary-hover);
+		border-color: var(--color-btn-primary-hover);
+		box-shadow: var(--glow-primary-hover);
 	}
 </style>

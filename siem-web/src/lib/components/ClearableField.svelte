@@ -45,7 +45,7 @@
 	}
 	.field {
 		background: var(--color-surface-2);
-		border: none;
+		border: 1px solid var(--color-line-2);
 		border-radius: var(--radius-sm);
 		color: var(--color-text);
 		padding: var(--space-1) var(--space-2);

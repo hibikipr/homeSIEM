@@ -91,6 +91,8 @@
 	}
 	h2 {
 		font-size: var(--text-section-head);
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		color: var(--color-muted);
 		margin: 0 0 var(--space-3);
 	}
@@ -104,6 +106,7 @@
 		max-height: 160px;
 		overflow-y: auto;
 		background: var(--color-surface-2);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		margin-bottom: var(--space-3);
 	}
@@ -114,8 +117,9 @@
 		width: 100%;
 		background: none;
 		border: none;
-		border-bottom: 1px solid var(--color-line-2);
+		border-bottom: 1px solid var(--color-line);
 		color: var(--color-text-2);
+		font-family: var(--font-mono);
 		text-align: left;
 		padding: var(--space-2) var(--space-3);
 		cursor: pointer;
@@ -146,14 +150,17 @@
 		gap: var(--space-4);
 	}
 	.card {
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
 		overflow: auto;
 	}
 	.card-label {
+		font-family: var(--font-mono);
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
+		letter-spacing: 0.1em;
 		color: var(--color-muted-2);
 		margin-bottom: var(--space-2);
 	}

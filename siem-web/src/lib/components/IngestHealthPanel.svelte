@@ -66,12 +66,15 @@
 
 <style>
 	.panel {
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
 	}
 	h2 {
 		font-size: var(--text-section-head);
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		color: var(--color-muted);
 		margin: 0 0 var(--space-3);
 	}
