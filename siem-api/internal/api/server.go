@@ -71,10 +71,22 @@ type Server struct {
 	mux     *http.ServeMux
 	deps    Deps
 	lokiSem chan struct{}
+
+	// respCache holds pre-encoded JSON bodies for /events/stats and
+	// /events/search (see cache.go); ratesCache holds the Loki-derived
+	// events/min map for /sources. Neither stores anything user- or
+	// RBAC-dependent: the handlers behind them only gate on a minimum role
+	// and never filter or shape output per caller.
+	respCache  *ttlCache[[]byte]
+	ratesCache *ttlCache[map[string]float64]
 }
 
 func NewServer(deps Deps) *Server {
-	s := &Server{mux: http.NewServeMux(), deps: deps, lokiSem: make(chan struct{}, MaxConcurrentLokiQueries)}
+	s := &Server{
+		mux: http.NewServeMux(), deps: deps, lokiSem: make(chan struct{}, MaxConcurrentLokiQueries),
+		respCache:  newTTLCache[[]byte](0, nil),
+		ratesCache: newTTLCache[map[string]float64](4, nil),
+	}
 	s.routes()
 	return s
 }

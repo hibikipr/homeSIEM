@@ -1,8 +1,11 @@
 import { API_URL, TZ } from '$app/env/private';
 import { SiemApiClient } from '#lib/server/siemApiClient.ts';
+import { DEP_ALERTS } from '#lib/invalidation.ts';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ locals, url }) => {
+export const load: LayoutServerLoad = async ({ locals, url, depends }) => {
+	// Nav's open-alert badge: refreshed when alerts change (ack/mute/SSE).
+	depends(DEP_ALERTS);
 	// Nav chrome's "ingest live X/min" text and alert-count badge were
 	// previously hardcoded to 0 - no data source at all. Fetched here
 	// (rather than a page-level load) since Nav renders on every route.

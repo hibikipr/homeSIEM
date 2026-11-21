@@ -48,13 +48,13 @@
 	.track {
 		flex: 1;
 		height: 6px;
-		background: var(--color-surface);
-		border-radius: var(--radius-sm);
+		background: var(--color-surface-3);
+		border-radius: var(--radius-pill);
 		overflow: hidden;
 	}
 	.fill {
 		height: 100%;
-		background: var(--color-accent);
+		background: var(--saber-blue);
 	}
 	.count {
 		font-family: var(--font-mono);

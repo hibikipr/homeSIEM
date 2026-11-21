@@ -5,22 +5,30 @@
 	import ClearableField from '#lib/components/ClearableField.svelte';
 	import type { SearchFilters } from '#lib/search.ts';
 
-	let { filters, logql, count, shown, onAlertOnThis
+	let {
+		filters,
+		logql,
+		count,
+		shown,
+		onAlertOnThis,
+		loadFailed = false
 
-	// The real total over the full time range (a Loki-side aggregate,
-	// not derived from how many entries were fetched - see
-	// searchResponse.Count's doc in siem-api).
-	// How many of those `count` events are actually in the current
-	// page of entries (capped at `limit`, 1000 by default). Shown
-	// separately from `count` whenever they differ so a capped page
-	// never gets presented as if it were the whole result - see the
-	// Search facet-undercount bug this was added alongside.
-	 }: { 
+		// The real total over the full time range (a Loki-side aggregate,
+		// not derived from how many entries were fetched - see
+		// searchResponse.Count's doc in siem-api).
+		// How many of those `count` events are actually in the current
+		// page of entries (capped at `limit`, 1000 by default). Shown
+		// separately from `count` whenever they differ so a capped page
+		// never gets presented as if it were the whole result - see the
+		// Search facet-undercount bug this was added alongside.
+	}: {
 		filters: SearchFilters;
-		logql: string;
-		count: number;
+		// null while the (streamed) search is still loading or failed.
+		logql: string | null;
+		count: number | null;
 		shown: number;
 		onAlertOnThis: () => void;
+		loadFailed?: boolean;
 	} = $props();
 
 	// Editable copies of the URL's filters, seeded once: the Search page
@@ -109,6 +117,7 @@
 		type="button"
 		class="action"
 		onclick={onAlertOnThis}
+		disabled={logql === null}
 		aria-label="New rule from this query"
 	>
 		New rule
@@ -117,13 +126,15 @@
 
 <div class="meta">
 	<span class="mono count">
-		{#if shown < count}
+		{#if count === null}
+			{loadFailed ? "couldn't load" : 'loading…'}
+		{:else if shown < count}
 			showing {shown.toLocaleString()} of {count.toLocaleString()} events
 		{:else}
 			{count.toLocaleString()} events
 		{/if}
 	</span>
-	<span class="logql mono">{logql}</span>
+	<span class="logql mono">{logql ?? ''}</span>
 </div>
 
 <style>
@@ -133,19 +144,32 @@
 		align-items: center;
 		gap: var(--space-2);
 		background: var(--color-surface);
-		box-shadow: inset 0 0 0 1px var(--color-accent-tint-2);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-3);
 	}
 	.go {
-		background: var(--color-accent-tint-2);
-		color: var(--color-accent-lighter);
-		border: none;
-		border-radius: var(--radius-sm);
+		background: var(--saber-blue);
+		border: 1px solid var(--saber-blue);
+		color: var(--color-on-saber);
+		font-family: var(--font-ui);
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		cursor: pointer;
+		transition:
+			background-color 0.2s,
+			border-color 0.2s,
+			color 0.2s;
+		border-radius: var(--radius-default);
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--text-label);
-		cursor: pointer;
 	}
+	.go:hover:not(:disabled) {
+		background: var(--color-btn-primary-hover);
+		border-color: var(--color-btn-primary-hover);
+		box-shadow: var(--glow-primary-hover);
+	}
+
 	.range {
 		display: flex;
 		gap: var(--space-1);
@@ -153,29 +177,47 @@
 	}
 	.range-btn {
 		background: transparent;
-		box-shadow: inset 0 0 0 1px var(--color-line-2);
+		border: 1px solid var(--color-line-2);
 		color: var(--color-muted);
-		border: none;
-		border-radius: var(--radius-sm);
-		padding: var(--space-1) var(--space-2);
+		border-radius: var(--radius-pill);
+		padding: var(--space-1) var(--space-3);
+		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s,
+			background-color 0.2s;
+	}
+	.range-btn:hover {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
 	}
 	.range-btn.active {
-		background: var(--color-accent-tint);
-		box-shadow: inset 0 0 0 1px var(--color-accent-deep);
-		color: var(--color-accent-lighter);
+		background: var(--row-selected-bg);
+		border-color: var(--saber-blue);
+		color: var(--color-severity-info-text);
 	}
 	.action {
+		background: transparent;
+		border: 1px solid var(--color-line-2);
+		color: var(--color-text-2);
+		border-radius: var(--radius-default);
+		font-family: var(--font-ui);
+		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s,
+			background-color 0.2s;
 		margin-left: auto;
-		background: var(--color-surface-2);
-		color: var(--color-text);
-		border: none;
-		border-radius: var(--radius-sm);
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--text-label);
-		cursor: pointer;
 	}
+	.action:hover:not(:disabled) {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
+	}
+
 	.internal-toggle {
 		display: flex;
 		align-items: center;
@@ -193,9 +235,11 @@
 		font-size: var(--text-label);
 	}
 	.count {
+		font-family: var(--font-mono);
 		color: var(--color-text);
 	}
 	.logql {
+		font-family: var(--font-mono);
 		color: var(--color-muted-2);
 		overflow: hidden;
 		text-overflow: ellipsis;

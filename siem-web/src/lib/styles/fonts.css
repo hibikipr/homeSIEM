@@ -1,0 +1,49 @@
+/* Self-hosted web fonts. Files live in siem-web/static/fonts/. */
+
+@font-face {
+	font-family: 'Michroma';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('/fonts/michroma-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Chakra Petch';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('/fonts/chakra-petch-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Chakra Petch';
+	font-style: normal;
+	font-weight: 500;
+	font-display: swap;
+	src: url('/fonts/chakra-petch-latin-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Chakra Petch';
+	font-style: normal;
+	font-weight: 600;
+	font-display: swap;
+	src: url('/fonts/chakra-petch-latin-600-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Chakra Petch';
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url('/fonts/chakra-petch-latin-700-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'JetBrains Mono';
+	font-style: normal;
+	font-weight: 100 800;
+	font-display: swap;
+	src: url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+}

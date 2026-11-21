@@ -70,22 +70,33 @@
 		position: relative;
 	}
 	.toggle-button {
-		background: var(--color-surface-2);
-		color: var(--color-text);
-		border: none;
-		border-radius: var(--radius-sm);
+		background: transparent;
+		border: 1px solid var(--color-line-2);
+		color: var(--color-text-2);
+		border-radius: var(--radius-default);
+		font-family: var(--font-ui);
+		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s,
+			background-color 0.2s;
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--text-label);
-		cursor: pointer;
 	}
+	.toggle-button:hover:not(:disabled) {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
+	}
+
 	.menu {
 		position: absolute;
 		top: calc(100% + var(--space-2));
 		right: 0;
 		min-width: 160px;
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
-		box-shadow: var(--shadow-flat);
+		box-shadow: var(--shadow-raised);
 		padding: var(--space-3);
 		display: flex;
 		flex-direction: column;

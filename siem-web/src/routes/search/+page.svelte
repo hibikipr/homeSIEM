@@ -9,6 +9,8 @@
 	import EventInspector from '#lib/components/EventInspector.svelte';
 	import RuleForm from '#lib/components/RuleForm.svelte';
 	import ColumnToggle from '#lib/components/ColumnToggle.svelte';
+	import Skeleton from '#lib/components/Skeleton.svelte';
+	import type { SearchResults } from './+page.server';
 	import type { LogEntry } from '#lib/server/siemApiClient.ts';
 	import type { PageData } from './$types';
 	import { extractSrcIp, SEARCH_COLUMNS } from '#lib/search.ts';
@@ -33,7 +35,27 @@
 	// Below the mobile breakpoint the facets/table/inspector panes become a
 	// drill-in (only one visible at a time) instead of a 3-way split -
 	// selection is already URL-driven, so this is just which pane shows.
-	let hasSelection = $derived(data.selectedEntry !== null);
+	let hasSelection = $derived(data.previewIndex !== null);
+
+	// The slow Loki-backed result streams in; the frame (query bar, toolbar,
+	// facet rail, table, inspector) renders immediately around it. The
+	// server promise resolves to null on failure (never rejects).
+	let results = $state<SearchResults | null>(null);
+	let status = $state<'loading' | 'ready' | 'error'>('loading');
+	$effect(() => {
+		const pending = data.results;
+		status = 'loading';
+		results = null;
+		pending.then((r) => {
+			if (pending !== data.results) return;
+			results = r;
+			status = r ? 'ready' : 'error';
+		});
+	});
+	let entries = $derived(results?.entries ?? []);
+	let selectedEntry = $derived(
+		results && data.previewIndex !== null ? (results.entries[data.previewIndex] ?? null) : null
+	);
 
 	function selectRow(index: number) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative URL construction, not reactive state
@@ -66,54 +88,71 @@
 	}
 
 	function alertOnThis() {
-		ruleFormSeed = { name: 'search-alert', logql: data.logql };
+		if (results) ruleFormSeed = { name: 'search-alert', logql: results.logql };
 	}
 
 	function ruleFromEvent(entry: LogEntry) {
 		const srcIp = extractSrcIp(entry.Line);
-		const logql = srcIp ? `${data.logql} |= "${srcIp}"` : data.logql;
+		if (!results) return;
+		const logql = srcIp ? `${results.logql} |= "${srcIp}"` : results.logql;
 		ruleFormSeed = { name: 'event-rule', logql };
 	}
 </script>
 
 <div class="search-screen">
-	{#key data.logql}
+	{#key JSON.stringify(data.filters)}
 		<QueryBar
 			filters={data.filters}
-			logql={data.logql}
-			count={data.count}
-			shown={data.entries.length}
+			logql={results?.logql ?? null}
+			count={results?.count ?? null}
+			shown={entries.length}
+			loadFailed={status === 'error'}
 			onAlertOnThis={alertOnThis}
 		/>
 	{/key}
-	<VolumeRibbon volume={data.volume} />
+	{#if status === 'ready' && results}
+		<VolumeRibbon volume={results.volume} />
+	{:else}
+		<div class="ribbon-slot"><Skeleton height="56px" /></div>
+	{/if}
 	<div class="table-toolbar">
 		<ColumnToggle columns={SEARCH_COLUMNS} hidden={hiddenColumns} onToggle={toggleColumn} />
 	</div>
 	<div class="body" class:has-selection={hasSelection}>
 		<div class="pane pane-list">
-			{#await data.claimedSources}
-				<FacetRail
-					entries={data.entries}
-					claimedSources={[]}
-					facets={data.facets}
-					onFacetClick={facetClick}
+			{#if status === 'error'}
+				<p class="load-error">Couldn't load search results.</p>
+			{:else if status === 'loading'}
+				<div class="loading-pane" aria-busy="true">
+					<Skeleton height="1.2rem" width="8rem" />
+					<Skeleton height="1.2rem" width="6rem" />
+					<Skeleton height="1.2rem" width="7rem" />
+					<Skeleton height="260px" />
+				</div>
+			{:else}
+				{#await data.claimedSources}
+					<FacetRail
+						{entries}
+						claimedSources={[]}
+						facets={results?.facets}
+						onFacetClick={facetClick}
+					/>
+				{:then claimedSources}
+					<FacetRail
+						{entries}
+						{claimedSources}
+						facets={results?.facets}
+						onFacetClick={facetClick}
+					/>
+				{/await}
+				<ResultTable
+					{entries}
+					selectedIndex={data.previewIndex}
+					onSelect={selectRow}
+					displayTimezone={data.displayTimezone}
+					{hiddenColumns}
 				/>
-			{:then claimedSources}
-				<FacetRail
-					entries={data.entries}
-					{claimedSources}
-					facets={data.facets}
-					onFacetClick={facetClick}
-				/>
-			{/await}
-			<ResultTable
-				entries={data.entries}
-				selectedIndex={data.previewIndex}
-				onSelect={selectRow}
-				displayTimezone={data.displayTimezone}
-				{hiddenColumns}
-			/>
+			{/if}
 		</div>
 		<div class="pane pane-detail">
 			<button type="button" class="back-link" onclick={closeSelection}>
@@ -121,14 +160,14 @@
 			</button>
 			{#await data.contextSummary}
 				<EventInspector
-					entry={data.selectedEntry}
+					entry={selectedEntry}
 					contextSummary={null}
 					onFilterToSrc={filterToSrc}
 					onRuleFromThis={ruleFromEvent}
 				/>
 			{:then contextSummary}
 				<EventInspector
-					entry={data.selectedEntry}
+					entry={selectedEntry}
 					{contextSummary}
 					onFilterToSrc={filterToSrc}
 					onRuleFromThis={ruleFromEvent}
@@ -176,6 +215,20 @@
 	.back-link {
 		display: none;
 	}
+	.ribbon-slot {
+		margin-top: var(--space-3);
+	}
+	.loading-pane {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+	.load-error {
+		margin: 0;
+		color: var(--color-muted);
+	}
 
 	/* Mobile: drill-in instead of a 3-way split - facets+table show until a
 	   row is selected (URL-driven, same as Alerts), then only the
@@ -214,6 +267,9 @@
 			color: var(--color-muted);
 			font-size: var(--text-table);
 			cursor: pointer;
+		}
+		.back-link:hover {
+			color: var(--color-gold);
 		}
 	}
 </style>

@@ -60,49 +60,83 @@ type searchResponse struct {
 // clamped rather than passed through.
 const maxSearchLimit = 5000
 
+// searchParams is the fully parsed, normalized form of the search query
+// string; it is both what the Loki queries run from and the cache key source.
+type searchParams struct {
+	filters        loki.Filters
+	start, end     time.Time // zero when the caller omitted (or sent an unparsable) value: window is relative to "now"
+	limit          int
+	includeVolume  bool
+	includeEntries bool
+	includeCount   bool
+	facets         []string
+}
+
+// cacheKey is the normalized-parameter key for the response cache. Every
+// field that affects the Loki queries is included; an omitted start/end is
+// the literal "rel", so all "default / last 24h" requests with the same
+// filters share one entry for searchCacheTTL (up to 30s of staleness is the
+// accepted trade-off for relative windows). Absolute start/end are keyed by
+// their exact instants - those ranges don't shift, so equal keys are equal
+// queries. Facets are keyed order-insensitively.
+func (p searchParams) cacheKey() string {
+	rng := func(t time.Time) string {
+		if t.IsZero() {
+			return "rel"
+		}
+		return t.UTC().Format(time.RFC3339Nano)
+	}
+	facets := slices.Clone(p.facets)
+	sort.Strings(facets)
+	return fmt.Sprintf("search\x00%#v\x00%s\x00%s\x00%d\x00%t%t%t\x00%s",
+		p.filters, rng(p.start), rng(p.end), p.limit,
+		p.includeVolume, p.includeEntries, p.includeCount, strings.Join(facets, ","))
+}
+
+// handleEventsSearch serves from a 30s cache keyed by the full normalized
+// parameters (searchParams.cacheKey). The response depends only on those
+// parameters - not on the caller (the route only enforces a minimum role) -
+// so entries are shared across users. Errors and degraded responses (a
+// failed volume or facets sub-query) are served but never cached.
 func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	filters := loki.Filters{
-		Source:   q.Get("source"),
-		Host:     q.Get("host"),
-		Program:  q.Get("program"),
-		Severity: q.Get("severity"),
-		Facility: q.Get("facility"),
-		FreeText: q.Get("q"),
-		// Excluded by default (Filters' zero value) - see IncludeInternal's
-		// doc. A user who actually wants to see this stack's own
-		// operational chatter (debugging Loki/Docker directly, say) can
-		// still opt back in explicitly.
-		IncludeInternal: q.Get("internal") == "true",
-		RequireGeoIP:    q.Get("geoip") == "true",
+	p := searchParams{
+		filters: loki.Filters{
+			Source:   q.Get("source"),
+			Host:     q.Get("host"),
+			Program:  q.Get("program"),
+			Severity: q.Get("severity"),
+			Facility: q.Get("facility"),
+			FreeText: q.Get("q"),
+			// Excluded by default (Filters' zero value) - see IncludeInternal's
+			// doc. A user who actually wants to see this stack's own
+			// operational chatter (debugging Loki/Docker directly, say) can
+			// still opt back in explicitly.
+			IncludeInternal: q.Get("internal") == "true",
+			RequireGeoIP:    q.Get("geoip") == "true",
+		},
+		limit: 1000,
 	}
-	logql := loki.BuildQuery(s.deps.JobLabel, filters)
-
-	end := time.Now().UTC()
-	start := end.Add(-24 * time.Hour)
 	if v := q.Get("start"); v != "" {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			start = t
+			p.start = t
 		}
 	}
 	if v := q.Get("end"); v != "" {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			end = t
+			p.end = t
 		}
 	}
-	limit := 1000
 	if v := q.Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			limit = min(n, maxSearchLimit)
+			p.limit = min(n, maxSearchLimit)
 		}
 	}
-
 	// includeVolume lets a caller that only wants entries (the Wall's use of
 	// this endpoint to derive a country breakdown, never the volume
 	// histogram) skip a whole extra Loki matrix query it would otherwise
 	// discard. Defaults to true - the actual Search screen always wants both.
-	includeVolume := q.Get("volume") != "false"
-
+	p.includeVolume = q.Get("volume") != "false"
 	// includeEntries lets a caller that only wants a total count (Search's
 	// "N events from this IP in the last 24h" context callout, found
 	// fetching up to 5000 full log entries - each the complete enriched
@@ -112,8 +146,7 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	// (see totalCount below), never derived from len(entries) - that used
 	// to silently cap Count at `limit` too, presenting e.g. "1,000 events"
 	// as if it were a total rather than a page size.
-	includeEntries := q.Get("entries") != "false"
-
+	p.includeEntries = q.Get("entries") != "false"
 	// facets selects which real per-label aggregate counts to compute
 	// alongside the main query - see queryFacetCounts and the Facets field
 	// doc. Each facet is its own full-window Loki scan, so callers ask only
@@ -121,13 +154,41 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	// lookup), a comma-separated subset like "country" computes just those
 	// (the Wall's country breakdown), and absent/"true" computes every one
 	// (the Search screen's facet rail).
-	requestedFacets := parseFacetsParam(q.Get("facets"))
-	includeFacets := len(requestedFacets) > 0
-
+	p.facets = parseFacetsParam(q.Get("facets"))
 	// includeCount lets a caller that never reads Count (the Wall's
 	// country breakdown) skip the full-window total-count scan. Defaults
 	// to true; Count is reported as 0 when skipped.
-	includeCount := q.Get("count") != "false"
+	p.includeCount = q.Get("count") != "false"
+
+	body, err := s.respCache.Do(r.Context(), p.cacheKey(), searchCacheTTL, func(ctx context.Context) ([]byte, bool, error) {
+		return s.runSearch(ctx, p)
+	})
+	if err != nil {
+		http.Error(w, "query failed", http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(body)
+}
+
+// runSearch executes the Loki queries for p and returns the encoded
+// response. The bool is false when the response is degraded (a tolerated
+// sub-query failed) and so must not be cached.
+func (s *Server) runSearch(ctx context.Context, p searchParams) ([]byte, bool, error) {
+	filters, limit := p.filters, p.limit
+	includeVolume, includeEntries, includeCount := p.includeVolume, p.includeEntries, p.includeCount
+	requestedFacets := p.facets
+	includeFacets := len(requestedFacets) > 0
+	logql := loki.BuildQuery(s.deps.JobLabel, filters)
+
+	end := time.Now().UTC()
+	start := end.Add(-24 * time.Hour)
+	if !p.start.IsZero() {
+		start = p.start
+	}
+	if !p.end.IsZero() {
+		end = p.end
+	}
 
 	// The entries query, the count query, the volume-bucket query, and each
 	// facet query are all independent Loki requests over the same
@@ -149,7 +210,7 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			result, resultErr = s.deps.Loki.QueryRange(r.Context(), logql, start, end, limit)
+			result, resultErr = s.deps.Loki.QueryRange(ctx, logql, start, end, limit)
 		}()
 	}
 
@@ -157,7 +218,7 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			totalCount, countErr = s.queryTotalCount(r.Context(), logql, start, end)
+			totalCount, countErr = s.queryTotalCount(ctx, logql, start, end)
 		}()
 	}
 
@@ -165,7 +226,7 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			volume, volumeErr = s.queryVolumeBuckets(r.Context(), logql, start, end)
+			volume, volumeErr = s.queryVolumeBuckets(ctx, logql, start, end)
 		}()
 	}
 
@@ -173,7 +234,7 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			facets, facetsErr = s.queryFacets(r.Context(), filters, requestedFacets, start, end)
+			facets, facetsErr = s.queryFacets(ctx, filters, requestedFacets, start, end)
 		}()
 	}
 
@@ -181,17 +242,17 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 
 	if includeEntries && resultErr != nil {
 		s.deps.Logger.Error("events search: query failed", "error", resultErr)
-		http.Error(w, "query failed", http.StatusBadGateway)
-		return
+		return nil, false, resultErr
 	}
 	if countErr != nil {
 		s.deps.Logger.Error("events search: count query failed", "error", countErr)
-		http.Error(w, "query failed", http.StatusBadGateway)
-		return
+		return nil, false, countErr
 	}
+	degraded := false
 	if volumeErr != nil {
 		s.deps.Logger.Error("events search: volume query failed", "error", volumeErr)
 		volume = nil
+		degraded = true
 	}
 	if volume == nil {
 		volume = []volumeBucket{}
@@ -199,6 +260,7 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 	if facetsErr != nil {
 		s.deps.Logger.Error("events search: facets query failed", "error", facetsErr)
 		facets = nil
+		degraded = true
 	}
 	if facets == nil {
 		facets = map[string][]facetCount{}
@@ -209,14 +271,14 @@ func (s *Server) handleEventsSearch(w http.ResponseWriter, r *http.Request) {
 		entries = []loki.LogEntry{}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(searchResponse{
+	out, err := json.Marshal(searchResponse{
 		LogQL:   logql,
 		Count:   totalCount,
 		Entries: entries,
 		Volume:  volume,
 		Facets:  facets,
 	})
+	return out, err == nil && !degraded, err
 }
 
 func (s *Server) handleEventsTail(w http.ResponseWriter, r *http.Request) {

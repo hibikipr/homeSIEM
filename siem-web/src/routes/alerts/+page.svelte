@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
+	import { DEP_ALERTS, DEP_RULES } from '#lib/invalidation.ts';
 	import { resolve } from '$app/paths';
 	import { debounce } from '#lib/debounce.ts';
 	import AlertInbox from '#lib/components/AlertInbox.svelte';
@@ -23,11 +24,11 @@
 	let hasSelection = $derived(Boolean(data.selectedAlert || data.selectedRule));
 
 	// Each SSE message (a raise, an ack/mute from another session) used to
-	// trigger its own full invalidateAll - a burst of 20 alerts meant 20
-	// back-to-back reloads of this page's and the layout's data. Coalesce a
-	// burst into one reload shortly after it settles.
+	// trigger its own full reload - a burst of 20 alerts meant 20
+	// back-to-back reloads. Coalesce a burst into one reload shortly after it
+	// settles, and only re-run loads that depend on the alerts key.
 	$effect(() => {
-		const reload = debounce(() => invalidateAll(), 500);
+		const reload = debounce(() => invalidate(DEP_ALERTS), 500);
 		const source = new EventSource(resolve('api/alerts-proxy'));
 		source.onmessage = reload.call;
 		return () => {
@@ -44,15 +45,14 @@
 			alerts={data.alerts}
 			rules={data.rules}
 			selectedId={data.selectedAlert?.id ?? data.selectedRule?.id ?? null}
-			onNewRule={() => showRuleForm = true}
+			onNewRule={() => (showRuleForm = true)}
 			canCreateRule={canManageRules}
 		/>
 	</div>
 	<div class="pane pane-detail">
-		<a
-			href={resolve(`alerts?state=${data.tab}`)}
-			class="back-link"
-		><i class="ph ph-arrow-left"></i> Back</a>
+		<a href={resolve(`alerts?state=${data.tab}`)} class="back-link">
+			<i class="ph ph-arrow-left"></i> Back
+		</a>
 
 		{#if data.selectedAlert && data.stats}
 			{#await Promise.all([data.sourceDisplayNames, data.liveSourcesByName])}
@@ -71,8 +71,8 @@
 					samples={data.selectedSamples}
 					stats={data.stats}
 					rule={data.rules.find((r) => r.id === data.selectedAlert?.rule_id)}
-					sourceDisplayNames={sourceDisplayNames}
-					liveSources={liveSources}
+					{sourceDisplayNames}
+					{liveSources}
 					canEdit={canManageRules}
 				/>
 			{/await}
@@ -80,8 +80,8 @@
 			<RuleDetail
 				rule={data.selectedRule}
 				canEdit={canManageRules}
-				onToggled={() => invalidateAll()}
-				onEdit={() => editingRule = data.selectedRule ?? null}
+				onToggled={() => invalidate(DEP_RULES)}
+				onEdit={() => (editingRule = data.selectedRule ?? null)}
 				onDeleted={() => goto(resolve(`alerts?state=rules`))}
 			/>
 		{:else}
@@ -97,7 +97,7 @@
 		mode="create"
 		defaultName=""
 		defaultLogql=""
-		onClose={() => showRuleForm = false}
+		onClose={() => (showRuleForm = false)}
 		onSaved={(id) => {
 			showRuleForm = false;
 			// Switches to the Rules tab and selects the new rule, even if the
@@ -109,10 +109,10 @@
 	<RuleForm
 		mode="edit"
 		initial={editingRule}
-		onClose={() => editingRule = null}
+		onClose={() => (editingRule = null)}
 		onSaved={() => {
 			editingRule = null;
-			invalidateAll();
+			invalidate(DEP_RULES);
 		}}
 	/>
 {/if}
@@ -167,6 +167,9 @@
 			color: var(--color-muted);
 			text-decoration: none;
 			font-size: var(--text-table);
+		}
+		.back-link:hover {
+			color: var(--color-gold);
 		}
 	}
 </style>

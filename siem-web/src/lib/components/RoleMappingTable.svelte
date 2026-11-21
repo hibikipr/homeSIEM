@@ -47,7 +47,11 @@
 		border-bottom: 1px solid var(--color-line);
 	}
 	.table th {
-		color: var(--color-muted);
+		font-family: var(--font-mono);
+		font-size: 0.86em;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--color-muted-2);
 		font-weight: 500;
 	}
 	.mono {
@@ -59,26 +63,34 @@
 		gap: 4px;
 		font-size: var(--text-eyebrow);
 		padding: 2px 6px;
-		border-radius: 999px;
+		border-radius: var(--radius-pill);
 	}
 	.pill.accent {
-		background: var(--color-accent-tint);
-		color: var(--color-accent-lighter);
+		background: var(--row-selected-bg);
+		color: var(--color-severity-info-text);
 	}
 	.edit-cell {
 		text-align: right;
 	}
 	.btn {
 		border: 1px solid transparent;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-default);
 		padding: 5px 11px;
+		font-family: var(--font-ui);
 		font-size: var(--text-table);
 		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s;
 	}
 	.btn.ghost {
 		background: transparent;
-		color: var(--color-accent-light);
-		border-color: transparent;
+		color: var(--color-text-2);
+		border-color: var(--color-line-2);
 		padding: 2px 7px;
+	}
+	.btn.ghost:hover {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
 	}
 </style>

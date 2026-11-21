@@ -1,10 +1,18 @@
-import { redirect, error } from '@sveltejs/kit';
 import { API_URL, GRAFANA_HOST_HEALTH_URL } from '$app/env/private';
 import type { PageServerLoad } from './$types';
-import { SiemApiClient, SiemApiError, type Insight } from '#lib/server/siemApiClient.ts';
+import { SiemApiClient, type Insight } from '#lib/server/siemApiClient.ts';
+import { fetchOpenAlertsOrBail } from '#lib/server/sessionProbe.ts';
+import { DEP_ALERTS, DEP_INSIGHTS, DEP_SOURCES, DEP_STATS } from '#lib/invalidation.ts';
 import { topTriageAlerts, buildSourceLabels, type CountryCount } from '#lib/wall.ts';
 
-export const load: PageServerLoad = async ({ locals }) => {
+interface WallStats {
+	eventCount24h: number;
+	heatGrid: { source: string; hours: string[] }[];
+	hourlyTotals: { hour_start: string; count: number }[];
+}
+
+export const load: PageServerLoad = async ({ locals, depends }) => {
+	depends(DEP_ALERTS, DEP_INSIGHTS, DEP_SOURCES, DEP_STATS);
 	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 
@@ -62,27 +70,30 @@ export const load: PageServerLoad = async ({ locals }) => {
 			return [];
 		});
 
-	let stats, openAlerts;
-	try {
-		[stats, openAlerts] = await Promise.all([
-			client.getEventsStats(token),
-			client.getAlerts(token, 'open')
-		]);
-	} catch (err) {
-		if (err instanceof SiemApiError) {
-			if (err.status === 401 || err.status === 403) {
-				redirect(302, '/auth/logout');
-			}
-			error(502, 'siem-api unavailable');
-		}
-		throw err;
-	}
+	// Stats is the slow call (Loki-backed aggregate, seconds on a cold cache),
+	// so it streams instead of gating the first byte. A stream can't
+	// redirect, so auth is enforced by the awaited open-alerts call below
+	// (SQLite-fast, same `protect` middleware, needed for the triage lane
+	// anyway): a 401/403 there still sends the user to /auth/logout before
+	// any HTML is sent. A failure of the stats call itself resolves to null
+	// and the page renders an inline "couldn't load" message.
+	const stats: Promise<WallStats | null> = client
+		.getEventsStats(token)
+		.then((s) => ({
+			eventCount24h: s.event_count_24h,
+			heatGrid: s.heat_grid,
+			hourlyTotals: s.hourly_totals ?? []
+		}))
+		.catch((err) => {
+			console.error('wall: stats lookup failed', err);
+			return null;
+		});
+
+	const openAlerts = await fetchOpenAlertsOrBail(client, token);
 
 	return {
-		eventCount24h: stats.event_count_24h,
-		heatGrid: stats.heat_grid,
+		stats,
 		sourceLabels,
-		hourlyTotals: stats.hourly_totals ?? [],
 		openAlertCount: openAlerts.length,
 		triageAlerts: topTriageAlerts(openAlerts),
 		countryBreakdown,

@@ -58,9 +58,9 @@
 	<div class="legend">
 		{#each LEGEND_TIERS as tier (tier)}
 			<span class="legend-item">
-				<span class="legend-swatch" style="background: {heatTierColor(tier)}"
-					><span class="glyph" aria-hidden="true">{heatTierGlyph(tier)}</span></span
-				>
+				<span class="legend-swatch" style="background: {heatTierColor(tier)}">
+					<span class="glyph" aria-hidden="true">{heatTierGlyph(tier)}</span>
+				</span>
 				{tier}
 			</span>
 		{/each}
@@ -68,9 +68,9 @@
 	{#if hovered}
 		<div class="hover-tooltip">
 			<span class="tooltip-source">{labelFor(hovered.source)}</span>
-			<span class="tooltip-tier"
-				><span class="tier-name">{hovered.tier}</span> · {ageLabel(hovered.hoursAgo)}</span
-			>
+			<span class="tooltip-tier">
+				<span class="tier-name">{hovered.tier}</span> · {ageLabel(hovered.hoursAgo)}
+			</span>
 		</div>
 	{/if}
 </div>
@@ -119,18 +119,19 @@
 		   without rendering it) - readable against light or dark cell
 		   backgrounds either way. Same reasoning as a map pin or video
 		   caption needing to stay legible over an arbitrary background. */
-		color: #fff;
+		color: var(--color-text);
 		text-shadow:
-			-1px -1px 0 rgba(0, 0, 0, 0.65),
-			1px -1px 0 rgba(0, 0, 0, 0.65),
-			-1px 1px 0 rgba(0, 0, 0, 0.65),
-			1px 1px 0 rgba(0, 0, 0, 0.65);
+			-1px -1px 0 var(--color-bg),
+			1px -1px 0 var(--color-bg),
+			-1px 1px 0 var(--color-bg),
+			1px 1px 0 var(--color-bg);
 	}
 	.axis {
 		display: flex;
 		justify-content: space-between;
 		margin-top: var(--space-1);
 		margin-left: calc(96px + var(--space-2));
+		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		color: var(--color-muted-2);
 	}
@@ -193,7 +194,8 @@
 		top: 0;
 		right: 0;
 		background: var(--color-surface-3);
-		box-shadow: var(--shadow-flat);
+		border: 1px solid var(--color-line-2);
+		box-shadow: var(--shadow-raised);
 		border-radius: var(--radius-sm);
 		padding: var(--space-2) var(--space-3);
 		font-size: var(--text-label);
@@ -204,6 +206,7 @@
 		z-index: 10;
 	}
 	.tooltip-source {
+		font-family: var(--font-mono);
 		color: var(--color-muted);
 	}
 	.tooltip-tier {

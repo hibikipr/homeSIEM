@@ -3,8 +3,10 @@ import { API_URL } from '$app/env/private';
 import type { PageServerLoad } from './$types';
 import { SiemApiClient, SiemApiError } from '#lib/server/siemApiClient.ts';
 import { deriveAlertStats } from '#lib/alerts.ts';
+import { DEP_ALERTS, DEP_RULES, DEP_SOURCES } from '#lib/invalidation.ts';
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, depends }) => {
+	depends(DEP_ALERTS, DEP_RULES, DEP_SOURCES);
 	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 

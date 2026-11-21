@@ -40,7 +40,7 @@
 	}
 
 	// The notification and Ollama fields below are seeded from `data` once,
-	// on purpose: saving a role mapping reloads `data` (invalidateAll), and
+	// on purpose: saving a role mapping reloads `data` (invalidate(DEP_SETTINGS)), and
 	// re-deriving these from it would wipe any unsaved edits here.
 	const seed = untrack(() => data);
 	let minSeverity = $state<'info' | 'warning' | 'critical'>(
@@ -266,35 +266,35 @@
 					<label>
 						Temperature
 						<input type="number" min="0" max="2" step="0.05" bind:value={temperature} />
-						<span class="muted"
-							>Lower is more consistent/grounded, higher is more creative. Recommended: 0.1-0.3 for
-							this analytical task - it shouldn't be inventing anything.</span
-						>
+						<span class="muted">
+							Lower is more consistent/grounded, higher is more creative. Recommended: 0.1-0.3 for
+							this analytical task - it shouldn't be inventing anything.
+						</span>
 					</label>
 					<label>
 						Top-p
 						<input type="number" min="0.01" max="1" step="0.05" bind:value={topP} />
-						<span class="muted"
-							>Nucleus sampling cutoff. 0.9 pairs well with a low temperature; rarely worth changing
-							on its own.</span
-						>
+						<span class="muted">
+							Nucleus sampling cutoff. 0.9 pairs well with a low temperature; rarely worth changing
+							on its own.
+						</span>
 					</label>
 					<label>
 						Max response tokens (num_predict)
 						<input type="number" min="1" max="8192" step="1" bind:value={numPredict} />
-						<span class="muted"
-							>Caps how long a response can run, independent of the HTTP timeout. 1024 comfortably
-							fits a handful of suggestions in the expected JSON shape.</span
-						>
+						<span class="muted">
+							Caps how long a response can run, independent of the HTTP timeout. 1024 comfortably
+							fits a handful of suggestions in the expected JSON shape.
+						</span>
 					</label>
 					<label>
 						Context window (num_ctx)
 						<input type="number" min="256" max="262144" step="256" bind:value={numCtx} />
-						<span class="muted"
-							>Ollama's own per-model default is often only 2048-4096, which can silently truncate
+						<span class="muted">
+							Ollama's own per-model default is often only 2048-4096, which can silently truncate
 							the alerts/rollup/samples data in the prompt. 8192 is a safer floor; raise it if your
-							model supports more and lookback/sample volume is large.</span
-						>
+							model supports more and lookback/sample volume is large.
+						</span>
 					</label>
 				</div>
 			</div>
@@ -370,13 +370,21 @@
 		padding: 6px 8.4px;
 		border-radius: var(--radius-sm);
 		cursor: pointer;
+		font-family: var(--font-ui);
 		font-size: var(--text-table);
+		transition:
+			color 0.2s,
+			background-color 0.2s;
+	}
+
+	.sidebar button:hover {
+		color: var(--color-gold);
 	}
 
 	.sidebar button.selected {
-		background: var(--color-surface);
+		background: var(--row-selected-bg);
 		color: var(--color-text);
-		box-shadow: inset 2px 0 0 var(--color-accent);
+		box-shadow: inset 0 -2px 0 var(--saber-blue);
 	}
 
 	.content {
@@ -389,7 +397,11 @@
 	}
 
 	.hero h1 {
+		font-family: var(--font-display);
 		font-size: var(--text-page-title);
+		font-weight: 400;
+		letter-spacing: 0.06em;
+		color: var(--color-text);
 		margin: 0 0 4px;
 	}
 
@@ -407,8 +419,8 @@
 		gap: var(--space-4);
 		padding: var(--space-4);
 		border-radius: var(--radius-default);
-		background: var(--color-surface-2);
-		box-shadow: var(--shadow-flat);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 	}
 
 	.panel-head {
@@ -420,7 +432,8 @@
 
 	.panel-title {
 		font-size: var(--text-section-head);
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 	}
 
 	.muted {
@@ -430,24 +443,43 @@
 
 	.btn {
 		border: 1px solid transparent;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-default);
 		padding: 5px 11px;
+		font-family: var(--font-ui);
 		font-size: var(--text-table);
 		cursor: pointer;
+		transition:
+			background-color 0.2s,
+			border-color 0.2s,
+			color 0.2s;
 	}
 
 	.btn.ghost {
 		background: transparent;
-		color: var(--color-accent-light);
-		border-color: transparent;
+		color: var(--color-text-2);
+		border-color: var(--color-line-2);
 		margin-left: auto;
 		padding: 2px 7px;
 	}
 
+	.btn.ghost:hover:not(:disabled) {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
+	}
+
 	.btn.primary {
-		background: var(--color-accent);
-		color: var(--color-on-accent, #fff);
+		background: var(--saber-blue);
+		border-color: var(--saber-blue);
+		color: var(--color-on-saber);
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		align-self: flex-start;
+	}
+
+	.btn.primary:hover:not(:disabled) {
+		background: var(--color-btn-primary-hover);
+		border-color: var(--color-btn-primary-hover);
+		box-shadow: var(--glow-primary-hover);
 	}
 
 	.btn.primary:disabled {
@@ -456,7 +488,7 @@
 	}
 
 	textarea {
-		background: var(--color-surface-3);
+		background: var(--color-surface-2);
 		color: var(--color-text);
 		border: 1px solid var(--color-line-2);
 		border-radius: var(--radius-sm);
@@ -467,7 +499,8 @@
 	}
 
 	.default-prompt {
-		background: var(--color-surface-3);
+		font-family: var(--font-mono);
+		background: var(--color-surface-2);
 		border: 1px solid var(--color-line-2);
 		border-radius: var(--radius-sm);
 		padding: 8px 10px;
@@ -493,7 +526,7 @@
 	}
 
 	.param-grid input[type='number'] {
-		background: var(--color-surface-3);
+		background: var(--color-surface-2);
 		color: var(--color-text);
 		border: 1px solid var(--color-line-2);
 		border-radius: var(--radius-sm);
@@ -504,6 +537,7 @@
 	}
 
 	.status-line code {
+		font-family: var(--font-mono);
 		background: var(--color-surface-3);
 		border-radius: var(--radius-sm);
 		padding: 1px 5px;
@@ -515,14 +549,14 @@
 	}
 	.status-line .ok,
 	.status-line.ok {
-		color: var(--color-severity-healthy);
+		color: var(--saber-green);
 	}
 	.status-line .warn,
 	.status-line.warn {
-		color: var(--color-severity-warning);
+		color: var(--color-gold);
 	}
 	select {
-		background: var(--color-surface-3);
+		background: var(--color-surface-2);
 		color: var(--color-text);
 		border: 1px solid var(--color-line-2);
 		border-radius: var(--radius-sm);

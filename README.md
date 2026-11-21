@@ -116,7 +116,7 @@ done — skip straight to signing in below.
 same "table's still empty" condition either way), seed it by hand instead:
 
 ```bash
-docker run --rm -v siem_data:/data alpine:3.19 sh -c \
+docker run --rm -v siem_data:/data alpine:3.24 sh -c \
   "apk add --no-cache sqlite && sqlite3 /data/siem.db \
    \"INSERT INTO role_mappings (group_claim, role, priority) VALUES ('admins', 'admin', 1);\""
 ```

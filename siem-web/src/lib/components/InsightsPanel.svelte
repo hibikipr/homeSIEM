@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
+	import { DEP_INSIGHTS } from '#lib/invalidation.ts';
 	import { resolve } from '$app/paths';
 	import { severityColor } from '#lib/tail.ts';
 	import { uniquePrograms } from '#lib/insights.ts';
@@ -17,7 +18,7 @@
 		try {
 			const response = await fetch(`/api/insights/${id}`, { method: 'PUT' });
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_INSIGHTS);
 			}
 		} finally {
 			dismissing = null;
@@ -70,7 +71,8 @@
 
 <style>
 	.panel {
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
 	}
@@ -82,13 +84,19 @@
 	}
 	.title {
 		font-size: var(--text-eyebrow);
+		font-weight: 600;
+		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--color-muted-2);
 	}
 	.view-all {
 		font-size: 11px;
-		color: var(--color-accent-light);
+		color: var(--saber-blue);
 		text-decoration: none;
+		transition: color 0.2s;
+	}
+	.view-all:hover {
+		color: var(--color-gold);
 	}
 	.empty {
 		font-size: 12px;
@@ -121,26 +129,28 @@
 	}
 	.row-title {
 		font-size: 12.5px;
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		color: var(--color-text);
 	}
 	.occurrence-badge {
 		font-size: 10px;
 		font-weight: 600;
+		font-family: var(--font-mono);
 		color: var(--color-muted-2);
 		background: var(--color-surface-3);
-		border-radius: var(--radius-sm);
-		padding: 0 var(--space-1);
+		border-radius: var(--radius-pill);
+		padding: 0 var(--space-2);
 		margin-left: var(--space-1);
 	}
 	.fix-badge {
 		font-size: 10px;
 		font-weight: 600;
 		text-transform: uppercase;
-		color: var(--color-accent-light);
-		border: 1px solid var(--color-accent-light);
-		border-radius: var(--radius-sm);
-		padding: 0 var(--space-1);
+		color: var(--saber-blue);
+		border: 1px solid var(--saber-blue);
+		border-radius: var(--radius-pill);
+		padding: 0 var(--space-2);
 		margin-left: var(--space-1);
 	}
 	.row-detail {
@@ -166,8 +176,13 @@
 		border: none;
 		color: var(--color-muted-2);
 		cursor: pointer;
+		font-family: var(--font-ui);
 		font-size: 11px;
 		padding: 0 var(--space-1);
+		transition: color 0.2s;
+	}
+	.dismiss:hover:not(:disabled) {
+		color: var(--color-gold);
 	}
 	.dismiss:disabled {
 		opacity: 0.5;

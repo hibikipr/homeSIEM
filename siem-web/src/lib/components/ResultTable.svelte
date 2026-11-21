@@ -114,9 +114,9 @@
 						<span class="col-time mono">{formatTimestamp(entry.Timestamp)}</span>
 					{/if}
 					{#if !hiddenColumns.has('localTime')}
-						<span class="col-time mono"
-							>{formatTimestampInZone(entry.Timestamp, displayTimezone)}</span
-						>
+						<span class="col-time mono">
+							{formatTimestampInZone(entry.Timestamp, displayTimezone)}
+						</span>
 					{/if}
 					{#if !hiddenColumns.has('severity')}
 						<span class="col-severity">
@@ -125,14 +125,14 @@
 						</span>
 					{/if}
 					{#if !hiddenColumns.has('host')}
-						<span class="col-host mono" title={entry.Labels.host ?? ''}
-							>{entry.Labels.host ?? ''}</span
-						>
+						<span class="col-host mono" title={entry.Labels.host ?? ''}>
+							{entry.Labels.host ?? ''}
+						</span>
 					{/if}
 					{#if !hiddenColumns.has('program')}
-						<span class="col-program mono" title={entry.Labels.program ?? ''}
-							>{entry.Labels.program ?? ''}</span
-						>
+						<span class="col-program mono" title={entry.Labels.program ?? ''}>
+							{entry.Labels.program ?? ''}
+						</span>
 					{/if}
 					{#if !hiddenColumns.has('message')}
 						{@const message = extractMessage(entry.Line)}
@@ -154,7 +154,7 @@
 		min-width: 0;
 		background: var(--color-surface-2);
 		border-radius: var(--radius-default);
-		box-shadow: inset var(--shadow-flat);
+		border: 1px solid var(--color-line);
 		overflow: hidden;
 	}
 
@@ -178,23 +178,35 @@
 		bottom: var(--space-4);
 		left: 50%;
 		transform: translateX(-50%);
-		background: var(--color-accent);
-		color: var(--color-bg);
-		border: none;
-		border-radius: 999px;
+		background: var(--saber-blue);
+		color: var(--color-on-saber);
+		border: 1px solid var(--saber-blue);
+		border-radius: var(--radius-pill);
 		padding: var(--space-1) var(--space-4);
+		font-family: var(--font-ui);
 		font-size: var(--text-label);
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		cursor: pointer;
 		box-shadow: var(--shadow-raised);
+		transition:
+			background-color 0.2s,
+			border-color 0.2s;
+	}
+	.jump-pill:hover {
+		background: var(--color-btn-primary-hover);
+		border-color: var(--color-btn-primary-hover);
+		box-shadow: var(--glow-primary-hover);
 	}
 	.header-row {
 		display: flex;
 		gap: var(--space-3);
 		padding: var(--space-2) var(--space-3);
 		background: var(--color-surface-3);
-		font-size: var(--text-eyebrow);
+		font-family: var(--font-mono);
+		font-size: 0.86em;
 		text-transform: uppercase;
+		letter-spacing: 0.1em;
 		color: var(--color-muted-2);
 	}
 	.scroll-container {
@@ -220,9 +232,11 @@
 		text-align: left;
 		cursor: pointer;
 		font-size: 12px;
+		color: inherit;
+		font-family: inherit;
 	}
 	.row.stripe {
-		background: rgba(255, 255, 255, 0.015);
+		background: color-mix(in srgb, var(--color-text) 2%, transparent);
 	}
 	.row:hover {
 		background: var(--row-hover-bg);

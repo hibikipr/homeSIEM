@@ -101,6 +101,8 @@
 	h2 {
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
+		font-weight: 600;
+		letter-spacing: 0.06em;
 		color: var(--color-muted-2);
 		margin: 0 0 var(--space-2);
 	}
@@ -116,6 +118,7 @@
 		font-size: var(--text-table);
 		cursor: pointer;
 		text-align: left;
+		transition: color 0.2s;
 	}
 	.facet-row.display-only {
 		cursor: default;
@@ -124,7 +127,7 @@
 		opacity: 0.5;
 	}
 	.facet-row:hover:not(.display-only) {
-		color: var(--color-accent-light);
+		color: var(--color-gold);
 	}
 	.name {
 		flex: 1;
@@ -133,6 +136,7 @@
 		white-space: nowrap;
 	}
 	.count {
+		font-family: var(--font-mono);
 		color: var(--color-muted-2);
 	}
 	.dot {

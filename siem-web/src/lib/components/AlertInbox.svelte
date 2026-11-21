@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { AlertResponse, RuleResponse } from '#lib/server/siemApiClient.ts';
+	import { applyOverride, alertOverrides } from '#lib/optimisticAlerts.svelte.ts';
 	import AlertRow from './AlertRow.svelte';
 	import RuleRow from './RuleRow.svelte';
 
@@ -20,6 +21,11 @@
 		canCreateRule: boolean;
 	} = $props();
 
+	// Rows follow in-flight optimistic ack/mute: an alert whose state no longer
+	// matches this tab drops out right away.
+	const shownAlerts = $derived(
+		alertOverrides.size === 0 ? alerts : alerts.map(applyOverride).filter((a) => a.state === tab)
+	);
 	const ruleNames = $derived(new Map(rules.map((r) => [r.id, r.name])));
 	const tabs: { label: string; value: 'open' | 'acked' | 'muted' | 'rules' }[] = [
 		{ label: 'Open', value: 'open' },
@@ -37,24 +43,21 @@
 		{/if}
 		<div class="tabs">
 			{#each tabs as t (t.value)}
-				<a
-					href={resolve(`alerts?state=${t.value}`)}
-					class:active={tab === t.value}
-				>{t.label}</a>
+				<a href={resolve(`alerts?state=${t.value}`)} class:active={tab === t.value}>{t.label}</a>
 			{/each}
 		</div>
 	</div>
 	<div class="rows">
 		{#if tab === 'rules'}
 			{#each rules as rule (rule.id)}
-				<RuleRow rule={rule} selected={selectedId === rule.id} />
+				<RuleRow {rule} selected={selectedId === rule.id} />
 			{:else}
 				<div class="empty-list">No rules configured yet.</div>
 			{/each}
 		{:else}
-			{#each alerts as alert (alert.id)}
+			{#each shownAlerts as alert (alert.id)}
 				<AlertRow
-					alert={alert}
+					{alert}
 					ruleName={ruleNames.get(alert.rule_id) ?? `rule #${alert.rule_id}`}
 					selected={selectedId === alert.id}
 				/>
@@ -87,8 +90,11 @@
 		justify-content: space-between;
 	}
 	.title {
+		font-family: var(--font-display);
 		font-size: var(--text-page-title);
-		font-weight: 500;
+		font-weight: 400;
+		letter-spacing: 0.06em;
+		color: var(--color-text);
 	}
 	.tabs {
 		display: flex;
@@ -98,21 +104,35 @@
 	.tabs a {
 		color: var(--color-muted);
 		text-decoration: none;
-		padding: var(--space-1) var(--space-3);
-		border-radius: var(--radius-sm);
+		padding: var(--space-1) var(--space-2);
+		border-bottom: 2px solid transparent;
+		transition:
+			color 0.2s,
+			border-color 0.2s;
+	}
+	.tabs a:hover {
+		color: var(--color-gold);
 	}
 	.tabs a.active {
-		background: var(--color-accent-tint);
-		color: var(--color-accent-lighter);
+		color: var(--color-text);
+		border-bottom-color: var(--saber-blue);
 	}
 	.new-rule {
-		background: none;
+		background: transparent;
 		border: 1px solid var(--color-line-2);
-		color: var(--color-accent-light);
-		border-radius: var(--radius-sm);
+		color: var(--color-text-2);
+		border-radius: var(--radius-default);
 		padding: var(--space-1) var(--space-3);
+		font-family: var(--font-ui);
 		font-size: var(--text-table);
 		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s;
+	}
+	.new-rule:hover {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
 	}
 	.rows {
 		display: flex;

@@ -140,7 +140,8 @@
 	.detail {
 		flex: 1;
 		min-width: 0;
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-5);
 	}
@@ -162,30 +163,50 @@
 	.enabled {
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
-		color: var(--color-severity-healthy);
+		letter-spacing: 0.06em;
+		background: var(--color-status-success-bg);
+		color: var(--saber-green);
+		border-radius: var(--radius-pill);
+		padding: 1px var(--space-3);
 	}
 	.enabled.off {
+		background: transparent;
+		box-shadow: inset 0 0 0 1px var(--color-line-2);
 		color: var(--color-muted-2);
 	}
 	.toggle {
-		background: var(--color-surface-3);
-		color: var(--color-text);
-		border: none;
-		border-radius: var(--radius-sm);
-		padding: var(--space-1) var(--space-2);
-		font-size: var(--text-label);
+		background: transparent;
+		border: 1px solid var(--color-line-2);
+		color: var(--color-text-2);
+		border-radius: var(--radius-default);
+		font-family: var(--font-ui);
 		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s,
+			background-color 0.2s;
+		padding: var(--space-1) var(--space-3);
+		font-size: var(--text-label);
+	}
+	.toggle:hover:not(:disabled) {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
 	}
 	.toggle:disabled {
 		opacity: 0.6;
 		cursor: default;
 	}
 	.toggle.delete {
-		color: var(--color-severity-critical);
+		color: var(--saber-red);
 	}
 	h1 {
-		font-size: 26px;
-		font-weight: 500;
+		font-family: var(--font-display);
+		font-size: 20px;
+		font-weight: 400;
+		letter-spacing: 0.06em;
+		color: var(--color-text);
+		text-wrap: balance;
+		overflow-wrap: anywhere;
 		margin: var(--space-2) 0 0;
 	}
 	.meta {
@@ -204,7 +225,8 @@
 		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		color: var(--color-muted);
-		background: var(--color-surface-3);
+		background: var(--color-surface-2);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-sm);
 		padding: var(--space-2) var(--space-3);
 		margin-top: var(--space-3);
@@ -212,7 +234,7 @@
 		white-space: nowrap;
 	}
 	.error {
-		color: var(--color-severity-critical);
+		color: var(--saber-red);
 		font-size: var(--text-label);
 		margin: var(--space-2) 0 0;
 	}

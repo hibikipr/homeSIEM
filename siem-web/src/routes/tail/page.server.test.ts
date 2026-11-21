@@ -19,6 +19,7 @@ describe('Live tail load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' }
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
@@ -32,7 +33,9 @@ describe('Live tail load', () => {
 			};
 		});
 
-		await expect(load({ locals: { sessionToken: 'stale-token' } } as never)).rejects.toMatchObject({
+		await expect(
+			load({ depends: () => {}, locals: { sessionToken: 'stale-token' } } as never)
+		).rejects.toMatchObject({
 			status: 302,
 			location: '/auth/logout'
 		});
@@ -45,7 +48,9 @@ describe('Live tail load', () => {
 			};
 		});
 
-		await expect(load({ locals: { sessionToken: 'token-123' } } as never)).rejects.toMatchObject({
+		await expect(
+			load({ depends: () => {}, locals: { sessionToken: 'token-123' } } as never)
+		).rejects.toMatchObject({
 			status: 502
 		});
 	});

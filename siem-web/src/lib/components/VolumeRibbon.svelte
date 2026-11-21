@@ -25,6 +25,7 @@
 		gap: 2px;
 		height: 56px;
 		background: var(--color-surface-2);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-sm);
 		padding: 0 var(--space-2);
 		margin-top: var(--space-3);
@@ -33,12 +34,12 @@
 		flex: 1;
 		min-width: 0;
 		border-radius: 1px;
-		background: var(--color-accent-tint-2);
+		background: var(--color-severity-info);
 	}
 	.bar.tier-warning {
-		background: var(--color-severity-warning);
+		background: var(--color-gold);
 	}
 	.bar.tier-critical {
-		background: var(--color-severity-critical);
+		background: var(--saber-red);
 	}
 </style>

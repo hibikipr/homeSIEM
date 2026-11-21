@@ -5,11 +5,7 @@
 	let { rule, selected }: { rule: RuleResponse; selected: boolean } = $props();
 </script>
 
-<a
-	class="row"
-	class:selected
-	href={resolve(`alerts?state=rules&id=${rule.id}`)}
->
+<a class="row" class:selected href={resolve(`alerts?state=rules&id=${rule.id}`)}>
 	<div class="header">
 		<span class="name">{rule.name}</span>
 		<span class="enabled" class:off={!rule.enabled}>{rule.enabled ? 'enabled' : 'disabled'}</span>
@@ -21,14 +17,18 @@
 <style>
 	.row {
 		display: block;
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
 		text-decoration: none;
 		color: inherit;
 	}
+	.row:hover {
+		background: var(--row-hover-bg);
+	}
 	.row.selected {
-		background: var(--color-accent-tint);
+		background: var(--row-selected-bg);
 		box-shadow: 0 0 0 1px var(--color-accent-deep);
 	}
 	.header {
@@ -37,14 +37,22 @@
 	}
 	.name {
 		font-size: 13.5px;
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 	}
 	.enabled {
+		align-self: flex-start;
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
-		color: var(--color-severity-healthy);
+		letter-spacing: 0.06em;
+		background: var(--color-status-success-bg);
+		color: var(--saber-green);
+		border-radius: var(--radius-pill);
+		padding: 1px var(--space-3);
 	}
 	.enabled.off {
+		background: transparent;
+		box-shadow: inset 0 0 0 1px var(--color-line-2);
 		color: var(--color-muted-2);
 	}
 	.shape {

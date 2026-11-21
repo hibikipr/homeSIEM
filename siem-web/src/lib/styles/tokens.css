@@ -1,37 +1,75 @@
+/* Townsville.cc design system, self-hosted app theme (ui- surface ladder). */
 :root {
-	/* Color */
-	--color-bg: #131523;
-	--color-bg-alt: #161826;
-	--color-surface: #232532;
-	--color-surface-2: #1b1d2c;
-	--color-surface-3: #191b29;
-	--color-text: #e9e9ed;
-	--color-text-2: #cfd3e5;
-	--color-text-3: #b2b6ca;
-	--color-muted: #9397ab;
-	--color-muted-2: #75798c;
-	--color-line: #292b31;
-	--color-line-2: #3f424d;
-	--color-accent: #968ae0;
-	--color-accent-light: #b5abfc;
-	--color-accent-lighter: #d2cefd;
-	--color-accent-deep: #5d5294;
-	--color-accent-tint: #2b2741;
-	--color-accent-tint-2: #423a6a;
+	color-scheme: dark;
 
-	/* Severity (OKLCH, low-chroma) */
-	--color-severity-critical: oklch(0.68 0.16 22);
-	--color-severity-error: oklch(0.68 0.16 22);
-	--color-severity-warning: oklch(0.78 0.13 78);
-	--color-severity-ok: oklch(0.74 0.11 158);
-	--color-severity-healthy: oklch(0.74 0.11 158);
-	--color-severity-notice: #796cbf;
-	--color-severity-info-text: #8b7fd0;
-	--color-severity-info: #5d5294;
+	/* Townsville palette */
+	--tv-bg: #070a18;
+	--tv-ink: #e6e9f5;
+	--tv-lead: #c3c9dd;
+	--tv-body: #aab2cc;
+	--tv-muted: #8189a3;
+	--tv-ui-header: #050817;
+	--tv-ui-sunken: #0b1024;
+	--tv-ui-surface: #0e1430;
+	--tv-ui-subtle: #121a3c;
+	--tv-ui-border: #1d2754;
+	--tv-ui-input-border: #2a3772;
+	--tv-ui-muted: #8a93b3;
+	--tv-ui-ring: rgba(120, 140, 255, 0.05);
+
+	--saber-blue: #4cc9ff;
+	--saber-green: #5cff7a;
+	--saber-red: #ff4d5e;
+	--color-gold: #e8c36a;
+	--color-gold-light: #fbe7a8;
+	--color-gold-dark: #a9802f;
+	--color-on-saber: #06101f;
+	--color-btn-primary-hover: #8fdcff;
+	--color-focus-ring: var(--saber-blue);
+	--color-status-success-bg: rgba(92, 255, 122, 0.12);
+	--color-status-success-text: #8dffa6;
+	--color-status-warn-bg: rgba(232, 195, 106, 0.14);
+	--color-status-danger-soft: rgba(255, 77, 94, 0.13);
+
+	/* App identity (homeSIEM = red saber) */
+	--saber: var(--saber-red);
+	--tint: #ffd4d8;
+	--label: #ff8f99;
+
+	/* Color */
+	--color-bg: var(--tv-bg);
+	--color-bg-alt: var(--tv-ui-sunken);
+	--color-surface: var(--tv-ui-surface);
+	--color-surface-2: var(--tv-ui-sunken);
+	--color-surface-3: var(--tv-ui-subtle);
+	--color-text: var(--tv-ink);
+	--color-text-2: var(--tv-lead);
+	--color-text-3: var(--tv-body);
+	--color-muted: var(--tv-ui-muted);
+	--color-muted-2: var(--tv-muted);
+	--color-line: var(--tv-ui-border);
+	--color-line-2: var(--tv-ui-input-border);
+	--color-accent: var(--saber-blue);
+	--color-accent-light: color-mix(in srgb, var(--saber-blue) 70%, white);
+	--color-accent-lighter: color-mix(in srgb, var(--saber-blue) 35%, white);
+	--color-accent-deep: color-mix(in srgb, var(--saber-blue) 40%, var(--tv-bg));
+	--color-accent-tint: color-mix(in srgb, var(--saber-blue) 12%, var(--tv-ui-surface));
+	--color-accent-tint-2: color-mix(in srgb, var(--saber-blue) 26%, var(--tv-ui-surface));
+
+	/* Severity */
+	--color-severity-critical: var(--saber-red);
+	--color-severity-error: var(--saber-red);
+	--color-severity-warning: var(--color-gold);
+	--color-severity-ok: var(--saber-green);
+	--color-severity-healthy: var(--saber-green);
+	--color-severity-notice: color-mix(in srgb, var(--saber-blue) 75%, var(--tv-bg));
+	--color-severity-info-text: color-mix(in srgb, var(--saber-blue) 85%, white);
+	--color-severity-info: color-mix(in srgb, var(--saber-blue) 45%, var(--tv-bg));
 
 	/* Type */
-	--font-ui: Inter, sans-serif;
-	--font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+	--font-ui: 'Chakra Petch', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+	--font-display: 'Michroma', 'Chakra Petch', system-ui, sans-serif;
 	--text-page-title: 19px;
 	--text-big-stat: 46px;
 	--text-section-head: 13px;
@@ -55,27 +93,61 @@
 	--radius-sm: 4px;
 	--radius-default: 8px;
 	--radius-lg: 14px;
+	--radius-pill: 999px;
 
 	/* Elevation */
 	--shadow-flat: 0 0 0 1px var(--color-line-2);
-	--shadow-raised: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
+	--shadow-raised: 0 18px 50px -24px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(76, 201, 255, 0.03);
+	--shadow-overlay: 0 32px 70px -26px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(76, 201, 255, 0.04);
+	--glow-primary-hover: 0 0 18px rgba(76, 201, 255, 0.35);
+	--glow-gold-text: 0 0 14px rgba(232, 195, 106, 0.45);
 
 	/* Interaction */
-	--row-hover-bg: rgba(255, 255, 255, 0.035);
-	--row-selected-bg: var(--color-accent-tint);
-	--focus-outline: 2px solid var(--color-accent);
-	--focus-outline-offset: 2px;
+	--row-hover-bg: var(--tv-ui-subtle);
+	--row-selected-bg: color-mix(in srgb, var(--saber-blue) 12%, transparent);
+	--focus-outline: 3px solid var(--color-focus-ring);
+	--focus-outline-offset: 3px;
 }
 
 body {
-	background: var(--color-bg);
+	background-color: var(--color-bg);
+	background-image:
+		radial-gradient(1200px 700px at 85% -10%, rgba(76, 201, 255, 0.14), transparent 60%),
+		radial-gradient(900px 600px at -10% 40%, rgba(255, 77, 94, 0.08), transparent 60%),
+		radial-gradient(900px 700px at 50% 110%, rgba(92, 255, 122, 0.07), transparent 60%);
+	background-attachment: fixed;
 	color: var(--color-text);
 	font-family: var(--font-ui);
 	font-weight: 400;
 	margin: 0;
 }
 
+body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+	background: repeating-radial-gradient(
+		circle at 50% 40%,
+		transparent 0 70px,
+		var(--tv-ui-ring) 70px 72px
+	);
+}
+
 *:focus-visible {
 	outline: var(--focus-outline);
 	outline-offset: var(--focus-outline-offset);
+	border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
 }

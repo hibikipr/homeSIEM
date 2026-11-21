@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
+	import { DEP_SOURCES } from '#lib/invalidation.ts';
 	import { resolve } from '$app/paths';
 	import type { SourceResponse } from '#lib/server/siemApiClient.ts';
 	import { formatEventsPerMin, formatLastSeen } from '#lib/sources.ts';
@@ -39,7 +40,7 @@
 			});
 			if (response.ok) {
 				renamingId = null;
-				await invalidateAll();
+				await invalidate(DEP_SOURCES);
 			}
 		} finally {
 			saving = false;
@@ -65,7 +66,7 @@
 			});
 			if (response.ok) {
 				editingHeartbeatId = null;
-				await invalidateAll();
+				await invalidate(DEP_SOURCES);
 			}
 		} finally {
 			savingHeartbeat = false;
@@ -89,7 +90,7 @@
 		try {
 			const response = await fetch(`/api/sources/${source.id}`, { method: 'DELETE' });
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_SOURCES);
 			}
 		} finally {
 			deletingId = null;
@@ -136,13 +137,12 @@
 						<a
 							class="name-link"
 							href={resolve(`sources?preview=${encodeURIComponent(source.name)}`)}
-						>{source.display_name || source.name}</a>
+						>
+							{source.display_name || source.name}
+						</a>
 
 						{#if canRename}
-							<button
-								class="rename-trigger"
-								onclick={() => startRename(source)}
-							>Rename</button>
+							<button class="rename-trigger" onclick={() => startRename(source)}>Rename</button>
 
 							<button
 								class="rename-trigger"
@@ -182,15 +182,20 @@
 							>
 								{savingHeartbeat ? '…' : 'Save'}
 							</button>
-							<button class="rename-action" onclick={cancelEditHeartbeat} disabled={savingHeartbeat}
-								>Cancel</button
+							<button
+								class="rename-action"
+								onclick={cancelEditHeartbeat}
+								disabled={savingHeartbeat}
 							>
+								Cancel
+							</button>
 						</div>
 					{:else}
 						<span class="mono">{formatSecondsAsMinutes(source.heartbeat_sec)}</span>
 						{#if canRename}
-							<button class="rename-trigger" onclick={() => startEditHeartbeat(source)}>Edit</button
-							>
+							<button class="rename-trigger" onclick={() => startEditHeartbeat(source)}>
+								Edit
+							</button>
 						{/if}
 					{/if}
 				</td>
@@ -213,9 +218,10 @@
 	}
 	thead th {
 		text-align: left;
-		font-size: var(--text-eyebrow);
+		font-family: var(--font-mono);
+		font-size: 0.86em;
 		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		letter-spacing: 0.1em;
 		color: var(--color-muted-2);
 		padding: var(--space-2) var(--space-3);
 		border-bottom: 1px solid var(--color-line);
@@ -240,10 +246,12 @@
 	.name-link {
 		color: var(--color-text);
 		text-decoration: none;
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		transition: color 0.2s;
 	}
 	.name-link:hover {
-		color: var(--color-accent-light);
+		color: var(--color-gold);
 	}
 	.rename-trigger {
 		background: none;
@@ -255,7 +263,7 @@
 		margin-left: var(--space-2);
 	}
 	.rename-trigger:hover {
-		color: var(--color-accent-light);
+		color: var(--color-gold);
 	}
 	.rename-row {
 		display: flex;
@@ -264,8 +272,8 @@
 	}
 	.rename-input {
 		font-size: var(--text-table);
-		background: var(--color-surface-3);
-		border: 1px solid var(--color-line);
+		background: var(--color-surface-2);
+		border: 1px solid var(--color-line-2);
 		border-radius: var(--radius-sm);
 		color: var(--color-text);
 		padding: 2px var(--space-2);
@@ -280,15 +288,28 @@
 		color: var(--color-muted-2);
 	}
 	.rename-action {
-		background: var(--color-accent-tint-2);
-		color: var(--color-accent-lighter);
-		border: none;
-		border-radius: var(--radius-sm);
+		background: var(--saber-blue);
+		border: 1px solid var(--saber-blue);
+		color: var(--color-on-saber);
+		font-family: var(--font-ui);
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		cursor: pointer;
+		transition:
+			background-color 0.2s,
+			border-color 0.2s,
+			color 0.2s;
+		border-radius: var(--radius-default);
 		padding: 2px var(--space-2);
 		font-size: var(--text-label);
-		cursor: pointer;
 		flex-shrink: 0;
 	}
+	.rename-action:hover:not(:disabled) {
+		background: var(--color-btn-primary-hover);
+		border-color: var(--color-btn-primary-hover);
+		box-shadow: var(--glow-primary-hover);
+	}
+
 	.rename-action:disabled {
 		opacity: 0.6;
 		cursor: default;
@@ -298,15 +319,17 @@
 		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		background: var(--color-surface-3);
-		border-radius: var(--radius-sm);
-		padding: 1px var(--space-2);
+		border-radius: var(--radius-pill);
+		padding: 1px var(--space-3);
 		color: var(--color-muted);
 	}
 	.health {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--space-1);
+		gap: var(--space-2);
 		text-transform: capitalize;
+		border-radius: var(--radius-pill);
+		padding: 1px var(--space-3);
 	}
 	.dot {
 		width: 7px;
@@ -315,9 +338,11 @@
 		background: currentColor;
 	}
 	.health-healthy {
-		color: var(--color-severity-healthy);
+		background: var(--color-status-success-bg);
+		color: var(--saber-green);
 	}
 	.health-silent {
-		color: var(--color-severity-warning);
+		background: var(--color-status-warn-bg);
+		color: var(--color-gold);
 	}
 </style>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	let { eventCount24h, openAlertCount }: { eventCount24h: number; openAlertCount: number } =
+	let { eventCount24h, openAlertCount }: { eventCount24h: number | null; openAlertCount: number } =
 		$props();
 
 	function formatCount(n: number): { value: string; unit: string } {
@@ -8,7 +8,9 @@
 		return { value: String(n), unit: '' };
 	}
 
-	let events = $derived(formatCount(eventCount24h));
+	let events = $derived(
+		eventCount24h === null ? { value: '—', unit: '' } : formatCount(eventCount24h)
+	);
 </script>
 
 <div class="stat-row">
@@ -37,11 +39,11 @@
 	}
 	.value {
 		font-size: var(--text-big-stat);
-		font-weight: 500;
-		letter-spacing: -0.03em;
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
 	.value.critical {
-		color: var(--color-severity-critical);
+		color: var(--saber-red);
 	}
 	.unit {
 		font-size: 22px;

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
+	import { DEP_INSIGHTS } from '#lib/invalidation.ts';
 	import { severityColor } from '#lib/tail.ts';
 	import { uniquePrograms } from '#lib/insights.ts';
 	import type { PageData } from './$types';
@@ -30,7 +31,7 @@
 			if (body.generated === 0) {
 				generateNotice = 'Pass complete: no new insights this time.';
 			}
-			await invalidateAll();
+			await invalidate(DEP_INSIGHTS);
 		} finally {
 			generating = false;
 		}
@@ -41,7 +42,7 @@
 		try {
 			const response = await fetch(`/api/insights/${id}`, { method: 'PUT' });
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_INSIGHTS);
 			}
 		} finally {
 			dismissingId = null;
@@ -59,7 +60,7 @@
 		try {
 			const response = await fetch(`/api/insights/${id}/mute`, { method: 'PUT' });
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_INSIGHTS);
 			}
 		} finally {
 			mutingId = null;
@@ -73,7 +74,7 @@
 				method: 'DELETE'
 			});
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_INSIGHTS);
 			}
 		} finally {
 			unmutingFingerprint = null;
@@ -115,14 +116,15 @@
 							<div class="row-title-line">
 								<span class="row-title">{insight.title}</span>
 								{#if insight.occurrence_count > 1}
-									<span class="occurrence-badge" title="{insight.occurrence_count} occurrences"
-										>×{insight.occurrence_count}</span
-									>
+									<span class="occurrence-badge" title="{insight.occurrence_count} occurrences">
+										×{insight.occurrence_count}
+									</span>
 								{/if}
 								<span class="category">{insight.category}</span>
 								{#if insight.recommended_fix}
-									<span class="fix-badge" title="A recommended fix is available">Fix available</span
-									>
+									<span class="fix-badge" title="A recommended fix is available">
+										Fix available
+									</span>
 								{/if}
 								{#if insight.dismissed}
 									<span class="dismissed-badge">Dismissed</span>
@@ -136,9 +138,9 @@
 								{/if}
 							</span>
 							{#if uniquePrograms(insight.evidence).length > 0}
-								<span class="row-programs" title="Program(s) in this insight's evidence"
-									>{uniquePrograms(insight.evidence).join(', ')}</span
-								>
+								<span class="row-programs" title="Program(s) in this insight's evidence">
+									{uniquePrograms(insight.evidence).join(', ')}
+								</span>
 							{/if}
 						</div>
 					</button>
@@ -241,24 +243,38 @@
 		margin-bottom: var(--space-4);
 	}
 	h1 {
+		font-family: var(--font-display);
 		font-size: var(--text-page-title);
+		font-weight: 400;
+		letter-spacing: 0.06em;
+		color: var(--color-text);
 		margin: 0;
 	}
 	.action {
-		background: var(--color-surface-2);
-		color: var(--color-text);
-		border: none;
-		border-radius: var(--radius-sm);
+		background: transparent;
+		border: 1px solid var(--color-line-2);
+		color: var(--color-text-2);
+		border-radius: var(--radius-default);
+		font-family: var(--font-ui);
+		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s,
+			background-color 0.2s;
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--text-label);
-		cursor: pointer;
 	}
+	.action:hover:not(:disabled) {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
+	}
+
 	.action:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
 	.generate-error {
-		color: var(--color-severity-critical);
+		color: var(--saber-red);
 		font-size: 12px;
 	}
 	.generate-notice {
@@ -281,7 +297,8 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-2) var(--space-3);
 	}
@@ -319,7 +336,8 @@
 	}
 	.row-title {
 		font-size: 13px;
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		color: var(--color-text);
 	}
 	.category {
@@ -330,29 +348,31 @@
 	.occurrence-badge {
 		font-size: 10px;
 		font-weight: 600;
+		font-family: var(--font-mono);
 		color: var(--color-muted-2);
 		background: var(--color-surface-3);
-		border-radius: var(--radius-sm);
-		padding: 0 var(--space-1);
+		border-radius: var(--radius-pill);
+		padding: 0 var(--space-2);
 	}
 	.fix-badge {
 		font-size: 10px;
 		font-weight: 600;
 		text-transform: uppercase;
-		color: var(--color-accent-light);
-		border: 1px solid var(--color-accent-light);
-		border-radius: var(--radius-sm);
-		padding: 0 var(--space-1);
+		color: var(--saber-blue);
+		border: 1px solid var(--saber-blue);
+		border-radius: var(--radius-pill);
+		padding: 0 var(--space-2);
 	}
 	.dismissed-badge {
 		font-size: 10px;
 		text-transform: uppercase;
 		color: var(--color-muted-2);
 		border: 1px solid var(--color-line-2);
-		border-radius: var(--radius-sm);
-		padding: 0 var(--space-1);
+		border-radius: var(--radius-pill);
+		padding: 0 var(--space-2);
 	}
 	.created-at {
+		font-family: var(--font-mono);
 		font-size: 11px;
 		color: var(--color-muted);
 	}
@@ -372,9 +392,15 @@
 		flex-shrink: 0;
 		background: none;
 		border: none;
-		color: var(--color-accent-light);
+		color: var(--color-text-2);
+		font-family: var(--font-ui);
 		font-size: 11px;
 		cursor: pointer;
+		transition: color 0.2s;
+	}
+	.dismiss:hover:not(:disabled),
+	.mute:hover:not(:disabled) {
+		color: var(--color-gold);
 	}
 	.mute {
 		color: var(--color-muted);
@@ -386,6 +412,7 @@
 	}
 	.detail {
 		background: var(--color-surface-3);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-3) var(--space-4);
 		font-size: 12px;
@@ -395,8 +422,8 @@
 		margin: 0 0 var(--space-2);
 	}
 	.recommended-fix {
-		background: var(--color-surface-2);
-		border-left: 3px solid var(--color-accent-light);
+		background: var(--color-surface);
+		border-left: 3px solid var(--saber-blue);
 		border-radius: var(--radius-sm);
 		padding: var(--space-2) var(--space-3);
 		margin: 0 0 var(--space-3);
@@ -405,7 +432,7 @@
 		display: block;
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
-		color: var(--color-accent-light);
+		color: var(--saber-blue);
 		margin-bottom: var(--space-1);
 	}
 	.recommended-fix p {
@@ -419,14 +446,17 @@
 	}
 	.evidence th {
 		text-align: left;
+		font-family: var(--font-mono);
+		font-size: 0.86em;
 		text-transform: uppercase;
-		font-size: var(--text-eyebrow);
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
 		color: var(--color-muted-2);
 		padding: var(--space-1) var(--space-2);
 	}
 	.evidence td {
 		padding: var(--space-1) var(--space-2);
-		border-top: 1px solid var(--color-line-2);
+		border-top: 1px solid var(--color-line);
 	}
 	.evidence .sample {
 		font-family: var(--font-mono);
@@ -439,9 +469,14 @@
 		background: none;
 		border: none;
 		color: var(--color-muted);
+		font-family: var(--font-ui);
 		font-size: 12px;
 		cursor: pointer;
 		padding: 0;
+		transition: color 0.2s;
+	}
+	.muted-toggle:hover {
+		color: var(--color-gold);
 	}
 	.muted-list {
 		list-style: none;
@@ -456,11 +491,13 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: var(--space-3);
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-2) var(--space-3);
 	}
 	.muted-meta {
+		font-family: var(--font-mono);
 		font-size: 11px;
 		color: var(--color-muted);
 	}

@@ -24,6 +24,7 @@ describe('Root layout load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { user: fakeUser, sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -41,6 +42,7 @@ describe('Root layout load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: {},
 			url: new URL('https://siem.townsville.cc/auth/login')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -59,6 +61,7 @@ describe('Root layout load', () => {
 		// never break page navigation or force a redirect the way a real
 		// page-level loader's auth gate does.
 		const result = (await load({
+			depends: () => {},
 			locals: { user: fakeUser, sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -76,10 +79,21 @@ describe('Root layout load', () => {
 		const { load: loadWithNoTz } = await import('./+layout.server');
 
 		const result = (await loadWithNoTz({
+			depends: () => {},
 			locals: {},
 			url: new URL('https://siem.townsville.cc/auth/login')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		expect(result.displayTimezone).toBe('UTC');
+	});
+
+	it('registers the alerts dependency key so alert actions refresh the nav badge', async () => {
+		const depends = vi.fn();
+		await load({
+			depends,
+			locals: {},
+			url: new URL('https://siem.townsville.cc/')
+		} as never);
+		expect(depends).toHaveBeenCalledWith('siem:alerts');
 	});
 });

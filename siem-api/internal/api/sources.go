@@ -56,9 +56,19 @@ func (s *Server) handleListSources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only the Loki-derived events/min is cached (sourcesCacheTTL). The
+	// SQLite rows above (name, display_name, claimed, heartbeat_sec,
+	// last_seen_at, status) are read fresh on every request, so claim /
+	// rename / heartbeat / delete edits show up immediately with no
+	// invalidation needed. The rates map is keyed by source name and never
+	// mutated after load, so it is safe to share; it is not per-user.
 	eventsPerMin := map[string]float64{}
 	if s.deps.Loki != nil {
-		rates, err := s.queryEventsPerMinBySource(r.Context())
+		rates, err := s.ratesCache.Do(r.Context(), "events-per-min", sourcesCacheTTL,
+			func(ctx context.Context) (map[string]float64, bool, error) {
+				m, err := s.queryEventsPerMinBySource(ctx)
+				return m, true, err
+			})
 		if err != nil {
 			s.deps.Logger.Error("list sources: events-per-min query failed", "error", err)
 		} else {

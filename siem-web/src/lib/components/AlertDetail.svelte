@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { applyOverride, setAlertState } from '#lib/optimisticAlerts.svelte.ts';
 	import type {
 		AbsenceContextSource,
 		AlertResponse,
@@ -12,7 +12,7 @@
 	import { formatMinuteLabel, formatSecondsAsMinutes } from '#lib/minutePresets.ts';
 
 	let {
-		alert,
+		alert: serverAlert,
 		samples,
 		stats,
 		rule,
@@ -42,6 +42,10 @@
 		// for v1), so there's no permission-driven failure to hide there.
 		canEdit?: boolean;
 	} = $props();
+
+	// Server data overlaid with any in-flight optimistic ack/mute, so the state
+	// tag and buttons update the instant the user clicks.
+	let alert = $derived(applyOverride(serverAlert));
 
 	// alert.group_key IS the raw source name for source-quiet/first-seen
 	// alerts (see rules.AbsenceEvaluator/FirstSeenEvaluator - GroupKey:
@@ -151,12 +155,9 @@
 		acking = true;
 		error = null;
 		try {
-			const response = await fetch(`/api/alerts/${alert.id}/ack`, { method: 'POST' });
-			if (!response.ok) {
+			if (!(await setAlertState(alert.id, 'ack'))) {
 				error = 'Failed to acknowledge alert.';
-				return;
 			}
-			await invalidateAll();
 		} finally {
 			acking = false;
 		}
@@ -166,12 +167,9 @@
 		muting = true;
 		error = null;
 		try {
-			const response = await fetch(`/api/alerts/${alert.id}/mute`, { method: 'POST' });
-			if (!response.ok) {
+			if (!(await setAlertState(alert.id, 'mute'))) {
 				error = 'Failed to mute rule.';
-				return;
 			}
-			await invalidateAll();
 		} finally {
 			muting = false;
 		}
@@ -298,9 +296,9 @@
 		{#if rule}
 			<div class="rule-name">{rule.name}</div>
 			<div class="rule-meta">
-				<span class="enabled" class:off={!rule.enabled}
-					>{rule.enabled ? 'enabled' : 'disabled'}</span
-				>
+				<span class="enabled" class:off={!rule.enabled}>
+					{rule.enabled ? 'enabled' : 'disabled'}
+				</span>
 				<span class="destinations">{rule.destinations.join(', ')}</span>
 			</div>
 			<div class="logql-block">{rule.logql}</div>
@@ -334,25 +332,36 @@
 	.eyebrow {
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		background: var(--row-selected-bg);
 		color: var(--color-severity-info-text);
+		border-radius: var(--radius-pill);
+		padding: 1px var(--space-3);
 	}
 	.eyebrow.severity-warning {
-		color: var(--color-severity-warning);
+		background: var(--color-status-warn-bg);
+		color: var(--color-gold);
 	}
 	.eyebrow.severity-critical {
-		color: var(--color-severity-critical);
+		background: var(--color-status-danger-soft);
+		color: var(--saber-red);
 	}
 	.tag {
 		font-size: var(--text-eyebrow);
 		text-transform: uppercase;
-		background: var(--color-accent-tint);
-		color: var(--color-accent-lighter);
-		border-radius: var(--radius-sm);
-		padding: 0 var(--space-2);
+		background: var(--row-selected-bg);
+		color: var(--color-severity-info-text);
+		border-radius: var(--radius-pill);
+		padding: 1px var(--space-3);
 	}
 	h1 {
-		font-size: 26px;
-		font-weight: 500;
+		font-family: var(--font-display);
+		font-size: 20px;
+		font-weight: 400;
+		letter-spacing: 0.06em;
+		color: var(--color-text);
+		text-wrap: balance;
+		overflow-wrap: anywhere;
 		margin: var(--space-2) 0 0;
 	}
 	.body {
@@ -372,21 +381,45 @@
 		align-items: flex-start;
 	}
 	.primary {
-		background: transparent;
-		border: 1px solid var(--color-accent);
-		color: var(--color-text);
-		border-radius: var(--radius-sm);
+		background: var(--saber-blue);
+		border: 1px solid var(--saber-blue);
+		color: var(--color-on-saber);
+		font-family: var(--font-ui);
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		cursor: pointer;
+		transition:
+			background-color 0.2s,
+			border-color 0.2s,
+			color 0.2s;
+		border-radius: var(--radius-default);
 		padding: var(--space-2) var(--space-4);
 		font-size: var(--text-table);
+	}
+	.primary:hover:not(:disabled) {
+		background: var(--color-btn-primary-hover);
+		border-color: var(--color-btn-primary-hover);
+		box-shadow: var(--glow-primary-hover);
 	}
 	.ghost {
-		background: none;
+		background: transparent;
 		border: 1px solid var(--color-line-2);
-		color: var(--color-accent-light);
-		border-radius: var(--radius-sm);
+		color: var(--color-text-2);
+		border-radius: var(--radius-default);
+		font-family: var(--font-ui);
+		cursor: pointer;
+		transition:
+			color 0.2s,
+			border-color 0.2s,
+			background-color 0.2s;
 		padding: var(--space-2) var(--space-4);
 		font-size: var(--text-table);
 	}
+	.ghost:hover:not(:disabled) {
+		border-color: var(--saber-blue);
+		color: var(--color-text);
+	}
+
 	.ghost:disabled,
 	.primary:disabled {
 		opacity: 0.5;
@@ -395,7 +428,7 @@
 	.error {
 		align-self: center;
 		font-size: var(--text-table);
-		color: var(--color-severity-critical);
+		color: var(--saber-red);
 	}
 	.stats {
 		display: grid;
@@ -403,7 +436,8 @@
 		gap: var(--space-4);
 	}
 	.stat {
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
 		display: flex;
@@ -417,14 +451,16 @@
 	}
 	.value {
 		font-size: 20px;
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 	}
 	.value.reputation-match {
-		color: var(--color-severity-critical);
+		color: var(--saber-red);
 	}
 	.absence-table {
 		margin-top: var(--space-2);
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		overflow: hidden;
 	}
@@ -434,22 +470,24 @@
 		gap: var(--space-3);
 		padding: var(--space-2) var(--space-3);
 		font-size: var(--text-table);
-		border-bottom: 1px solid var(--color-line-2);
+		border-bottom: 1px solid var(--color-line);
 	}
 	.absence-row:last-child {
 		border-bottom: none;
 	}
 	.absence-row.absence-head {
+		font-family: var(--font-mono);
 		color: var(--color-muted-2);
-		font-size: var(--text-eyebrow);
+		font-size: 0.86em;
 		text-transform: uppercase;
+		letter-spacing: 0.1em;
 	}
 	.absence-row.empty-row {
 		display: block;
 		color: var(--color-muted-2);
 	}
 	.status.recovered {
-		color: var(--color-severity-healthy);
+		color: var(--saber-green);
 	}
 	.chips {
 		display: flex;
@@ -460,13 +498,14 @@
 	.chip {
 		font-family: var(--font-mono);
 		font-size: var(--text-label);
-		background: var(--color-accent-tint);
-		color: var(--color-accent-lighter);
-		border-radius: var(--radius-sm);
-		padding: var(--space-1) var(--space-2);
+		background: var(--row-selected-bg);
+		color: var(--color-severity-info-text);
+		border-radius: var(--radius-pill);
+		padding: var(--space-1) var(--space-3);
 	}
 	.log-block {
 		background: var(--color-surface-2);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-3);
 		margin-top: var(--space-2);
@@ -483,13 +522,15 @@
 		color: var(--color-muted-2);
 	}
 	.rule-panel {
-		background: var(--color-surface-2);
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-default);
 		padding: var(--space-4);
 	}
 	.rule-name {
 		font-size: 13.5px;
-		font-weight: 500;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		margin-top: var(--space-2);
 	}
 	.rule-meta {
@@ -502,16 +543,23 @@
 	.enabled {
 		text-transform: uppercase;
 		font-size: var(--text-eyebrow);
-		color: var(--color-severity-healthy);
+		letter-spacing: 0.06em;
+		background: var(--color-status-success-bg);
+		color: var(--saber-green);
+		border-radius: var(--radius-pill);
+		padding: 1px var(--space-3);
 	}
 	.enabled.off {
+		background: transparent;
+		box-shadow: inset 0 0 0 1px var(--color-line-2);
 		color: var(--color-muted-2);
 	}
 	.logql-block {
 		font-family: var(--font-mono);
 		font-size: var(--text-label);
 		color: var(--color-muted);
-		background: var(--color-surface-3);
+		background: var(--color-surface-2);
+		border: 1px solid var(--color-line);
 		border-radius: var(--radius-sm);
 		padding: var(--space-2) var(--space-3);
 		margin-top: var(--space-2);
