@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
+	import { DEP_INSIGHTS } from '#lib/invalidation.ts';
 	import { severityColor } from '#lib/tail.ts';
 	import { uniquePrograms } from '#lib/insights.ts';
 	import type { PageData } from './$types';
@@ -30,7 +31,7 @@
 			if (body.generated === 0) {
 				generateNotice = 'Pass complete: no new insights this time.';
 			}
-			await invalidateAll();
+			await invalidate(DEP_INSIGHTS);
 		} finally {
 			generating = false;
 		}
@@ -41,7 +42,7 @@
 		try {
 			const response = await fetch(`/api/insights/${id}`, { method: 'PUT' });
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_INSIGHTS);
 			}
 		} finally {
 			dismissingId = null;
@@ -59,7 +60,7 @@
 		try {
 			const response = await fetch(`/api/insights/${id}/mute`, { method: 'PUT' });
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_INSIGHTS);
 			}
 		} finally {
 			mutingId = null;
@@ -73,7 +74,7 @@
 				method: 'DELETE'
 			});
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_INSIGHTS);
 			}
 		} finally {
 			unmutingFingerprint = null;

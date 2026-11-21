@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
+	import { DEP_ALERTS, DEP_RULES } from '#lib/invalidation.ts';
 	import { resolve } from '$app/paths';
 	import { debounce } from '#lib/debounce.ts';
 	import AlertInbox from '#lib/components/AlertInbox.svelte';
@@ -23,11 +24,11 @@
 	let hasSelection = $derived(Boolean(data.selectedAlert || data.selectedRule));
 
 	// Each SSE message (a raise, an ack/mute from another session) used to
-	// trigger its own full invalidateAll - a burst of 20 alerts meant 20
-	// back-to-back reloads of this page's and the layout's data. Coalesce a
-	// burst into one reload shortly after it settles.
+	// trigger its own full reload - a burst of 20 alerts meant 20
+	// back-to-back reloads. Coalesce a burst into one reload shortly after it
+	// settles, and only re-run loads that depend on the alerts key.
 	$effect(() => {
-		const reload = debounce(() => invalidateAll(), 500);
+		const reload = debounce(() => invalidate(DEP_ALERTS), 500);
 		const source = new EventSource(resolve('api/alerts-proxy'));
 		source.onmessage = reload.call;
 		return () => {
@@ -79,7 +80,7 @@
 			<RuleDetail
 				rule={data.selectedRule}
 				canEdit={canManageRules}
-				onToggled={() => invalidateAll()}
+				onToggled={() => invalidate(DEP_RULES)}
 				onEdit={() => (editingRule = data.selectedRule ?? null)}
 				onDeleted={() => goto(resolve(`alerts?state=rules`))}
 			/>
@@ -111,7 +112,7 @@
 		onClose={() => (editingRule = null)}
 		onSaved={() => {
 			editingRule = null;
-			invalidateAll();
+			invalidate(DEP_RULES);
 		}}
 	/>
 {/if}

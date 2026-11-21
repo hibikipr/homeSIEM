@@ -52,6 +52,7 @@ function mockClient(overrides: Record<string, unknown> = {}) {
 
 async function run(search = '', token = 'token-123') {
 	return (await load({
+		depends: () => {},
 		locals: { sessionToken: token },
 		url: new URL(`https://siem.townsville.cc/sources${search}`)
 	} as never)) as LoadResult;

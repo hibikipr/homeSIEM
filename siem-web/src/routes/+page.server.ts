@@ -2,6 +2,7 @@ import { API_URL, GRAFANA_HOST_HEALTH_URL } from '$app/env/private';
 import type { PageServerLoad } from './$types';
 import { SiemApiClient, type Insight } from '#lib/server/siemApiClient.ts';
 import { fetchOpenAlertsOrBail } from '#lib/server/sessionProbe.ts';
+import { DEP_ALERTS, DEP_INSIGHTS, DEP_SOURCES, DEP_STATS } from '#lib/invalidation.ts';
 import { topTriageAlerts, buildSourceLabels, type CountryCount } from '#lib/wall.ts';
 
 interface WallStats {
@@ -10,7 +11,8 @@ interface WallStats {
 	hourlyTotals: { hour_start: string; count: number }[];
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, depends }) => {
+	depends(DEP_ALERTS, DEP_INSIGHTS, DEP_SOURCES, DEP_STATS);
 	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 

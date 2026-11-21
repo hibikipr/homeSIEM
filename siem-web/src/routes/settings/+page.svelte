@@ -40,7 +40,7 @@
 	}
 
 	// The notification and Ollama fields below are seeded from `data` once,
-	// on purpose: saving a role mapping reloads `data` (invalidateAll), and
+	// on purpose: saving a role mapping reloads `data` (invalidate(DEP_SETTINGS)), and
 	// re-deriving these from it would wipe any unsaved edits here.
 	const seed = untrack(() => data);
 	let minSeverity = $state<'info' | 'warning' | 'critical'>(

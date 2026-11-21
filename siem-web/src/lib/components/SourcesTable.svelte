@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
+	import { DEP_SOURCES } from '#lib/invalidation.ts';
 	import { resolve } from '$app/paths';
 	import type { SourceResponse } from '#lib/server/siemApiClient.ts';
 	import { formatEventsPerMin, formatLastSeen } from '#lib/sources.ts';
@@ -39,7 +40,7 @@
 			});
 			if (response.ok) {
 				renamingId = null;
-				await invalidateAll();
+				await invalidate(DEP_SOURCES);
 			}
 		} finally {
 			saving = false;
@@ -65,7 +66,7 @@
 			});
 			if (response.ok) {
 				editingHeartbeatId = null;
-				await invalidateAll();
+				await invalidate(DEP_SOURCES);
 			}
 		} finally {
 			savingHeartbeat = false;
@@ -89,7 +90,7 @@
 		try {
 			const response = await fetch(`/api/sources/${source.id}`, { method: 'DELETE' });
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_SOURCES);
 			}
 		} finally {
 			deletingId = null;

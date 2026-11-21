@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { alertOverrides, setAlertState } from '#lib/optimisticAlerts.svelte.ts';
 	import { resolve } from '$app/paths';
 	import type { AlertResponse } from '#lib/server/siemApiClient.ts';
 
@@ -7,6 +7,9 @@
 
 	let muting = $state(false);
 	let error = $state<string | null>(null);
+	// Optimistic: once muted the alert leaves the triage lane immediately; a
+	// failed request clears the override and the card comes back with its error.
+	let hidden = $derived(alertOverrides.has(alert.id));
 
 	function ageLabel(iso: string): string {
 		const ms = Date.now() - new Date(iso).getTime();
@@ -19,34 +22,33 @@
 		muting = true;
 		error = null;
 		try {
-			const response = await fetch(`/api/alerts/${alert.id}/mute`, { method: 'POST' });
-			if (!response.ok) {
+			if (!(await setAlertState(alert.id, 'mute'))) {
 				error = 'Failed to mute alert.';
-				return;
 			}
-			await invalidateAll();
 		} finally {
 			muting = false;
 		}
 	}
 </script>
 
-<div class="card severity-{alert.severity}">
-	<div class="header">
-		<span class="eyebrow">{alert.severity}</span>
-		<span class="age">{ageLabel(alert.first_seen_at)}</span>
-	</div>
-	<div class="title">{alert.title}</div>
-	<div class="body">{alert.body}</div>
-	<div class="actions">
-		<a class="primary" href={resolve(`alerts?id=${alert.id}`)}>Investigate</a>
+{#if !hidden}
+	<div class="card severity-{alert.severity}">
+		<div class="header">
+			<span class="eyebrow">{alert.severity}</span>
+			<span class="age">{ageLabel(alert.first_seen_at)}</span>
+		</div>
+		<div class="title">{alert.title}</div>
+		<div class="body">{alert.body}</div>
+		<div class="actions">
+			<a class="primary" href={resolve(`alerts?id=${alert.id}`)}>Investigate</a>
 
-		<button class="ghost" onclick={mute} disabled={muting}>Mute 1h</button>
+			<button class="ghost" onclick={mute} disabled={muting}>Mute 1h</button>
+		</div>
+		{#if error}
+			<span class="error">{error}</span>
+		{/if}
 	</div>
-	{#if error}
-		<span class="error">{error}</span>
-	{/if}
-</div>
+{/if}
 
 <style>
 	.card {

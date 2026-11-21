@@ -16,6 +16,7 @@ function run(
 	results: { entries: typeof entries } | null | Promise<never> = { entries }
 ) {
 	return load({
+		depends: () => {},
 		data: {
 			results: results instanceof Promise ? results : Promise.resolve(results),
 			logql: '{job="siem"}'

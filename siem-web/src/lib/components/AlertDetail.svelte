@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { applyOverride, setAlertState } from '#lib/optimisticAlerts.svelte.ts';
 	import type {
 		AbsenceContextSource,
 		AlertResponse,
@@ -12,7 +12,7 @@
 	import { formatMinuteLabel, formatSecondsAsMinutes } from '#lib/minutePresets.ts';
 
 	let {
-		alert,
+		alert: serverAlert,
 		samples,
 		stats,
 		rule,
@@ -42,6 +42,10 @@
 		// for v1), so there's no permission-driven failure to hide there.
 		canEdit?: boolean;
 	} = $props();
+
+	// Server data overlaid with any in-flight optimistic ack/mute, so the state
+	// tag and buttons update the instant the user clicks.
+	let alert = $derived(applyOverride(serverAlert));
 
 	// alert.group_key IS the raw source name for source-quiet/first-seen
 	// alerts (see rules.AbsenceEvaluator/FirstSeenEvaluator - GroupKey:
@@ -151,12 +155,9 @@
 		acking = true;
 		error = null;
 		try {
-			const response = await fetch(`/api/alerts/${alert.id}/ack`, { method: 'POST' });
-			if (!response.ok) {
+			if (!(await setAlertState(alert.id, 'ack'))) {
 				error = 'Failed to acknowledge alert.';
-				return;
 			}
-			await invalidateAll();
 		} finally {
 			acking = false;
 		}
@@ -166,12 +167,9 @@
 		muting = true;
 		error = null;
 		try {
-			const response = await fetch(`/api/alerts/${alert.id}/mute`, { method: 'POST' });
-			if (!response.ok) {
+			if (!(await setAlertState(alert.id, 'mute'))) {
 				error = 'Failed to mute rule.';
-				return;
 			}
-			await invalidateAll();
 		} finally {
 			muting = false;
 		}

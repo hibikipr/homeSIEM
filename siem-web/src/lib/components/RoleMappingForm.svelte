@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
+	import { DEP_SETTINGS } from '#lib/invalidation.ts';
 	import type { RoleMappingResponse } from '#lib/server/siemApiClient.ts';
 
 	let {
@@ -49,7 +50,7 @@
 				error = 'Failed to save role mapping.';
 				return;
 			}
-			await invalidateAll();
+			await invalidate(DEP_SETTINGS);
 			onClose();
 		} catch {
 			error = 'Failed to save role mapping.';

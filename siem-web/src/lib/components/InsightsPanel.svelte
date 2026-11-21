@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
+	import { DEP_INSIGHTS } from '#lib/invalidation.ts';
 	import { resolve } from '$app/paths';
 	import { severityColor } from '#lib/tail.ts';
 	import { uniquePrograms } from '#lib/insights.ts';
@@ -17,7 +18,7 @@
 		try {
 			const response = await fetch(`/api/insights/${id}`, { method: 'PUT' });
 			if (response.ok) {
-				await invalidateAll();
+				await invalidate(DEP_INSIGHTS);
 			}
 		} finally {
 			dismissing = null;

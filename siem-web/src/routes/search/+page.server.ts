@@ -7,6 +7,7 @@ import {
 	type ApiFacetCount
 } from '#lib/server/siemApiClient.ts';
 import { fetchOpenAlertsOrBail } from '#lib/server/sessionProbe.ts';
+import { DEP_SOURCES } from '#lib/invalidation.ts';
 import { parseFiltersFromURL, filtersToSearchParams, rangeToSeconds } from '#lib/search.ts';
 
 const SEARCH_WINDOW_ALIGN_MS = 30_000;
@@ -26,7 +27,9 @@ export interface SearchResults {
 // Loki. That rerun also re-anchored the time window to a new "now", so on
 // a busy system `preview=N` could land on a different event than the one
 // clicked; with no rerun, the entries - and the index - stay put.
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, depends }) => {
+	// Only the claimed-sources facet list can change from an action.
+	depends(DEP_SOURCES);
 	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 

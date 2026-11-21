@@ -3,6 +3,7 @@ import type { PageServerLoad } from './$types';
 import { SiemApiClient, type LogEntry, type SourceResponse } from '#lib/server/siemApiClient.ts';
 import { fetchOpenAlertsOrBail } from '#lib/server/sessionProbe.ts';
 import { splitClaimedUnclaimed } from '#lib/sources.ts';
+import { DEP_SOURCES } from '#lib/invalidation.ts';
 
 const PREVIEW_SAMPLE_LIMIT = 10;
 
@@ -13,7 +14,8 @@ export interface SourcesRegistry {
 	previewName: string | null;
 }
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, depends }) => {
+	depends(DEP_SOURCES);
 	const client = new SiemApiClient({ baseUrl: API_URL as string });
 	const token = locals.sessionToken as string;
 

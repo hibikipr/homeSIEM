@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { AlertResponse, RuleResponse } from '#lib/server/siemApiClient.ts';
+	import { applyOverride, alertOverrides } from '#lib/optimisticAlerts.svelte.ts';
 	import AlertRow from './AlertRow.svelte';
 	import RuleRow from './RuleRow.svelte';
 
@@ -20,6 +21,11 @@
 		canCreateRule: boolean;
 	} = $props();
 
+	// Rows follow in-flight optimistic ack/mute: an alert whose state no longer
+	// matches this tab drops out right away.
+	const shownAlerts = $derived(
+		alertOverrides.size === 0 ? alerts : alerts.map(applyOverride).filter((a) => a.state === tab)
+	);
 	const ruleNames = $derived(new Map(rules.map((r) => [r.id, r.name])));
 	const tabs: { label: string; value: 'open' | 'acked' | 'muted' | 'rules' }[] = [
 		{ label: 'Open', value: 'open' },
@@ -49,7 +55,7 @@
 				<div class="empty-list">No rules configured yet.</div>
 			{/each}
 		{:else}
-			{#each alerts as alert (alert.id)}
+			{#each shownAlerts as alert (alert.id)}
 				<AlertRow
 					{alert}
 					ruleName={ruleNames.get(alert.rule_id) ?? `rule #${alert.rule_id}`}

@@ -40,6 +40,7 @@ describe('Alerts load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/alerts')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -77,6 +78,7 @@ describe('Alerts load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/alerts?state=rules')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -111,6 +113,7 @@ describe('Alerts load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/alerts?state=rules&id=5')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -136,6 +139,7 @@ describe('Alerts load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/alerts?id=7')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -158,6 +162,7 @@ describe('Alerts load', () => {
 
 		await expect(
 			load({
+				depends: () => {},
 				locals: { sessionToken: 'stale-token' },
 				url: new URL('https://siem.townsville.cc/alerts')
 			} as never)
@@ -176,6 +181,7 @@ describe('Alerts load', () => {
 
 		await expect(
 			load({
+				depends: () => {},
 				locals: { sessionToken: 'token-123' },
 				url: new URL('https://siem.townsville.cc/alerts')
 			} as never)
@@ -196,6 +202,7 @@ describe('Alerts load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/alerts')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -226,6 +233,7 @@ describe('Alerts load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/alerts')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -244,6 +252,7 @@ describe('Alerts load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/alerts')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;

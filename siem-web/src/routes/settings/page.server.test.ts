@@ -40,6 +40,7 @@ describe('Settings load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' }
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
@@ -79,6 +80,7 @@ describe('Settings load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' }
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
@@ -92,7 +94,9 @@ describe('Settings load', () => {
 			};
 		});
 
-		await expect(load({ locals: { sessionToken: 'stale-token' } } as never)).rejects.toMatchObject({
+		await expect(
+			load({ depends: () => {}, locals: { sessionToken: 'stale-token' } } as never)
+		).rejects.toMatchObject({
 			status: 302,
 			location: '/auth/logout'
 		});
@@ -105,11 +109,11 @@ describe('Settings load', () => {
 			};
 		});
 
-		await expect(load({ locals: { sessionToken: 'viewer-token' } } as never)).rejects.toMatchObject(
-			{
-				status: 403
-			}
-		);
+		await expect(
+			load({ depends: () => {}, locals: { sessionToken: 'viewer-token' } } as never)
+		).rejects.toMatchObject({
+			status: 403
+		});
 	});
 
 	it('surfaces a 502 when siem-api fails for a reason other than auth', async () => {
@@ -119,7 +123,9 @@ describe('Settings load', () => {
 			};
 		});
 
-		await expect(load({ locals: { sessionToken: 'token-123' } } as never)).rejects.toMatchObject({
+		await expect(
+			load({ depends: () => {}, locals: { sessionToken: 'token-123' } } as never)
+		).rejects.toMatchObject({
 			status: 502
 		});
 	});

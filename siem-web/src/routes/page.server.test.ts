@@ -58,10 +58,10 @@ describe('Wall load', () => {
 			};
 		});
 
-		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as Exclude<
-			Awaited<ReturnType<typeof load>>,
-			void
-		>;
+		const result = (await load({
+			depends: () => {},
+			locals: { sessionToken: 'token-123' }
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		// stats is streamed (the slow Loki-backed call), so it is awaited here.
 		const stats = await result.stats;
@@ -105,10 +105,10 @@ describe('Wall load', () => {
 			};
 		});
 
-		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as Exclude<
-			Awaited<ReturnType<typeof load>>,
-			void
-		>;
+		const result = (await load({
+			depends: () => {},
+			locals: { sessionToken: 'token-123' }
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		// Only the claimed source contributes a label; an unclaimed one
 		// (not yet vetted by an admin) is deliberately left out, same as
@@ -127,10 +127,10 @@ describe('Wall load', () => {
 			};
 		});
 
-		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as Exclude<
-			Awaited<ReturnType<typeof load>>,
-			void
-		>;
+		const result = (await load({
+			depends: () => {},
+			locals: { sessionToken: 'token-123' }
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		await expect(result.insights).resolves.toEqual([]);
 	});
@@ -146,10 +146,10 @@ describe('Wall load', () => {
 			};
 		});
 
-		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as Exclude<
-			Awaited<ReturnType<typeof load>>,
-			void
-		>;
+		const result = (await load({
+			depends: () => {},
+			locals: { sessionToken: 'token-123' }
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		await expect(result.countryBreakdown).resolves.toEqual([]);
 	});
@@ -165,7 +165,9 @@ describe('Wall load', () => {
 			};
 		});
 
-		await expect(load({ locals: { sessionToken: 'stale-token' } } as never)).rejects.toMatchObject({
+		await expect(
+			load({ depends: () => {}, locals: { sessionToken: 'stale-token' } } as never)
+		).rejects.toMatchObject({
 			status: 302,
 			location: '/auth/logout'
 		});
@@ -183,7 +185,7 @@ describe('Wall load', () => {
 		});
 
 		await expect(
-			load({ locals: { sessionToken: 'demoted-token' } } as never)
+			load({ depends: () => {}, locals: { sessionToken: 'demoted-token' } } as never)
 		).rejects.toMatchObject({ status: 302, location: '/auth/logout' });
 	});
 
@@ -201,7 +203,9 @@ describe('Wall load', () => {
 			};
 		});
 
-		await expect(load({ locals: { sessionToken: 'token-123' } } as never)).rejects.toMatchObject({
+		await expect(
+			load({ depends: () => {}, locals: { sessionToken: 'token-123' } } as never)
+		).rejects.toMatchObject({
 			status: 502
 		});
 	});
@@ -217,10 +221,10 @@ describe('Wall load', () => {
 			};
 		});
 
-		const result = (await load({ locals: { sessionToken: 'token-123' } } as never)) as Exclude<
-			Awaited<ReturnType<typeof load>>,
-			void
-		>;
+		const result = (await load({
+			depends: () => {},
+			locals: { sessionToken: 'token-123' }
+		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
 
 		expect(result.openAlertCount).toBe(0);
 		await expect(result.stats).resolves.toBeNull();
@@ -237,7 +241,9 @@ describe('Wall load', () => {
 			};
 		});
 
-		await expect(load({ locals: { sessionToken: 'stale-token' } } as never)).rejects.toMatchObject({
+		await expect(
+			load({ depends: () => {}, locals: { sessionToken: 'stale-token' } } as never)
+		).rejects.toMatchObject({
 			status: 302,
 			location: '/auth/logout'
 		});

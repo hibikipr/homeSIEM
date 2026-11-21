@@ -43,6 +43,7 @@ describe('Search load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/search')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -74,6 +75,7 @@ describe('Search load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/search')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -93,6 +95,7 @@ describe('Search load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/search')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -109,6 +112,7 @@ describe('Search load', () => {
 		const getSpy = vi.spyOn(url.searchParams, 'get');
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -130,6 +134,7 @@ describe('Search load', () => {
 
 		await expect(
 			load({
+				depends: () => {},
 				locals: { sessionToken: 'stale-token' },
 				url: new URL('https://siem.townsville.cc/search')
 			} as never)
@@ -147,6 +152,7 @@ describe('Search load', () => {
 
 		await expect(
 			load({
+				depends: () => {},
 				locals: { sessionToken: 'token-123' },
 				url: new URL('https://siem.townsville.cc/search')
 			} as never)
@@ -163,6 +169,7 @@ describe('Search load', () => {
 		});
 
 		const result = (await load({
+			depends: () => {},
 			locals: { sessionToken: 'token-123' },
 			url: new URL('https://siem.townsville.cc/search')
 		} as never)) as Exclude<Awaited<ReturnType<typeof load>>, void>;
@@ -178,6 +185,7 @@ describe('Search load', () => {
 		});
 		const run = () =>
 			load({
+				depends: () => {},
 				locals: { sessionToken: 'token-123' },
 				url: new URL('https://siem.townsville.cc/search')
 			} as never);

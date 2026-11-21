@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
+	import { DEP_SOURCES } from '#lib/invalidation.ts';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { SourceResponse } from '#lib/server/siemApiClient.ts';
 
@@ -23,7 +24,7 @@
 				error = 'Failed to claim source.';
 				return;
 			}
-			await invalidateAll();
+			await invalidate(DEP_SOURCES);
 		} finally {
 			pending.delete(id);
 		}
